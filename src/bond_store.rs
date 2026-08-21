@@ -89,6 +89,15 @@ impl BondStore {
         self.request_save(profile);
     }
 
+    pub fn has_split_peer(&self) -> bool {
+        self.split_peer().is_some()
+    }
+
+    pub fn clear_split_peer(&self) {
+        self.set_split_peer(None);
+        self.request_save(SPLIT_PAGE);
+    }
+
     pub fn key_action(&self, layer: u8, raw: usize) -> Action {
         self.keymap
             .lock(|keymap| keymap.borrow().action(layer as usize, raw))
@@ -431,5 +440,20 @@ fn peer_from_record(record: BondRecord) -> Peer {
         }),
         sys_attr_len: record.sys_attr_len,
         sys_attrs: record.sys_attrs,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clearing_split_peer_marks_its_flash_page_for_erasure() {
+        let store = BondStore::new();
+
+        store.clear_split_peer();
+
+        assert!(!store.has_split_peer());
+        assert_eq!(store.dirty_pages.load(Ordering::Acquire), 1 << SPLIT_PAGE);
     }
 }

@@ -60,6 +60,7 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("LinkUsbClass::new", central)
         self.assertIn("BONDS.key_action(layer, raw)", central)
         self.assertIn('EMBASSY_USB_MAX_INTERFACE_COUNT = "5"', cargo_config)
+        self.assertIn('EMBASSY_USB_MAX_HANDLER_COUNT = "5"', cargo_config)
         self.assertIn("LINK_KEYMAP_PAGE", storage)
         self.assertIn("const SET_HOTKEY: u8 = 52", protocol)
         self.assertIn("const GET_TEXT: u8 = 49", protocol)
@@ -93,6 +94,21 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn("peripherals.P0_11", firmware)
             self.assertIn("peripherals.P1_09", firmware)
             self.assertNotIn("Output::new", firmware)
+
+    def test_scanner_retries_transient_expander_startup_failures(self) -> None:
+        scanner = read("src/hardware_scanner.rs")
+        self.assertIn("while expanders.configure_and_verify().await.is_err()", scanner)
+        self.assertNotIn("core::future::pending", scanner)
+
+    def test_both_halves_recover_i2c_before_starting_twim(self) -> None:
+        scanner = read("src/hardware_scanner.rs")
+        self.assertIn("for _ in 0..9", scanner)
+        self.assertIn("sda.set_high()", scanner)
+        for path in ("src/bin/central.rs", "src/bin/right.rs"):
+            firmware = read(path)
+            recovery = firmware.index("hardware_scanner::recover_i2c_bus(")
+            twim = firmware.index("let twim = Twim::new(")
+            self.assertLess(recovery, twim)
 
 
 if __name__ == "__main__":

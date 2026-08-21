@@ -108,12 +108,15 @@ async fn main(_spawner: embassy_executor::Spawner) {
     static VBUS: StaticCell<SoftwareVbusDetect> = StaticCell::new();
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
 
+    let mut sda = peripherals.P0_11;
+    let mut scl = peripherals.P1_09;
+    hardware_scanner::recover_i2c_bus(sda.reborrow(), scl.reborrow()).await;
     let mut twim_buffer = [0_u8; 3];
     let twim = Twim::new(
         peripherals.TWISPI0,
         Irqs,
-        peripherals.P0_11,
-        peripherals.P1_09,
+        sda,
+        scl,
         twim::Config::default(),
         &mut twim_buffer,
     );

@@ -1,3 +1,8 @@
+param(
+    [ValidateRange(0, 33)]
+    [int]$StartIndex = 0
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -19,7 +24,6 @@ $steps = @(
     @{ Label = 'F10'; Codes = @($keys::F10) }
     @{ Label = 'F11'; Codes = @($keys::F11) }
     @{ Label = 'F12'; Codes = @($keys::F12) }
-    @{ Label = 'Print Screen'; Codes = @($keys::PrintScreen, $keys::Snapshot) }
     @{ Label = 'Home'; Codes = @($keys::Home) }
     @{ Label = 'Backspace'; Codes = @($keys::Back) }
     @{ Label = 'Page Up'; Codes = @($keys::PageUp, $keys::Prior) }
@@ -36,13 +40,14 @@ $steps = @(
     @{ Label = '왼쪽 Space'; Codes = @($keys::Space) }
     @{ Label = '오른쪽 Space'; Codes = @($keys::Space) }
     @{ Label = '오른쪽 Windows'; Codes = @($keys::RWin) }
-    @{ Label = '오른쪽 Alt'; Codes = @($keys::Menu, $keys::RMenu) }
+    # Korean Windows maps HID Right Alt to VK_HANGUL, which WinForms names KanaMode.
+    @{ Label = '오른쪽 Alt'; Codes = @($keys::Menu, $keys::RMenu, $keys::KanaMode) }
     @{ Label = '왼쪽 화살표'; Codes = @($keys::Left) }
     @{ Label = '아래쪽 화살표'; Codes = @($keys::Down) }
     @{ Label = '오른쪽 화살표'; Codes = @($keys::Right) }
 )
 
-$script:index = 0
+$script:index = $StartIndex
 $script:held = [System.Collections.Generic.HashSet[System.Windows.Forms.Keys]]::new()
 
 $form = [System.Windows.Forms.Form]::new()
