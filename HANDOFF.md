@@ -130,12 +130,12 @@ hotkey는 구현·실기 검증됐습니다.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 65,900 | `2159C4435C7FCFCAD35E4A8526D8A2E4789F38D190DE75EACB4F151A94361F6D` |
-| `firmware/NocFree_Rust_Left.uf2` | 132,096 | `8EBEEF9396139E54C69ED5335E39876D8075F434E30FF047B2A95A6FA46F8421` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 66,776 | `F412EC2A668CAAFB425CF8D753897339F2F86A8389944AA770A806733DF0CEB0` |
-| `firmware/NocFree_Rust_Right.bin` | 39,076 | `760F55A6CBBC8DCD019C2C2B8F83C0B5083515DA3461A0A250344CC9DC188054` |
-| `firmware/NocFree_Rust_Right.uf2` | 78,336 | `A6BFA71F382E5F853D7176D60C694346CD348B31FD6B5E13F8F5CEAEFB89E47A` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `F7D5CD9007B8E563E92F88C1B57960B5E621C254987350BA8DE56026149F9BDB` |
+| `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
+| `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -162,7 +162,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 마지막 결과:
 
 - Rust host tests: 52/52
-- Python contract/artifact tests: 16/16
+- Python contract/artifact tests: 17/17
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
 - central/right release: 통과

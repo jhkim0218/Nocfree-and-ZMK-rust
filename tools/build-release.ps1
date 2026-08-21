@@ -72,7 +72,7 @@ try {
         $halfName = $artifact.Half
         $elf = Join-Path $targetDir $binaryName
         $bin = Join-Path $firmwareDir ('NocFree_Rust_{0}.bin' -f $halfName)
-        $uf2 = Join-Path $firmwareDir ('NocFree_Rust_{0}.uf2' -f $halfName)
+        $uf2 = Join-Path $firmwareDir ('NocFree_And_Rust_ZMK_Based_ANSI_{0}.uf2' -f $halfName)
         $dfu = Join-Path $firmwareDir ('NocFree_Rust_{0}_DFU.zip' -f $halfName)
         if (-not (Test-Path -LiteralPath $elf)) {
             throw ('Missing release ELF {0}' -f $elf)
@@ -104,7 +104,10 @@ try {
     }
 
     Get-ChildItem -LiteralPath $firmwareDir -File |
-        Where-Object { $_.Name -like 'NocFree_Rust_*' } |
+        Where-Object {
+            $_.Name -like 'NocFree_Rust_*' -or
+            $_.Name -like 'NocFree_And_Rust_ZMK_Based_ANSI_*'
+        } |
         Select-Object Name, Length, FullName
 }
 finally {

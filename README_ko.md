@@ -7,6 +7,9 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)이며,
 이 저장소는 독립적인 Rust 포팅입니다.
 
+이 펌웨어는 **84키 NocFree & ANSI 모델만 지원**합니다. 다른 NocFree 모델과
+ISO 배열은 지원하지 않습니다.
+
 2026-08-21 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
 84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
 역할별 순정 원복을 통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저
@@ -31,13 +34,26 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 
 ## 빌드
 
-Windows PowerShell에서 다음을 실행합니다. Rust, Python 3,
-`adafruit-nrfutil` 0.5.3.post16이 필요합니다.
+저장소를 clone한 뒤 저장소 루트에서 Windows PowerShell을 여십시오. Rust MSVC
+toolchain과 Python 3이 필요합니다. 아래 명령은 추가 빌드 의존성을 설치하고 양쪽
+UF2를 생성합니다.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Set-Location -LiteralPath 'D:\study\nocfree\NocFree-and-rust'
+
+& rustup target add thumbv7em-none-eabihf
+$targetExit = $LASTEXITCODE
+if ($targetExit -ne 0) { throw ('rustup target add failed with exit code {0}' -f $targetExit) }
+
+& rustup component add llvm-tools-preview
+$componentExit = $LASTEXITCODE
+if ($componentExit -ne 0) { throw ('rustup component add failed with exit code {0}' -f $componentExit) }
+
+& python -m pip install 'adafruit-nrfutil==0.5.3.post16'
+$pipExit = $LASTEXITCODE
+if ($pipExit -ne 0) { throw ('dependency installation failed with exit code {0}' -f $pipExit) }
+
 & pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1'
 $buildExit = $LASTEXITCODE
 if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
@@ -48,6 +64,14 @@ BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BI
 일치를 모두 검사합니다. 마지막 결과는 Rust 52개, Python/계약/아티팩트 17개
 테스트 통과입니다.
 
+빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
+
+- **왼쪽/central:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
+- **오른쪽/peripheral:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+
+이 두 파일은 저장소에도 커밋되어 있어 직접 빌드하지 않고 내려받을 수 있습니다.
+flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
+
 키보드에서 실행되는 코드는 전부 Rust `no_std`입니다. `tools/*.py`와 Python
 패키지인 `adafruit-nrfutil`은 PC에서 산출물을 만들고 검사할 때만 사용되며
 키보드에는 들어가지 않습니다.
@@ -57,11 +81,11 @@ BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BI
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
-| `firmware/NocFree_Rust_Left.uf2` | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `A136AFD6B31E09B1543DA972F3393ED17FAB6AD03743C187693D71DB85F19E86` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
 | `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
-| `firmware/NocFree_Rust_Right.uf2` | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `8E50F55DCAFC3D3583C6E5B082D319C6371EFC100047433AC48B0470D751EB38` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
 
 UF2는 앱 시작 `0x27000`부터 왼쪽 `0x375ff`, 오른쪽 `0x308ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.

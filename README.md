@@ -7,6 +7,9 @@ This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),
 and this repository is an independent Rust port.
 
+This firmware supports **only the 84-key NocFree & ANSI model**. Other NocFree
+models and ISO layouts are not supported.
+
 As of 2026-08-21, the latest Rust images are installed on both halves and have
 passed hardware tests for USB, BLE, all 84 physical keys, the physical
 mode/power switches, shortcuts, NocFree Link key changes, DFU on both halves,
@@ -35,13 +38,26 @@ MCU restarts during an I2C transfer from the bootloader or another firmware.
 
 ## Build
 
-Run the following in Windows PowerShell. Rust, Python 3, and
-`adafruit-nrfutil` 0.5.3.post16 are required.
+After cloning the repository, open Windows PowerShell in the repository root.
+The Rust MSVC toolchain and Python 3 are required. The commands below install
+the additional build dependencies and create both UF2 files.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Set-Location -LiteralPath 'D:\study\nocfree\NocFree-and-rust'
+
+& rustup target add thumbv7em-none-eabihf
+$targetExit = $LASTEXITCODE
+if ($targetExit -ne 0) { throw ('rustup target add failed with exit code {0}' -f $targetExit) }
+
+& rustup component add llvm-tools-preview
+$componentExit = $LASTEXITCODE
+if ($componentExit -ne 0) { throw ('rustup component add failed with exit code {0}' -f $componentExit) }
+
+& python -m pip install 'adafruit-nrfutil==0.5.3.post16'
+$pipExit = $LASTEXITCODE
+if ($pipExit -ne 0) { throw ('dependency installation failed with exit code {0}' -f $pipExit) }
+
 & pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1'
 $buildExit = $LASTEXITCODE
 if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
@@ -52,6 +68,14 @@ for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
 passed 52 Rust tests and 17 Python/contract/artifact tests.
 
+After a successful build, use the UF2 for the matching half only:
+
+- **Left/central:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
+- **Right/peripheral:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+
+These two files are also committed to this repository and can be downloaded
+directly without building. See [RECOVERY.md](RECOVERY.md) before flashing.
+
 All code that runs on the keyboard is Rust `no_std`. The `tools/*.py` files and
 the Python package `adafruit-nrfutil` are used only on the PC to create and
 verify artifacts; they are not installed on the keyboard.
@@ -61,11 +85,11 @@ verify artifacts; they are not installed on the keyboard.
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
-| `firmware/NocFree_Rust_Left.uf2` | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `A136AFD6B31E09B1543DA972F3393ED17FAB6AD03743C187693D71DB85F19E86` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
 | `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
-| `firmware/NocFree_Rust_Right.uf2` | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `8E50F55DCAFC3D3583C6E5B082D319C6371EFC100047433AC48B0470D751EB38` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
 
 The UF2 files write only from the application start at `0x27000` through
 `0x375ff` on the left and `0x308ff` on the right. They preserve the SoftDevice,
