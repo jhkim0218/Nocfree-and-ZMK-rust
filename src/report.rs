@@ -1,4 +1,4 @@
-use crate::keymap::{Action, KEY_COUNT, LEFT_FN_RAW, RIGHT_FN_RAW, base_action, function_action};
+use crate::keymap::{Action, KEY_COUNT, base_action, function_action};
 
 pub const KEY_BITMAP_BYTES: usize = 14;
 const FIRST_BITMAP_USAGE: u8 = 0x04;
@@ -63,6 +63,7 @@ impl Effects {
 pub struct ReportEngine {
     snapshot: u128,
     assigned: [Action; KEY_COUNT],
+    default_layer: u8,
     keyboard: KeyboardReport,
     consumer: u16,
 }
@@ -72,6 +73,7 @@ impl Default for ReportEngine {
         Self {
             snapshot: 0,
             assigned: [Action::Transparent; KEY_COUNT],
+            default_layer: 0,
             keyboard: KeyboardReport::default(),
             consumer: 0,
         }
@@ -80,9 +82,40 @@ impl Default for ReportEngine {
 
 impl ReportEngine {
     pub fn apply_snapshot(&mut self, snapshot: u128) -> Effects {
+        self.apply_snapshot_with(snapshot, |layer, raw| {
+            if layer == 0 {
+                base_action(raw)
+            } else if layer == 1 {
+                function_action(raw)
+            } else {
+                Action::Transparent
+            }
+        })
+    }
+
+    pub fn apply_snapshot_with(
+        &mut self,
+        snapshot: u128,
+        mut resolve: impl FnMut(u8, usize) -> Action,
+    ) -> Effects {
         let snapshot = snapshot & ((1_u128 << KEY_COUNT) - 1);
         let changed = self.snapshot ^ snapshot;
-        let fn_active = snapshot & ((1_u128 << LEFT_FN_RAW) | (1_u128 << RIGHT_FN_RAW)) != 0;
+        let mut active_layer = self.default_layer;
+        for raw in 0..KEY_COUNT {
+            if snapshot & (1_u128 << raw) == 0 {
+                continue;
+            }
+            let action = if self.snapshot & (1_u128 << raw) != 0 {
+                self.assigned[raw]
+            } else {
+                resolve(0, raw)
+            };
+            match action {
+                Action::Fn => active_layer = active_layer.max(1),
+                Action::LayerMomentary(layer) => active_layer = active_layer.max(layer),
+                _ => {}
+            }
+        }
         let mut commands = [Command::None; 8];
         let mut command_count = 0;
 
@@ -96,17 +129,21 @@ impl ReportEngine {
                 continue;
             }
 
-            let base = base_action(raw);
-            let action = if matches!(base, Action::Fn) {
-                Action::Fn
-            } else if fn_active {
-                match function_action(raw) {
+            let base = resolve(0, raw);
+            let mut action = if matches!(base, Action::Fn | Action::LayerMomentary(_)) {
+                base
+            } else if active_layer != 0 {
+                match resolve(active_layer, raw) {
                     Action::Transparent => base,
-                    function => function,
+                    layer_action => layer_action,
                 }
             } else {
                 base
             };
+            if let Action::LayerToggle(layer) = action {
+                self.default_layer = layer;
+                action = Action::NoAction;
+            }
             self.assigned[raw] = action;
 
             let command = Command::from_action(action);
@@ -144,6 +181,13 @@ impl ReportEngine {
                     let index = (usage - FIRST_BITMAP_USAGE) as usize;
                     keyboard.keys[index / 8] |= 1 << (index & 7);
                 }
+                Action::Chord { modifiers, key } => {
+                    keyboard.modifiers |= modifiers;
+                    if (FIRST_BITMAP_USAGE..=LAST_BITMAP_USAGE).contains(&key) {
+                        let index = (key - FIRST_BITMAP_USAGE) as usize;
+                        keyboard.keys[index / 8] |= 1 << (index & 7);
+                    }
+                }
                 Action::Consumer(usage) if consumer == 0 => consumer = usage,
                 _ => {}
             }
@@ -156,6 +200,7 @@ impl ReportEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keymap::{LEFT_FN_RAW, RIGHT_FN_RAW};
 
     fn key_is_set(report: &KeyboardReport, usage: u8) -> bool {
         let index = (usage - FIRST_BITMAP_USAGE) as usize;
@@ -215,5 +260,22 @@ mod tests {
     fn keyboard_report_has_no_padding() {
         assert_eq!(core::mem::size_of::<KeyboardReport>(), 16);
         assert_eq!(KeyboardReport::default().as_bytes(), &[0; 16]);
+    }
+
+    #[test]
+    fn configurable_layers_and_chords_apply_to_reports() {
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with((1_u128 << 32) | (1_u128 << 37), |layer, raw| {
+            match (layer, raw) {
+                (0, 32) => Action::LayerMomentary(1),
+                (1, 37) => Action::Chord {
+                    modifiers: 1 << 3,
+                    key: 0x07,
+                },
+                _ => Action::Transparent,
+            }
+        });
+        assert_eq!(effects.keyboard.modifiers, 1 << 3);
+        assert!(key_is_set(&effects.keyboard, 0x07));
     }
 }

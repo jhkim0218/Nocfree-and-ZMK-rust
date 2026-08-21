@@ -8,9 +8,16 @@ pub const RIGHT_FN_RAW: usize = 79;
 pub enum Action {
     #[default]
     Transparent,
+    NoAction,
     Fn,
     Key(u8),
+    Chord {
+        modifiers: u8,
+        key: u8,
+    },
     Consumer(u16),
+    LayerMomentary(u8),
+    LayerToggle(u8),
     ResetLeft,
     BootRight,
     ProfileSelect(u8),

@@ -18,6 +18,11 @@ use crate::bond_record::{
     STORAGE_START, SYS_ATTR_CAPACITY, decode_bond, decode_selected_profile, encode_bond,
     encode_selected_profile,
 };
+use crate::keymap::Action;
+use crate::link_keymap::{
+    LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap, action_from_binding,
+};
+use crate::link_protocol::{LinkResponse, handle_request};
 
 #[derive(Clone, Copy)]
 struct Peer {
@@ -31,9 +36,13 @@ struct Peer {
 #[repr(C, align(4))]
 struct AlignedRecord([u8; RECORD_BYTES]);
 
+#[repr(C, align(4))]
+struct AlignedKeymap([u8; LINK_KEYMAP_RECORD_BYTES]);
+
 pub struct BondStore {
     peers: Mutex<CriticalSectionRawMutex, RefCell<[Option<Peer>; PROFILE_COUNT]>>,
     split_peer: Mutex<CriticalSectionRawMutex, RefCell<Option<Peer>>>,
+    keymap: Mutex<CriticalSectionRawMutex, RefCell<LinkKeymap>>,
     selected: AtomicU8,
     dirty_pages: AtomicU8,
     save_request: Signal<CriticalSectionRawMutex, ()>,
@@ -51,6 +60,7 @@ impl BondStore {
         Self {
             peers: Mutex::new(RefCell::new([None; PROFILE_COUNT])),
             split_peer: Mutex::new(RefCell::new(None)),
+            keymap: Mutex::new(RefCell::new(LinkKeymap::new())),
             selected: AtomicU8::new(0),
             dirty_pages: AtomicU8::new(0),
             save_request: Signal::new(),
@@ -79,6 +89,26 @@ impl BondStore {
         self.peers
             .lock(|peers| peers.borrow_mut()[profile as usize] = None);
         self.request_save(profile);
+    }
+
+    pub fn key_action(&self, layer: u8, raw: usize) -> Action {
+        self.keymap.lock(|keymap| {
+            keymap
+                .borrow()
+                .binding(layer as usize, raw)
+                .map(action_from_binding)
+                .unwrap_or(Action::NoAction)
+        })
+    }
+
+    pub fn handle_link_frame(&self, frame: &[u8]) -> Option<LinkResponse> {
+        let response = self
+            .keymap
+            .lock(|keymap| handle_request(frame, &mut keymap.borrow_mut()))?;
+        if response.changed {
+            self.request_save(LINK_KEYMAP_PAGE);
+        }
+        Some(response)
     }
 
     fn selected_peer(&self) -> Option<Peer> {
@@ -280,6 +310,7 @@ impl SecurityHandler for SplitSecurity {
 
 pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
     let mut buffer = AlignedRecord([0; RECORD_BYTES]);
+    let mut keymap_buffer = AlignedKeymap([0; LINK_KEYMAP_RECORD_BYTES]);
     for profile in 0..PROFILE_COUNT as u8 {
         if flash
             .read(page_address(profile), &mut buffer.0)
@@ -309,12 +340,20 @@ pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
     {
         store.set_split_peer(decode_bond(SPLIT_BOND_SLOT, &buffer.0).map(peer_from_record));
     }
+    if flash
+        .read(page_address(LINK_KEYMAP_PAGE), &mut keymap_buffer.0)
+        .await
+        .is_ok()
+        && let Some(keymap) = LinkKeymap::decode(&keymap_buffer.0)
+    {
+        store.keymap.lock(|current| *current.borrow_mut() = keymap);
+    }
     store.ready.store(true, Ordering::Release);
 
     loop {
         store.save_request.wait().await;
         let dirty = store.dirty_pages.swap(0, Ordering::AcqRel);
-        for page in 0..=SPLIT_PAGE {
+        for page in 0..=LINK_KEYMAP_PAGE {
             if dirty & (1 << page) == 0 {
                 continue;
             }
@@ -322,6 +361,15 @@ pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
             if flash.erase(address, address + PAGE_SIZE).await.is_err() {
                 store.request_save(page);
                 Timer::after(Duration::from_millis(100)).await;
+                continue;
+            }
+
+            if page == LINK_KEYMAP_PAGE {
+                keymap_buffer.0 = store.keymap.lock(|keymap| keymap.borrow().encode());
+                if flash.write(address, &keymap_buffer.0).await.is_err() {
+                    store.request_save(page);
+                    Timer::after(Duration::from_millis(100)).await;
+                }
                 continue;
             }
 

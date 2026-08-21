@@ -8,6 +8,10 @@ pub mod bond_store;
 #[cfg(target_arch = "arm")]
 pub mod hardware_scanner;
 pub mod keymap;
+pub mod link_keymap;
+pub mod link_protocol;
+#[cfg(target_arch = "arm")]
+pub mod link_usb;
 pub mod output_policy;
 #[cfg(target_arch = "arm")]
 pub mod output_router;
