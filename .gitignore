@@ -1,0 +1,6 @@
+/target/
+/.tools/
+__pycache__/
+*.pyc
+/*.hex
+/*.uf2
