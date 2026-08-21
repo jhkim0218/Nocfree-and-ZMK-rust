@@ -87,13 +87,16 @@ class RepositoryContractTests(unittest.TestCase):
             central,
         )
 
-    def test_firmware_only_configures_published_i2c_pins(self) -> None:
+    def test_firmware_uses_published_gpio_pins(self) -> None:
         central = read("src/bin/central.rs")
         right = read("src/bin/right.rs")
         for firmware in (central, right):
             self.assertIn("peripherals.P0_11", firmware)
             self.assertIn("peripherals.P1_09", firmware)
             self.assertNotIn("Output::new", firmware)
+        self.assertIn("Input::new(peripherals.P0_15, Pull::Up)", central)
+        self.assertIn("Input::new(peripherals.P0_17, Pull::Up)", central)
+        self.assertNotIn("peripherals.P0_15", right)
 
     def test_scanner_retries_transient_expander_startup_failures(self) -> None:
         scanner = read("src/hardware_scanner.rs")

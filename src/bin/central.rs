@@ -3,9 +3,10 @@
 
 use core::slice;
 
-use embassy_futures::join::{join, join4, join5};
+use embassy_futures::join::{join, join5};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_nrf::bind_interrupts;
+use embassy_nrf::gpio::{Input, Pull};
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::{TWISPI0, USBD};
 use embassy_nrf::twim::{self, Twim};
@@ -22,6 +23,7 @@ use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
 use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
+use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
@@ -76,6 +78,21 @@ impl Handler for UsbStatus {
 
     fn configured(&mut self, configured: bool) {
         OUTPUT.set_usb_connected(configured);
+    }
+}
+
+async fn run_mode_switch(ble_detect: Input<'_>, receiver_detect: Input<'_>) -> ! {
+    let mut applied = None;
+    loop {
+        let observed = physical_switch_mode(ble_detect.is_low(), receiver_detect.is_low());
+        Timer::after(Duration::from_millis(20)).await;
+        let confirmed = physical_switch_mode(ble_detect.is_low(), receiver_detect.is_low());
+        if observed == confirmed && confirmed != applied {
+            if let Some(mode) = confirmed {
+                OUTPUT.set_mode(mode);
+            }
+            applied = confirmed;
+        }
     }
 }
 
@@ -352,6 +369,8 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let (usb_detected, power_ready) = enable_usb_power_events();
     static VBUS: StaticCell<SoftwareVbusDetect> = StaticCell::new();
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
+    let ble_detect = Input::new(peripherals.P0_15, Pull::Up);
+    let receiver_detect = Input::new(peripherals.P0_17, Pull::Up);
 
     let mut sda = peripherals.P0_11;
     let mut scl = peripherals.P1_09;
@@ -424,8 +443,9 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 hardware_scanner::run(Half::Left, expanders, &INPUT_STATE),
                 link.run(&BONDS),
             ),
-            join4(
+            join5(
                 process_key_states(),
+                run_mode_switch(ble_detect, receiver_detect),
                 run_split_central(softdevice),
                 run_ble_host(softdevice, &ble_hid_server),
                 run_storage(flash, &BONDS),

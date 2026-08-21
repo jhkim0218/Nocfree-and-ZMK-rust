@@ -114,6 +114,7 @@ impl OutputRouter {
         let mode = match self.mode.load(Ordering::Acquire) {
             value if value == OutputMode::Usb as u8 => OutputMode::Usb,
             value if value == OutputMode::Ble as u8 => OutputMode::Ble,
+            value if value == OutputMode::Disabled as u8 => OutputMode::Disabled,
             _ => OutputMode::Auto,
         };
         routes(mode, self.usb_connected.load(Ordering::Acquire))

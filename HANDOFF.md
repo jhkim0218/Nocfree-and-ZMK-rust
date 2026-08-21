@@ -14,8 +14,9 @@
 2. USB/Bluetooth의 좌우 입력과 교차 입력 순서
 3. `link.nocfree.com` 또는 ZMK Studio를 통한 키 변경과 재부팅 보존
 4. 양쪽 DFU, 역할별 순정 복귀, 같은 Rust 펌웨어 재설치
+5. 왼쪽 3단 모드 스위치와 오른쪽 배터리 ON/OFF 스위치
 
-2026-08-21 최신 이미지로 네 항목을 모두 실기 검증했습니다. 키 변경 경로는
+2026-08-21 최신 이미지로 다섯 항목을 모두 실기 검증했습니다. 키 변경 경로는
 NocFree Link를 선택했으며 ZMK Studio는 구현하지 않았습니다. Link quick text는
 빈 조회 응답만 제공하고 저장/실행은 구현하지 않았습니다. 일반 키 변경과
 hotkey는 구현·실기 검증됐습니다.
@@ -71,6 +72,17 @@ hotkey는 구현·실기 검증됐습니다.
 - vendor patch로 모든 BLE PHY를 1M에 고정
 - USB/BLE 전환 때 이전 출력에 release 전송
 
+### 물리 스위치
+
+- 왼쪽 P0.15/P0.17은 pull-up active-low 모드 감지 입력
+- 위 2.4G: transport 미구현이므로 USB/BLE 출력 모두 비활성
+- 가운데 Wired: USB HID 출력
+- 아래 Bluetooth: BLE HID 출력
+- 두 핀이 동시에 low인 전환 순간에는 이전 모드를 유지하고, 20 ms 안정 위치만 적용
+- Wired에서 왼쪽 USB가 없으면 HID 출력은 없지만 MCU 전원은 꺼지지 않음
+- 오른쪽 위 OFF/아래 ON은 펌웨어가 읽지 못하는 배터리 전원 스위치
+- 오른쪽 USB VBUS는 배터리 스위치를 우회하므로 USB 연결 중에는 OFF도 보드에 전원 공급
+
 ### Link 동적 키맵
 
 - VID/PID `0x2886:0x8029`
@@ -113,12 +125,12 @@ hotkey는 구현·실기 검증됐습니다.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 60,012 | `DFF1A747F26F30FC125B2F5A0FC18E6B645AF1E26ED3C48E5D56D9C8B8CB3A07` |
-| `firmware/NocFree_Rust_Left.uf2` | 120,320 | `C856810A82FCAD01306562BDBD76B1AC4F862679A23D256FEB8F51939E0B632B` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 60,888 | `58FF28C4DF6FC36F9471EB801B68297CB6D5D59593D160754ADFED682FDC5922` |
+| `firmware/NocFree_Rust_Left.bin` | 60,388 | `C81FB31C9117C908C3EFB479A9501784594BF6DEE4008A19EDE7830981A0D253` |
+| `firmware/NocFree_Rust_Left.uf2` | 120,832 | `617ACCFB6AFEE0484396102732FB7AE5A3CF847F43302D962FB54682939C79AC` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 61,264 | `EA1B568C9444B5536B2F5A869561D41D6F35FC9A16E31CFAABF97DE618821250` |
 | `firmware/NocFree_Rust_Right.bin` | 36,948 | `ACC150B6FB721197B5121EEA914E160C5F1B60A19C14F9C2F681AA15BAEBC104` |
 | `firmware/NocFree_Rust_Right.uf2` | 74,240 | `5591FABA2CA68A148DF1010C92A8ECE0E42624AE30B81066932B98CE71697C3C` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 37,830 | `99F9260CA6779137AF9C8F8E568744EC9E9FECA501D453053A532E56BCE99B9D` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 37,830 | `42ECE256855EF152699D5C86071A8A217ABDB13D34A42254DC3B36234E2D5FD4` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -144,7 +156,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 43/43
+- Rust host tests: 44/44
 - Python contract/artifact tests: 16/16
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
@@ -193,8 +205,17 @@ zxcvbnm,./
 - `blejamjamjam`
 - `Fn+U`의 `usbok`, `Fn+B`의 `bleback`
 - BLE 상태에서 `Fn+Esc`, Windows 연결 조작 없이 `bleautoreconnect`
-- 최초 새 이미지 전환 직후 한 번은 Windows의 stale 세션 때문에 연결
-  해제/재연결이 필요했으나 이후 재현되지 않음
+- 최신 UF2 설치 직후 첫 전환은 Windows의 stale 세션 때문에 장치를 삭제/재등록
+- 같은 이미지의 다음 Wired→BLE 전환은 Windows 조작 없이 `bleagainok` 자동 재연결
+
+### 물리 스위치
+
+- 왼쪽 가운데 Wired: `wiredswitchok`, 복귀 `wiredbackok`
+- 왼쪽 아래 Bluetooth: 첫 등록 후 `bleswitchok`, 반복 전환 `bleagainok`
+- 왼쪽 위 2.4G: 오른쪽 키 `jkl`도 출력되지 않음, Wired 복귀 `24silentok`
+- 오른쪽 USB 분리/스위치 아래 ON: 오른쪽 `jkluiop`
+- 오른쪽 스위치 위 OFF: 오른쪽 무입력, 왼쪽 `asdf`는 계속 입력
+- 오른쪽 스위치 아래 ON 복귀: split 자동 재연결 후 오른쪽 `jkluiop`
 
 ### DFU와 순정 원복
 

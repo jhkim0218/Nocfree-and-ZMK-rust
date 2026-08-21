@@ -6,8 +6,9 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 커밋 `e5e2f470795e92609f7ee6e810470fa6976557d1`입니다.
 
 2026-08-21 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
-84개 물리 키, 단축키, NocFree Link 키 변경, 양쪽 DFU와 역할별 순정 원복을
-통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저 읽으십시오.
+84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
+역할별 순정 원복을 통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저
+읽으십시오.
 
 ## 역할
 
@@ -37,7 +38,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 마지막 결과는 Rust 43개, Python/계약/아티팩트 16개
+일치를 모두 검사합니다. 마지막 결과는 Rust 44개, Python/계약/아티팩트 16개
 테스트 통과입니다.
 
 키보드에서 실행되는 코드는 전부 Rust `no_std`입니다. `tools/*.py`와 Python
@@ -48,12 +49,12 @@ BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BI
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 60,012 | `DFF1A747F26F30FC125B2F5A0FC18E6B645AF1E26ED3C48E5D56D9C8B8CB3A07` |
-| `firmware/NocFree_Rust_Left.uf2` | 120,320 | `C856810A82FCAD01306562BDBD76B1AC4F862679A23D256FEB8F51939E0B632B` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 60,888 | `58FF28C4DF6FC36F9471EB801B68297CB6D5D59593D160754ADFED682FDC5922` |
+| `firmware/NocFree_Rust_Left.bin` | 60,388 | `C81FB31C9117C908C3EFB479A9501784594BF6DEE4008A19EDE7830981A0D253` |
+| `firmware/NocFree_Rust_Left.uf2` | 120,832 | `617ACCFB6AFEE0484396102732FB7AE5A3CF847F43302D962FB54682939C79AC` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 61,264 | `EA1B568C9444B5536B2F5A869561D41D6F35FC9A16E31CFAABF97DE618821250` |
 | `firmware/NocFree_Rust_Right.bin` | 36,948 | `ACC150B6FB721197B5121EEA914E160C5F1B60A19C14F9C2F681AA15BAEBC104` |
 | `firmware/NocFree_Rust_Right.uf2` | 74,240 | `5591FABA2CA68A148DF1010C92A8ECE0E42624AE30B81066932B98CE71697C3C` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 37,830 | `99F9260CA6779137AF9C8F8E568744EC9E9FECA501D453053A532E56BCE99B9D` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 37,830 | `42ECE256855EF152699D5C86071A8A217ABDB13D34A42254DC3B36234E2D5FD4` |
 
 UF2는 앱 시작 `0x27000`부터 왼쪽 `0x35aff`, 오른쪽 `0x300ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
@@ -86,6 +87,26 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 사용합니다. NocFree &에는 외부 리셋 버튼이 없습니다. 확인되지 않은 PCB
 패드를 쇼트하지 마십시오. 정확한 절차는 [RECOVERY.md](RECOVERY.md)에 있습니다.
 
+## 물리 스위치
+
+왼쪽 3단 스위치는 P0.15/P0.17 active-low 입력으로 동작합니다. 위치 의미는
+[NocFree & 공식 설명서](https://www.nocfree.com/pages/nocfree-and-manual)를
+기준으로 확인했습니다.
+
+- 위 **2.4G**: 아직 2.4G transport가 없어 USB/BLE 출력을 모두 안전하게 차단
+- 가운데 **Wired**: USB HID 출력 선택
+- 아래 **Bluetooth**: BLE HID 출력 선택
+
+두 감지 핀이 동시에 low인 전환 순간에는 이전 출력을 유지하며, 20 ms 동안
+같은 위치가 확인된 뒤에만 모드를 바꿉니다. `Fn+U`/`Fn+B` 강제 선택은 다음
+물리 위치 변경 전까지 계속 사용할 수 있습니다. Wired에서 왼쪽 USB가 없으면
+HID 출력은 없지만 스위치가 전원을 끄지는 않으므로 MCU와 스캐너는 배터리를
+소모합니다.
+
+오른쪽 스위치는 펌웨어 입력이 아니라 배터리 전원선의 물리 ON/OFF입니다. 위가
+OFF, 아래가 ON입니다. 오른쪽 USB가 연결되면 VBUS가 배터리 스위치를 우회하므로
+OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
+
 ## 실기 검증
 
 | 요구사항 | 최신 이미지의 증거 |
@@ -94,14 +115,17 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 | 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
 | 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
 | BLE | `blejamjamjam`, USB↔BLE 전환, 재부팅 후 자동 재연결 통과 |
+| 왼쪽 물리 모드 | Wired `wiredswitchok`, BLE `bleswitchok`/`bleagainok`, 2.4G 무출력 `24silentok` 통과 |
+| 오른쪽 물리 전원 | 오른쪽 USB 분리 후 ON `jkluiop`, OFF 무입력, ON 복귀 `jkluiop` 통과 |
 | Link | A→B, Shift+B hotkey, 재부팅 보존, 삭제/기본 A 복구 통과 |
 | 양쪽 순정 원복 | Rust→순정 V2.3.0→serial DFU→같은 Rust→입력 통과 |
 | 오른쪽 DFU 단축키 | `Fn+Delete`→UF2 확인→최신 Rust→전원 재인가 없이 `jkluiop` 통과 |
 | 미디어 | mute/unmute, volume down/up 통과 |
 
-첫 BLE 전환 직후 Windows의 이전 세션 때문에 한 차례 연결 해제/재연결이
-필요했지만, 이후 출력 전환과 `Fn+Esc` 재부팅에서는 Windows 조작 없이 자동
-재연결됐습니다.
+새 UF2 설치 직후 첫 BLE 전환에서는 Windows의 이전 세션 때문에 장치를 한 차례
+삭제/재등록해야 했습니다. 같은 이미지의 다음 Wired→BLE 전환은 Windows 조작
+없이 `bleagainok`로 자동 재연결됐고, 기존 `Fn+Esc` 재부팅 시험도 자동 재연결을
+통과했습니다.
 
 ## 코드 읽는 순서
 
