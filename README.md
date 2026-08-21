@@ -13,7 +13,7 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 ## 역할
 
 - **왼쪽 (`central`)**: 왼쪽 37키, 오른쪽 split 수신, 전체 84키 키맵,
-  USB/BLE HID, 3개 BLE 프로필, NocFree Link를 담당합니다.
+  USB/BLE HID, BLE 멀티 페어링 슬롯 3개, NocFree Link를 담당합니다.
 - **오른쪽 (`right`)**: 오른쪽 47키를 스캔해 암호화 BLE split으로 왼쪽에
   전달합니다. 오른쪽 USB는 HID가 아니라 독립 CDC 복구용입니다.
 
@@ -81,7 +81,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
 | 완료 | 양쪽 split | 오른쪽 입력과 배터리 값을 암호화 BLE split으로 왼쪽에 전달하고, 링크 단절 뒤 자동 복구 |
-| 완료 | BLE 프로필 3개 | 프로필별 bond와 선택 상태 영구 저장, `NocFree 1`/`2`/`3` 이름으로 광고 |
+| 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 양쪽 흰색 백라이트 동기 제어, 토글과 20% 단위 밝기 조절 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
 | 완료 | NocFree Link 키맵 | 8×84 키, hotkey 16개, 실행·삭제·기본값 복구와 CRC 포함 flash 저장 |
@@ -107,8 +107,8 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 | `Fn+F5` / `Fn+F6` | 즉시 | 양쪽 백라이트 밝기 20% 내림 / 올림 |
 | `Fn+F7` / `F8` / `F9` | 즉시 | 이전 곡 / 재생·일시정지 / 다음 곡 |
 | `Fn+F10` / `F11` / `F12` | 즉시 | 음소거 / 볼륨 내림 / 볼륨 올림 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 짧게 | BLE 프로필 1 / 2 / 3 선택 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 1초 홀드 | 해당 프로필의 bond를 삭제하고 페어링 시작 |
+| `Fn+1` / `Fn+2` / `Fn+3` | 짧게 | BLE 페어링 슬롯 1 / 2 / 3 선택 |
+| `Fn+1` / `Fn+2` / `Fn+3` | 1초 홀드 | 해당 슬롯의 bond를 삭제하고 새 호스트 페어링 시작 |
 | `Fn+5` | 3초 홀드 | **왼쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
 | `Fn+0` | 3초 홀드 | **오른쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
 | `Fn+Tab` | 즉시 | 양쪽 백라이트 켜기 / 끄기 |
@@ -119,7 +119,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 
 표에 없는 `Fn+키`는 별도 기능이 없는 transparent 동작이라 원래 키가
 입력됩니다. 특히 기준 ZMK의 `Fn+6`(활성 프로필 삭제)과 `Fn+7`(USB/BLE
-toggle)은 Rust에서 같은 위치에 구현하지 않았습니다. 프로필 삭제·페어링은
+toggle)은 Rust에서 같은 위치에 구현하지 않았습니다. 슬롯 삭제·페어링은
 대상 `Fn+1/2/3`을 1초 홀드하고, 출력 선택은 왼쪽 물리 스위치를 사용하십시오.
 `Fn+U`와 `Fn+B`는 출력 전환 기능이 없으며 각각 원래 문자로 동작합니다.
 DFU는 오입력 방지를 위해 기준 ZMK의 즉시 실행 대신 3초 홀드로
@@ -156,6 +156,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
 | 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
 | BLE | 새 페어링 `freshcapture` → Wired `freshwired2` → 장치 삭제·재페어링 없는 BLE `reconnectcapture` 통과 |
+| BLE 멀티 페어링 | 슬롯 1은 Windows 11, 슬롯 2는 Android에서 페어링·연결 확인 |
 | 왼쪽 물리 모드 | Wired `wiredswitchok`, BLE `bleswitchok`/`bleagainok`, 2.4G 무출력 `24silentok` 통과 |
 | 오른쪽 물리 전원 | 오른쪽 USB 분리 후 ON `jkluiop`, OFF 무입력, ON 복귀 `jkluiop` 통과 |
 | Link | A→B, Shift+B hotkey, 재부팅 보존, 삭제/기본 A 복구 통과 |
@@ -166,7 +167,14 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
 | 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |
 
-최신 이미지 검증에서는 프로필 1의 기존 bond와 Windows 장치를 각각 한 번
+BLE 호스트 실기 검증은 **Windows 11과 Android에서만** 수행했습니다. macOS,
+iOS, Linux 및 세 번째 호스트는 확인하지 않았습니다. `NocFree 1`/`2`/`3`은
+선택된 페어링 슬롯을 나타내는 광고 이름이며 서로 다른 Bluetooth identity가
+아닙니다. 따라서 같은 Windows 11 PC에서는 기존 장치 이름이 선택 슬롯에 따라
+바뀌어 보일 수 있고, 빈 슬롯의 새 페어링은 Android 같은 다른 호스트에서
+확인해야 합니다.
+
+최신 이미지 검증에서는 슬롯 1의 기존 bond와 Windows 장치를 각각 한 번
 삭제하고 새로 페어링했습니다. 이후 같은 bond로 Bluetooth→Wired→Bluetooth를
 전환했으며 Windows 장치 삭제나 재페어링 없이 HID 입력이 즉시 복구됐습니다.
 펌웨어는 Windows의 CCCD write를 받는 즉시 시스템 속성을 RAM/flash에 저장하고,
