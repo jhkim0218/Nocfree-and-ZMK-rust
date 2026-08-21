@@ -42,6 +42,41 @@ class RepositoryContractTests(unittest.TestCase):
         platform = read("src/platform.rs")
         self.assertIn("central_sec_count: 1", platform)
 
+    def test_ble_reconnect_waits_for_disconnect_and_reports_keyboard_appearance(self) -> None:
+        central = read("src/bin/central.rs")
+        self.assertIn("BleControl::OutputChanged", central)
+        self.assertIn("if !OUTPUT.should_send_ble()", central)
+        self.assertIn("disconnect_ble(&connection).await", central)
+        self.assertIn("while connection.handle().is_some()", central)
+        self.assertIn("interval: 160, // 100 ms", central)
+        self.assertIn("raw::BLE_APPEARANCE_HID_KEYBOARD", central)
+        self.assertIn("raw::sd_ble_gap_appearance_set(KEYBOARD_APPEARANCE)", central)
+        self.assertIn("connection.request_security()", central)
+        self.assertIn("BONDS.restore_sys_attrs(&connection)", central)
+        self.assertIn("BONDS.capture_sys_attrs(&connection)", central)
+        self.assertIn("BONDS.selected_connectable()", central)
+        self.assertIn("BONDS.accepts_connection(&connection)", central)
+        self.assertIn("raw::sd_ble_gap_device_name_set", central)
+        self.assertIn('softdevice_config(b"NocFree 1")', central)
+
+        storage = read("src/bond_store.rs")
+        self.assertIn("pairing: AtomicBool", storage)
+        self.assertIn("self.pairing.store(false, Ordering::Release)", storage)
+        self.assertIn("None => self.pairing.load(Ordering::Acquire)", storage)
+        self.assertIn("peer.sys_attr_len != 0", storage)
+        self.assertIn("gatt_server::get_sys_attrs(connection, &mut peer.sys_attrs)", storage)
+        self.assertIn(
+            "(_, Action::OutputUsb | Action::OutputBle) => Action::Transparent",
+            storage,
+        )
+        self.assertLess(
+            central.index("BONDS.restore_sys_attrs(&connection)"),
+            central.index("notify_ble_reports(&connection, server)"),
+        )
+
+        hid = read("src/ble_hid.rs")
+        self.assertIn("Some(())", hid)
+
     def test_only_left_exposes_host_hid(self) -> None:
         central = read("src/bin/central.rs")
         right = read("src/bin/right.rs")

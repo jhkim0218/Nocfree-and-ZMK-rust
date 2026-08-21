@@ -108,7 +108,6 @@ pub const fn function_action(raw: usize) -> Action {
         20 => Action::BootLeft,
         25 => Action::BootRight,
         30 => Action::BacklightToggle,
-        37 => Action::OutputUsb,
         38 => Action::BatteryStatus,
         64 => Action::SystemShortcut {
             system: 1,
@@ -119,7 +118,6 @@ pub const fn function_action(raw: usize) -> Action {
             key: 0x10,
         },
         57 => Action::BootRight,
-        63 => Action::OutputBle,
         _ => Action::Transparent,
     }
 }
@@ -172,8 +170,8 @@ mod tests {
                 key: 0x10
             }
         );
-        assert_eq!(function_action(54), Action::OutputUsb);
-        assert_eq!(function_action(31), Action::OutputBle);
+        assert_eq!(function_action(54), Action::Transparent);
+        assert_eq!(function_action(31), Action::Transparent);
         assert_eq!(function_action(1), Action::Consumer(0x006f));
         assert_eq!(function_action(2), Action::Consumer(0x0070));
         assert_eq!(function_action(3), Action::SystemF3);

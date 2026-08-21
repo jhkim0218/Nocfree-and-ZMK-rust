@@ -45,6 +45,7 @@ pub struct BondStore {
     dirty_pages: AtomicU8,
     save_request: Signal<CriticalSectionRawMutex, ()>,
     ready: AtomicBool,
+    pairing: AtomicBool,
 }
 
 impl Default for BondStore {
@@ -63,6 +64,7 @@ impl BondStore {
             dirty_pages: AtomicU8::new(0),
             save_request: Signal::new(),
             ready: AtomicBool::new(false),
+            pairing: AtomicBool::new(false),
         }
     }
 
@@ -80,6 +82,7 @@ impl BondStore {
 
     pub fn select(&self, profile: u8) {
         let profile = profile.min(PROFILE_COUNT as u8 - 1);
+        self.pairing.store(false, Ordering::Release);
         self.selected.store(profile, Ordering::Release);
         self.request_save(SETTINGS_PAGE);
     }
@@ -102,7 +105,46 @@ impl BondStore {
         let profile = self.selected();
         self.peers
             .lock(|peers| peers.borrow_mut()[profile as usize] = None);
+        self.pairing.store(true, Ordering::Release);
         self.request_save(profile);
+    }
+
+    pub fn selected_connectable(&self) -> bool {
+        self.selected_peer().is_some() || self.pairing.load(Ordering::Acquire)
+    }
+
+    pub fn accepts_connection(&self, connection: &Connection) -> bool {
+        match self.selected_peer() {
+            Some(peer) => peer.peer_id.is_match(connection.peer_address()),
+            None => self.pairing.load(Ordering::Acquire),
+        }
+    }
+
+    pub fn restore_sys_attrs(&self, connection: &Connection) -> bool {
+        let peer = self.selected_peer();
+        let attrs = peer.as_ref().and_then(|peer| {
+            (peer.sys_attr_len != 0 && peer.peer_id.is_match(connection.peer_address()))
+                .then_some(&peer.sys_attrs[..peer.sys_attr_len as usize])
+        });
+        gatt_server::set_sys_attrs(connection, attrs).is_ok()
+    }
+
+    pub fn capture_sys_attrs(&self, connection: &Connection) -> bool {
+        let Some(mut peer) = self.selected_peer() else {
+            return false;
+        };
+        if !peer.peer_id.is_match(connection.peer_address()) {
+            return false;
+        }
+
+        let Ok(length) = gatt_server::get_sys_attrs(connection, &mut peer.sys_attrs) else {
+            return false;
+        };
+        peer.sys_attr_len = length.min(SYS_ATTR_CAPACITY) as u8;
+        let profile = self.selected();
+        self.set_peer(profile, Some(peer));
+        self.request_save(profile);
+        true
     }
 
     pub fn has_split_peer(&self) -> bool {
@@ -118,6 +160,7 @@ impl BondStore {
         self.keymap.lock(|keymap| {
             let keymap = keymap.borrow();
             match (keymap.system(), keymap.action(layer as usize, raw)) {
+                (_, Action::OutputUsb | Action::OutputBle) => Action::Transparent,
                 (0, Action::SystemF3) => Action::Consumer(0x029f),
                 (0, Action::SystemF4) => Action::Chord {
                     modifiers: 1 << 3,
@@ -182,10 +225,7 @@ impl SplitSecurity {
 
 impl SecurityHandler for BondStore {
     fn can_bond(&self, connection: &Connection) -> bool {
-        match self.selected_peer() {
-            Some(peer) => peer.peer_id.is_match(connection.peer_address()),
-            None => true,
-        }
+        self.accepts_connection(connection)
     }
 
     fn on_security_update(&self, connection: &Connection, security_mode: SecurityMode) {
@@ -219,6 +259,7 @@ impl SecurityHandler for BondStore {
                 sys_attrs: [0; SYS_ATTR_CAPACITY],
             }),
         );
+        self.pairing.store(false, Ordering::Release);
         self.request_save(profile);
     }
 
@@ -236,30 +277,11 @@ impl SecurityHandler for BondStore {
     }
 
     fn save_sys_attrs(&self, connection: &Connection) {
-        let Some(mut peer) = self.selected_peer() else {
-            return;
-        };
-        if !peer.peer_id.is_match(connection.peer_address()) {
-            return;
-        }
-
-        let Ok(length) = gatt_server::get_sys_attrs(connection, &mut peer.sys_attrs) else {
-            return;
-        };
-        peer.sys_attr_len = length.min(SYS_ATTR_CAPACITY) as u8;
-        let profile = self.selected();
-        self.set_peer(profile, Some(peer));
-        self.request_save(profile);
+        let _ = self.capture_sys_attrs(connection);
     }
 
     fn load_sys_attrs(&self, connection: &Connection) {
-        let peer = self.selected_peer();
-        let attrs = peer.as_ref().and_then(|peer| {
-            peer.peer_id
-                .is_match(connection.peer_address())
-                .then_some(&peer.sys_attrs[..peer.sys_attr_len as usize])
-        });
-        let _ = gatt_server::set_sys_attrs(connection, attrs);
+        let _ = self.restore_sys_attrs(connection);
     }
 }
 

@@ -136,6 +136,6 @@ impl gatt_server::Server for BleHidServer {
         _offset: usize,
         _data: &[u8],
     ) -> Option<Self::Event> {
-        None
+        Some(())
     }
 }

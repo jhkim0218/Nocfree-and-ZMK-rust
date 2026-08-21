@@ -56,8 +56,12 @@ use nrf_softdevice::ble::gatt_server::NotifyValueError;
 use nrf_softdevice::ble::{
     Address, EncryptError, SecurityMode, central, gatt_client, gatt_server, peripheral,
 };
-use nrf_softdevice::{RawError, Softdevice};
+use nrf_softdevice::{RawError, Softdevice, raw};
 use static_cell::StaticCell;
+
+const KEYBOARD_APPEARANCE: u16 = raw::BLE_APPEARANCE_HID_KEYBOARD as u16;
+const KEYBOARD_APPEARANCE_BYTES: [u8; 2] = KEYBOARD_APPEARANCE.to_le_bytes();
+const PROFILE_NAMES: [&[u8]; 3] = [b"NocFree 1", b"NocFree 2", b"NocFree 3"];
 
 bind_interrupts!(struct Irqs {
     USBD => usb::InterruptHandler<USBD>;
@@ -70,6 +74,7 @@ enum BleControl {
     Select(u8),
     Pair(u8),
     Clear,
+    OutputChanged,
 }
 
 static INPUT_STATE: KeyState<32> = KeyState::new();
@@ -89,11 +94,27 @@ struct UsbStatus;
 
 impl Handler for UsbStatus {
     fn reset(&mut self) {
-        OUTPUT.set_usb_connected(false);
+        set_usb_connected(false);
     }
 
     fn configured(&mut self, configured: bool) {
-        OUTPUT.set_usb_connected(configured);
+        set_usb_connected(configured);
+    }
+}
+
+fn set_usb_connected(connected: bool) {
+    let was_enabled = OUTPUT.should_send_ble();
+    OUTPUT.set_usb_connected(connected);
+    if was_enabled != OUTPUT.should_send_ble() {
+        BLE_CONTROL.signal(BleControl::OutputChanged);
+    }
+}
+
+fn set_output_mode(mode: OutputMode) {
+    let was_enabled = OUTPUT.should_send_ble();
+    OUTPUT.set_mode(mode);
+    if was_enabled != OUTPUT.should_send_ble() {
+        BLE_CONTROL.signal(BleControl::OutputChanged);
     }
 }
 
@@ -105,7 +126,7 @@ async fn run_mode_switch(ble_detect: Input<'_>, receiver_detect: Input<'_>) -> !
         let confirmed = physical_switch_mode(ble_detect.is_low(), receiver_detect.is_low());
         if observed == confirmed && confirmed != applied {
             if let Some(mode) = confirmed {
-                OUTPUT.set_mode(mode);
+                set_output_mode(mode);
             }
             applied = confirmed;
         }
@@ -139,8 +160,8 @@ async fn process_key_states() -> ! {
                 Command::ProfileSelect(profile) => BLE_CONTROL.signal(BleControl::Select(profile)),
                 Command::ProfilePair(profile) => BLE_CONTROL.signal(BleControl::Pair(profile)),
                 Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
-                Command::OutputUsb => OUTPUT.set_mode(OutputMode::Usb),
-                Command::OutputBle => OUTPUT.set_mode(OutputMode::Ble),
+                Command::OutputUsb => set_output_mode(OutputMode::Usb),
+                Command::OutputBle => set_output_mode(OutputMode::Ble),
                 Command::BacklightToggle => {
                     set_backlight(BacklightCommand::Toggle, COMMAND_BACKLIGHT_TOGGLE)
                 }
@@ -315,7 +336,43 @@ fn apply_ble_control(control: BleControl) {
         BleControl::Select(profile) => BONDS.select(profile),
         BleControl::Pair(profile) => BONDS.pair(profile),
         BleControl::Clear => BONDS.clear_selected(),
+        BleControl::OutputChanged => {}
     }
+}
+
+fn set_gap_device_name(profile: u8) {
+    let name = PROFILE_NAMES[profile.min(2) as usize];
+    let write_permission = SecurityMode::NoAccess.into_raw();
+    assert_eq!(
+        unsafe {
+            raw::sd_ble_gap_device_name_set(&write_permission, name.as_ptr(), name.len() as u16)
+        },
+        raw::NRF_SUCCESS
+    );
+}
+
+async fn disconnect_ble(connection: &nrf_softdevice::ble::Connection) {
+    let _ = connection.disconnect();
+    while connection.handle().is_some() {
+        Timer::after(Duration::from_millis(5)).await;
+    }
+}
+
+async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool {
+    for _ in 0..250 {
+        if matches!(
+            connection.security_mode(),
+            SecurityMode::JustWorks
+                | SecurityMode::Mitm
+                | SecurityMode::LescMitm
+                | SecurityMode::Signed
+                | SecurityMode::SignedMitm
+        ) {
+            return true;
+        }
+        Timer::after(Duration::from_millis(20)).await;
+    }
+    false
 }
 
 async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
@@ -326,7 +383,10 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             ServiceList::Complete,
             &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
         )
-        .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
+        .raw(
+            AdvertisementDataType::APPEARANCE,
+            &KEYBOARD_APPEARANCE_BYTES,
+        )
         .full_name("NocFree 1")
         .build();
     static ADVERTISEMENT_2: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
@@ -335,7 +395,10 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             ServiceList::Complete,
             &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
         )
-        .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
+        .raw(
+            AdvertisementDataType::APPEARANCE,
+            &KEYBOARD_APPEARANCE_BYTES,
+        )
         .full_name("NocFree 2")
         .build();
     static ADVERTISEMENT_3: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
@@ -344,17 +407,29 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             ServiceList::Complete,
             &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
         )
-        .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
+        .raw(
+            AdvertisementDataType::APPEARANCE,
+            &KEYBOARD_APPEARANCE_BYTES,
+        )
         .full_name("NocFree 3")
         .build();
     static SCAN_RESPONSE: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new().build();
     loop {
-        let advertisement = match BONDS.selected() {
+        if !OUTPUT.should_send_ble() || !BONDS.selected_connectable() {
+            apply_ble_control(BLE_CONTROL.wait().await);
+            continue;
+        }
+        let profile = BONDS.selected();
+        set_gap_device_name(profile);
+        let advertisement = match profile {
             0 => &ADVERTISEMENT_1,
             1 => &ADVERTISEMENT_2,
             _ => &ADVERTISEMENT_3,
         };
-        let advertising_config = peripheral::Config::default();
+        let advertising_config = peripheral::Config {
+            interval: 160, // 100 ms
+            ..Default::default()
+        };
         let advertising = peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
@@ -373,8 +448,20 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             }
         };
 
+        if !BONDS.accepts_connection(&connection)
+            || connection.request_security().is_err()
+            || !wait_for_security(&connection).await
+            || !BONDS.restore_sys_attrs(&connection)
+        {
+            disconnect_ble(&connection).await;
+            continue;
+        }
+
         let control = match select3(
-            gatt_server::run(&connection, server, |_| OUTPUT.synchronize_ble()),
+            gatt_server::run(&connection, server, |_| {
+                BONDS.capture_sys_attrs(&connection);
+                OUTPUT.synchronize_ble();
+            }),
             notify_ble_reports(&connection, server),
             BLE_CONTROL.wait(),
         )
@@ -383,10 +470,11 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             Either3::First(_) | Either3::Second(()) => None,
             Either3::Third(control) => Some(control),
         };
-        drop(connection);
         if let Some(control) = control {
+            disconnect_ble(&connection).await;
             apply_ble_control(control);
         }
+        drop(connection);
     }
 }
 
@@ -482,20 +570,7 @@ async fn secure_split_connection(connection: &nrf_softdevice::ble::Connection) -
         return false;
     }
 
-    for _ in 0..250 {
-        if matches!(
-            connection.security_mode(),
-            SecurityMode::JustWorks
-                | SecurityMode::Mitm
-                | SecurityMode::LescMitm
-                | SecurityMode::Signed
-                | SecurityMode::SignedMitm
-        ) {
-            return true;
-        }
-        Timer::after(Duration::from_millis(20)).await;
-    }
-    false
+    wait_for_security(connection).await
 }
 
 #[embassy_executor::main]
@@ -508,7 +583,11 @@ async fn main(_spawner: embassy_executor::Spawner) {
     interrupt::TWISPI0.set_priority(Priority::P3);
     interrupt::SAADC.set_priority(Priority::P3);
 
-    let softdevice = Softdevice::enable(&softdevice_config(b"NocFree Rust"));
+    let softdevice = Softdevice::enable(&softdevice_config(b"NocFree 1"));
+    assert_eq!(
+        unsafe { raw::sd_ble_gap_appearance_set(KEYBOARD_APPEARANCE) },
+        raw::NRF_SUCCESS
+    );
     let ble_hid_server = BleHidServer::new(softdevice).unwrap();
     let flash = nrf_softdevice::Flash::take(softdevice);
     let (usb_detected, power_ready) = enable_usb_power_events();
