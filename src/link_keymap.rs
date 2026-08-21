@@ -5,11 +5,13 @@ pub const LINK_ROWS: usize = 6;
 pub const LINK_COLS: usize = 21;
 pub const LINK_BINDING_BYTES: usize = 3;
 pub const LINK_KEYMAP_BYTES: usize = LINK_LAYERS * KEY_COUNT * LINK_BINDING_BYTES;
-pub const LINK_KEYMAP_RECORD_BYTES: usize = 12 + LINK_KEYMAP_BYTES;
+pub const HOTKEY_SLOTS: usize = 16;
+const HOTKEY_BYTES: usize = 8;
+pub const LINK_KEYMAP_RECORD_BYTES: usize = 12 + LINK_KEYMAP_BYTES + HOTKEY_SLOTS * HOTKEY_BYTES;
 pub const LINK_KEYMAP_PAGE: u8 = 7;
 
 const MAGIC: [u8; 4] = *b"NFK1";
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 const LEFT_STARTS: [usize; LINK_ROWS] = [0, 7, 14, 20, 26, 32];
 const LEFT_COUNTS: [usize; LINK_ROWS] = [7, 7, 6, 6, 6, 5];
 const RIGHT_STARTS: [usize; LINK_ROWS] = [37, 45, 53, 61, 69, 77];
@@ -30,9 +32,42 @@ impl LinkBinding {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HotkeySlot {
+    pub empty: bool,
+    pub row: u8,
+    pub col: u8,
+    pub layer: u8,
+    pub modifiers: u8,
+    pub key: u16,
+}
+
+impl HotkeySlot {
+    pub const EMPTY: Self = Self {
+        empty: true,
+        row: u8::MAX,
+        col: u8::MAX,
+        layer: u8::MAX,
+        modifiers: 0,
+        key: 0,
+    };
+
+    pub const fn action(self) -> Action {
+        if self.empty || self.key > u8::MAX as u16 {
+            Action::NoAction
+        } else {
+            Action::Chord {
+                modifiers: self.modifiers,
+                key: self.key as u8,
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkKeymap {
     bindings: [LinkBinding; LINK_LAYERS * KEY_COUNT],
+    hotkeys: [HotkeySlot; HOTKEY_SLOTS],
     system: u8,
 }
 
@@ -46,6 +81,7 @@ impl LinkKeymap {
     pub const fn new() -> Self {
         let mut map = Self {
             bindings: [LinkBinding::TRANSPARENT; LINK_LAYERS * KEY_COUNT],
+            hotkeys: [HotkeySlot::EMPTY; HOTKEY_SLOTS],
             system: 1,
         };
         let mut raw = 0;
@@ -59,6 +95,26 @@ impl LinkKeymap {
 
     pub fn binding(&self, layer: usize, raw: usize) -> Option<LinkBinding> {
         (layer < LINK_LAYERS && raw < KEY_COUNT).then_some(self.bindings[layer * KEY_COUNT + raw])
+    }
+
+    pub fn action(&self, layer: usize, raw: usize) -> Action {
+        let Some(binding) = self.binding(layer, raw) else {
+            return Action::NoAction;
+        };
+        if binding.kind == 3 && (64..64 + HOTKEY_SLOTS as u16).contains(&binding.value) {
+            return self.hotkeys[(binding.value - 64) as usize].action();
+        }
+        if let Some((row, col)) = matrix_from_raw(raw)
+            && let Some(slot) = self.hotkeys.iter().find(|slot| {
+                !slot.empty
+                    && slot.layer as usize == layer
+                    && slot.row as usize == row
+                    && slot.col as usize == col
+            })
+        {
+            return slot.action();
+        }
+        action_from_binding(binding)
     }
 
     pub fn matrix_binding(&self, layer: usize, row: usize, col: usize) -> Option<LinkBinding> {
@@ -94,7 +150,23 @@ impl LinkKeymap {
     }
 
     pub fn reset_all(&mut self) {
-        *self = Self::default();
+        self.bindings = Self::default().bindings;
+    }
+
+    pub fn hotkey(&self, slot: usize) -> Option<HotkeySlot> {
+        self.hotkeys.get(slot).copied()
+    }
+
+    pub fn set_hotkey(&mut self, slot: usize, hotkey: HotkeySlot) -> bool {
+        let Some(current) = self.hotkeys.get_mut(slot) else {
+            return false;
+        };
+        *current = hotkey;
+        true
+    }
+
+    pub fn clear_hotkey(&mut self, slot: usize) -> bool {
+        self.set_hotkey(slot, HotkeySlot::EMPTY)
     }
 
     pub fn system(&self) -> u8 {
@@ -120,6 +192,16 @@ impl LinkKeymap {
             bytes[offset + 1..offset + 3].copy_from_slice(&binding.value.to_le_bytes());
             offset += LINK_BINDING_BYTES;
         }
+        for slot in self.hotkeys {
+            bytes[offset] = u8::from(!slot.empty);
+            bytes[offset + 1] = slot.row;
+            bytes[offset + 2] = slot.col;
+            bytes[offset + 3] = slot.layer;
+            bytes[offset + 4] = slot.modifiers;
+            bytes[offset + 5..offset + 7].copy_from_slice(&slot.key.to_le_bytes());
+            bytes[offset + 7] = 0;
+            offset += HOTKEY_BYTES;
+        }
         let crc = crc32(&bytes[..LINK_KEYMAP_RECORD_BYTES - 4]);
         bytes[LINK_KEYMAP_RECORD_BYTES - 4..].copy_from_slice(&crc.to_le_bytes());
         bytes
@@ -136,6 +218,7 @@ impl LinkKeymap {
         }
         let mut map = Self {
             bindings: [LinkBinding::TRANSPARENT; LINK_LAYERS * KEY_COUNT],
+            hotkeys: [HotkeySlot::EMPTY; HOTKEY_SLOTS],
             system: bytes[5],
         };
         let mut offset = 8;
@@ -145,6 +228,17 @@ impl LinkKeymap {
                 value: u16::from_le_bytes(bytes[offset + 1..offset + 3].try_into().ok()?),
             };
             offset += LINK_BINDING_BYTES;
+        }
+        for slot in &mut map.hotkeys {
+            *slot = HotkeySlot {
+                empty: bytes[offset] == 0,
+                row: bytes[offset + 1],
+                col: bytes[offset + 2],
+                layer: bytes[offset + 3],
+                modifiers: bytes[offset + 4],
+                key: u16::from_le_bytes(bytes[offset + 5..offset + 7].try_into().ok()?),
+            };
+            offset += HOTKEY_BYTES;
         }
         Some(map)
     }
@@ -334,6 +428,17 @@ mod tests {
     fn keymap_record_round_trips_and_rejects_corruption() {
         let mut map = LinkKeymap::default();
         assert!(map.set_matrix_binding(7, 4, 10, LinkBinding::new(2, 174)));
+        assert!(map.set_hotkey(
+            3,
+            HotkeySlot {
+                empty: false,
+                row: u8::MAX,
+                col: u8::MAX,
+                layer: u8::MAX,
+                modifiers: 1 << 0,
+                key: 0x06,
+            }
+        ));
         assert!(map.set_system(0));
         let mut encoded = map.encode();
         assert_eq!(LinkKeymap::decode(&encoded), Some(map));
@@ -363,5 +468,26 @@ mod tests {
             action_from_binding(LinkBinding::new(3, 104)),
             Action::LayerToggle(4)
         );
+    }
+
+    #[test]
+    fn hotkeys_execute_by_map_value_or_bound_coordinate() {
+        let mut map = LinkKeymap::default();
+        let hotkey = HotkeySlot {
+            empty: false,
+            row: 3,
+            col: 7,
+            layer: 2,
+            modifiers: (1 << 0) | (1 << 2),
+            key: 0x4c,
+        };
+        assert!(map.set_hotkey(0, hotkey));
+        assert!(map.set_matrix_binding(0, 0, 0, LinkBinding::new(3, 64)));
+        let expected = Action::Chord {
+            modifiers: hotkey.modifiers,
+            key: hotkey.key as u8,
+        };
+        assert_eq!(map.action(0, 0), expected);
+        assert_eq!(map.action(2, raw_from_matrix(3, 7).unwrap()), expected);
     }
 }

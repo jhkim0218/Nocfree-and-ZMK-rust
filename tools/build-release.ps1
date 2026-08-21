@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $firmwareDir = Join-Path $repo 'firmware'
 $targetDir = Join-Path $repo 'target\thumbv7em-none-eabihf\release'
+$nrfutil = Get-Command adafruit-nrfutil -ErrorAction Stop
 
 Push-Location $repo
 try {
@@ -17,13 +18,6 @@ try {
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
         throw ('Host tests failed (exit {0})' -f $testExitCode)
-    }
-
-    $python = Get-Command python -ErrorAction Stop
-    & $python.Source -B -m unittest discover -s tools -p 'test_*.py'
-    $pythonTestExitCode = $LASTEXITCODE
-    if ($pythonTestExitCode -ne 0) {
-        throw ('UF2 tests failed (exit {0})' -f $pythonTestExitCode)
     }
 
     cargo clippy --target x86_64-pc-windows-msvc --lib -- -D warnings
@@ -67,6 +61,7 @@ try {
     }
 
     New-Item -ItemType Directory -Path $firmwareDir -Force | Out-Null
+    $python = Get-Command python -ErrorAction Stop
 
     $artifacts = @(
         @{ Binary = 'central'; Half = 'Left' },
@@ -78,6 +73,7 @@ try {
         $elf = Join-Path $targetDir $binaryName
         $bin = Join-Path $firmwareDir ('NocFree_Rust_{0}.bin' -f $halfName)
         $uf2 = Join-Path $firmwareDir ('NocFree_Rust_{0}.uf2' -f $halfName)
+        $dfu = Join-Path $firmwareDir ('NocFree_Rust_{0}_DFU.zip' -f $halfName)
         if (-not (Test-Path -LiteralPath $elf)) {
             throw ('Missing release ELF {0}' -f $elf)
         }
@@ -93,6 +89,18 @@ try {
         if ($uf2ExitCode -ne 0) {
             throw ('UF2 packing failed for {0} (exit {1})' -f $halfName, $uf2ExitCode)
         }
+
+        & $nrfutil.Source dfu genpkg --application $bin --dev-type 82 --dfu-ver 0.5 --sd-req 0xFFFE $dfu
+        $dfuExitCode = $LASTEXITCODE
+        if ($dfuExitCode -ne 0) {
+            throw ('Serial DFU packing failed for {0} (exit {1})' -f $halfName, $dfuExitCode)
+        }
+    }
+
+    & $python.Source -B -m unittest discover -s tools -p 'test_*.py'
+    $pythonTestExitCode = $LASTEXITCODE
+    if ($pythonTestExitCode -ne 0) {
+        throw ('Artifact tests failed (exit {0})' -f $pythonTestExitCode)
     }
 
     Get-ChildItem -LiteralPath $firmwareDir -File |

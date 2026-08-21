@@ -17,6 +17,12 @@ pub struct State {
     control: MaybeUninit<Control>,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl State {
     pub const fn new() -> Self {
         Self {

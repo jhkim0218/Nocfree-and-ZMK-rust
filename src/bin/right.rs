@@ -27,7 +27,6 @@ use nrf_softdevice::ble::advertisement_builder::{
     Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload, ServiceList,
 };
 use nrf_softdevice::ble::{gatt_server, peripheral};
-use panic_halt as _;
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {

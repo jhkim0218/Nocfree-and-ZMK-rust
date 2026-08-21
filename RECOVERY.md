@@ -4,9 +4,29 @@ Rust UF2는 다음 영역만 사용합니다.
 
 - `0x00000..0x26fff`: MBR + S140 7.3.0 — 보존
 - `0x27000..0x64fff`: Rust 애플리케이션 — 기록
-- `0x65000..0x6cfff`: BLE 프로필 저장 — 애플리케이션이 일부 사용
+- `0x65000..0x6bfff`: BLE 프로필과 split bond 저장
+- `0x6c000..0x6cfff`: Link 동적 키맵과 hotkey 저장
 - `0x6d000..0x73fff`: 공장 파일시스템 — 보존
 - `0x74000..0x7ffff`: Adafruit UF2 부트로더와 메타데이터 — 보존
+
+## 2026-08-21 현재 왼쪽 복구 상태
+
+현재 왼쪽에는 Link USB 인터페이스 수 설정이 빠진 중간 Rust 이미지가 설치돼
+있습니다. 이 이미지는 USB builder에서 panic하므로 키 스캐너, CDC 1200-baud
+복구, split 처리가 시작되지 않습니다.
+
+- NocFree &에는 외부 reset 버튼이 없습니다.
+- 현재 Rust 키맵에는 공장 펌웨어의 `Option+3` 복구 단축키가 없습니다.
+- 전원 재연결은 Adafruit 부트로더가 요구하는 reset-pin double tap과 같다고
+  입증되지 않았습니다.
+- 현재 왼쪽은 USB/CDC/UF2로 열거되지 않으므로 소프트웨어만으로 진입시킬 수
+  없습니다.
+- 확인되지 않은 PCB 패드를 임의로 쇼트하지 마십시오.
+
+왼쪽을 한 번 복구하려면 NocFree가 지정한 reset/recovery test point를 정확히
+확인하거나 J-Link/nRF52 DK 같은 SWD 프로브가 필요합니다. 복구 후 설치할 최신
+왼쪽 이미지에는 USB interface-count 수정과 panic→UF2 안전장치가 모두 들어
+있습니다.
 
 ## 반드시 지킬 순서
 
@@ -36,7 +56,7 @@ COM 번호는 다시 연결할 때 바뀔 수 있으므로 아래 고정 식별�
 
 | 역할/상태 | USB 부모 Instance ID |
 |---|---|
-| Rust 왼쪽 | `USB\VID_1D50&PID_615E\RUST-LEFT` |
+| 최신 Rust 왼쪽 목표 | `USB\VID_2886&PID_8029\RUST-LEFT` |
 | Rust 오른쪽 | `USB\VID_1D50&PID_615E\RUST-RIGHT` |
 | 순정 왼쪽 | `USB\VID_2886&PID_8029\52CF50988BD1E6EE` |
 | 순정 오른쪽 | `USB\VID_239A&PID_80D8\D82A03513BB02626` |
@@ -50,8 +70,9 @@ COM 번호는 다시 연결할 때 바뀔 수 있으므로 아래 고정 식별�
 - `NocFree_and_V2.3.0_Right_ANSI.uf2`:
   `E1F851906B3E35117B8A8AAC09E5C8273D75921F64D1D3B1496E60A53D3E1C66`
 
-2026-08-21에 현재 정확한 Rust 이미지로 양쪽 모두 다음 전체 사이클을 실제
-통과했습니다.
+2026-08-21에 이전 체크포인트 Rust 이미지로 양쪽 모두 다음 전체 사이클을 실제
+통과했습니다. 최신 Link 호환 이미지는 아직 같은 실기 사이클을 통과하지
+않았습니다.
 
 1. Rust CDC 1200-baud DFU로 UF2 드라이브 진입
 2. 역할에 맞는 순정 UF2 복사와 위 순정 부모 ID 확인
@@ -76,9 +97,9 @@ COM 번호는 예시일 뿐입니다. 위 표의 부모 ID로 역할을 확인�
 같습니다.
 
 - `NocFree_Rust_Left_DFU.zip`:
-  `CD8B19398BF13BF2E7AF5852D09ED31A60BEFFAE35942201942068D2BD0CA7F4`
+  `4A70FE90CD0B00069ACB0745A308A4C2E7B10057B8CC7A7C0586C9D3DC28F0DE`
 - `NocFree_Rust_Right_DFU.zip`:
-  `0906C30D444075A8BD1BF86FE6C8EAD0C2BAD4FEB2BF3356A97D85356458C5A3`
+  `4D19A3DED7BBDB47CD448ADECCF50265D81DC09748492DDAFBB4C57EA3DA1535`
 
 ## 즉시 중단 조건
 

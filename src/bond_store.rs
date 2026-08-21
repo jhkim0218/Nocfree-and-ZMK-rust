@@ -19,9 +19,7 @@ use crate::bond_record::{
     encode_selected_profile,
 };
 use crate::keymap::Action;
-use crate::link_keymap::{
-    LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap, action_from_binding,
-};
+use crate::link_keymap::{LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap};
 use crate::link_protocol::{LinkResponse, handle_request};
 
 #[derive(Clone, Copy)]
@@ -92,13 +90,8 @@ impl BondStore {
     }
 
     pub fn key_action(&self, layer: u8, raw: usize) -> Action {
-        self.keymap.lock(|keymap| {
-            keymap
-                .borrow()
-                .binding(layer as usize, raw)
-                .map(action_from_binding)
-                .unwrap_or(Action::NoAction)
-        })
+        self.keymap
+            .lock(|keymap| keymap.borrow().action(layer as usize, raw))
     }
 
     pub fn handle_link_frame(&self, frame: &[u8]) -> Option<LinkResponse> {

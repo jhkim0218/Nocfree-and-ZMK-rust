@@ -19,8 +19,11 @@ class RepositoryContractTests(unittest.TestCase):
 
     def test_dfu_uses_softdevice_system_calls(self) -> None:
         platform = read("src/platform.rs")
+        cargo = read("Cargo.toml")
         self.assertIn("sd_power_gpregret_clr(0, 0xff)", platform)
         self.assertIn("sd_power_gpregret_set(0, 0x57)", platform)
+        self.assertIn("#[panic_handler]", platform)
+        self.assertNotIn("panic-halt", cargo)
         self.assertNotIn("pac::POWER", platform)
 
     def test_all_ble_links_are_pinned_to_1m(self) -> None:
@@ -46,6 +49,20 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertNotIn("HidWriter", right)
         self.assertIn("CdcAcmClass", central)
         self.assertIn("CdcAcmClass", right)
+
+    def test_left_exposes_nocfree_link_and_uses_its_persisted_keymap(self) -> None:
+        central = read("src/bin/central.rs")
+        cargo_config = read(".cargo/config.toml")
+        storage = read("src/bond_store.rs")
+        protocol = read("src/link_protocol.rs")
+        self.assertIn("Config::new(0x2886, 0x8029)", central)
+        self.assertIn('usb_config.product = Some("NocFree & ANSI")', central)
+        self.assertIn("LinkUsbClass::new", central)
+        self.assertIn("BONDS.key_action(layer, raw)", central)
+        self.assertIn('EMBASSY_USB_MAX_INTERFACE_COUNT = "5"', cargo_config)
+        self.assertIn("LINK_KEYMAP_PAGE", storage)
+        self.assertIn("const SET_HOTKEY: u8 = 52", protocol)
+        self.assertIn("const GET_TEXT: u8 = 49", protocol)
 
     def test_cross_half_updates_share_one_fifo(self) -> None:
         central = read("src/bin/central.rs")

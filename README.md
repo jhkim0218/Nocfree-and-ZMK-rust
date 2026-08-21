@@ -5,9 +5,10 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 [`jhkim0218/NocFree-and-zmk`](https://github.com/jhkim0218/NocFree-and-zmk.git)의
 커밋 `e5e2f470795e92609f7ee6e810470fa6976557d1`입니다.
 
-> 비공식 펌웨어입니다. 자동 테스트와 ELF/UF2 범위 검증, USB 전체 84키,
-> BLE 좌우 교차 입력, 양쪽 DFU 및 역할별 순정 원복 후 Rust 재설치를 실제로
-> 통과했습니다. 플래시는 반드시 [복구 절차](RECOVERY.md)의 순서를 따릅니다.
+> 비공식 펌웨어입니다. 이전 체크포인트는 USB 전체 84키, BLE 좌우 교차 입력,
+> 양쪽 DFU 및 역할별 순정 원복을 실제로 통과했습니다. 현재 작업 중인 Link
+> 호환 이미지는 자동 검증만 완료됐고 아직 실기에 설치하지 못했습니다. 현재
+> 왼쪽 복구 상태는 [복구 절차](RECOVERY.md)를 먼저 확인하십시오.
 
 ## 왼쪽과 오른쪽
 
@@ -25,7 +26,8 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 
 ## 빌드
 
-Windows PowerShell에서 실행합니다. Rust와 Python 3가 필요합니다.
+Windows PowerShell에서 실행합니다. Rust, Python 3와 application-only serial
+DFU 패키지를 만드는 `adafruit-nrfutil` 0.5.3.post16이 필요합니다.
 
 ```powershell
 cd D:\study\nocfree\NocFree-and-rust
@@ -38,36 +40,45 @@ cd D:\study\nocfree\NocFree-and-rust
 2. Windows 호스트 단위 테스트
 3. `central`과 `right` release 빌드
 4. ELF에서 앱 바이너리 추출
-5. nRF52833 UF2 생성 및 주소·family ID·벡터·왕복 검증
+5. nRF52833 UF2와 serial-DFU ZIP 생성
+6. 주소·family ID·벡터·왕복 및 DFU ZIP/BIN 일치 검증
 
-결과 파일은 `firmware/NocFree_Rust_Left.uf2`와
-`firmware/NocFree_Rust_Right.uf2`입니다. 두 UF2는 앱 영역
-`0x27000..0x64fff`만 기록합니다.
+결과 파일은 역할별 `.bin`, `.uf2`, `_DFU.zip`입니다. UF2와 serial-DFU ZIP은
+모두 앱 영역 `0x27000..0x64fff`만 기록합니다.
 
 ## 실기 검증 상태
 
-2026-08-21, Windows에서 현재 정확한 이미지로 확인한 상태입니다.
+2026-08-21 현재 상태입니다. 이전 체크포인트의 실기 결과와 최신 미설치 이미지의
+상태를 혼동하면 안 됩니다.
 
 | 항목 | 상태 |
 |---|---|
-| 왼쪽 UF2 설치 및 부팅 | 통과; `RUST-LEFT`, 키보드/미디어 HID, CDC 열거 |
-| 오른쪽 UF2 설치 및 부팅 | 통과; `RUST-RIGHT`, CDC만 열거하고 호스트 HID 없음 |
-| UF2 부트로더 정보 | 양쪽 모두 NocFree & / S140 7.3.0 확인 |
-| 현재 이미지의 USB 전체 84키 | 통과; 문자 50개와 비문자 34개, 양쪽 Fn 확인 |
-| 현재 이미지의 오른쪽 split → 왼쪽 USB 입력 | 통과; `yuiopY`, `jamjamjamjam` 및 교차 반복 입력 순서 확인 |
-| BLE 입력과 USB/BLE 전환 | 통과; `blejamjamjam`, `finalusbjamfinalblejamfinalusbback` 확인 |
-| 미디어 키 | 통과; 음소거/해제, 볼륨 내림/올림 확인 |
-| 현재 이미지의 양쪽 DFU 및 역할별 순정 원복 | 통과; 양쪽 순정 ID 확인 후 같은 Rust 이미지로 복귀 |
-| `Fn+Esc` 왼쪽 reset / `Fn+Delete` 오른쪽 DFU | 통과; 재시작 및 UF2 재설치 후 입력 확인 |
+| 이전 체크포인트 USB/BLE/84키/양쪽 DFU | 통과; 자세한 입력 문자열과 범위는 [HANDOFF.md](HANDOFF.md) 참조 |
+| 최신 Link 호환 이미지 자동 검증 | 통과; 43 Rust 테스트, 14 Python 테스트, 양쪽 clippy/release 빌드 |
+| 최신 Link 호환 이미지 실기 설치 | 미실시 |
+| 현재 왼쪽 | USB/CDC/UF2 모두 없음; 중간 이미지가 USB 생성 중 panic |
+| 현재 오른쪽 | 이전 `RUST-RIGHT`, COM18, 정상 열거 |
+| 현재 UF2 드라이브 | 없음 |
+| 최신 이미지의 Link 웹앱/키 변경 | 구현됨, 실기 미검증 |
 
 현재 UF2 SHA-256은 다음과 같습니다.
 
-- 왼쪽: `7053E74EA87313A106AE15C02724816A0A69D6D4F3E6B722D852DDEA6A725992`
-- 오른쪽: `480A9DB7ECC6146CCB54E37FB6F586AEEC48D5DD39EDF2F4FA2E91BACC0F38BA`
+- 왼쪽: `368CDD50F457680561CD0D0360F092A756675472F5A2297A9531B7DF734B7707`
+- 오른쪽: `A75EEAAD39B0B10ACF4B38B61EEBA361B44FE9E39A13EB8DB29423547F472E3C`
 
 다른 작업자나 AI가 현재 상태부터 이어갈 때는 [HANDOFF.md](HANDOFF.md)를 먼저
 읽으십시오. USB 전체 84키는 통과했지만 BLE에서 동일한 84키 전체 sweep을
 반복한 것은 아니며, BLE는 좌우 교차 입력과 출력 전환으로 검증했습니다.
+
+## NocFree Link 키 변경
+
+최신 왼쪽 이미지는 `link.nocfree.com`이 선택하는 VID/PID `2886:8029`, 제품명
+`NocFree & ANSI`, WinUSB vendor bulk 인터페이스를 제공합니다. 8개 레이어의
+84개 물리 키와 16개 hotkey 슬롯을 flash에 저장하며 키 변경 결과가 실제 HID
+입력에 사용됩니다. 빠른 문자열(quick text)은 조회 시 빈 슬롯으로 응답하지만
+저장·실행은 아직 구현하지 않았습니다. ZMK Studio 프로토콜은 구현하지 않았고
+두 선택지 중 NocFree Link 호환 경로를 선택했습니다. 이 항목은 왼쪽을 복구한
+뒤 Chrome/Edge에서 실제 연결·키 변경·재부팅 후 보존까지 확인해야 완료입니다.
 
 ## 키 바인딩
 
@@ -82,6 +93,10 @@ cd D:\study\nocfree\NocFree-and-rust
 왼쪽 DFU와 split이 끊긴 오른쪽 DFU는 각 반쪽의 USB CDC 1200-baud
 touch를 사용합니다. 자세한 안전 조건과 원복 순서는 [RECOVERY.md](RECOVERY.md)에
 있습니다.
+
+최신 이미지에서는 처리되지 않은 panic도 GPREGRET `0x57`을 설정하고 UF2로
+재시작합니다. 현재 왼쪽에 설치된 중간 이미지는 이 안전장치가 들어가기 전
+이미지이므로 이 설명을 현재 장치의 복구 경로로 오해하면 안 됩니다.
 
 ## 코드 읽는 순서
 

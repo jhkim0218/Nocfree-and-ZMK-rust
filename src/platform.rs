@@ -1,10 +1,20 @@
 use core::mem;
+use core::panic::PanicInfo;
 
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::CdcAcmClass;
 use embassy_usb::driver::Driver as UsbDriver;
 use nrf_softdevice::{SocEvent, raw};
+
+#[panic_handler]
+fn panic_to_bootloader(_info: &PanicInfo) -> ! {
+    unsafe {
+        let _ = raw::sd_power_gpregret_clr(0, 0xff);
+        let _ = raw::sd_power_gpregret_set(0, 0x57);
+    }
+    cortex_m::peripheral::SCB::sys_reset()
+}
 
 pub fn softdevice_config(device_name: &'static [u8]) -> nrf_softdevice::Config {
     nrf_softdevice::Config {

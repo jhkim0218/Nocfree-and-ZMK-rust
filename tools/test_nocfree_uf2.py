@@ -1,6 +1,8 @@
+import json
 import struct
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from nocfree_uf2 import (
@@ -12,6 +14,9 @@ from nocfree_uf2 import (
     pack_application,
     validate_application,
 )
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def valid_application(payload: bytes = b"") -> bytes:
@@ -44,6 +49,22 @@ class Uf2PackingTests(unittest.TestCase):
             validate_application(struct.pack("<2I", 0, APP_BASE + 0x101))
         with self.assertRaisesRegex(ValueError, "reset"):
             validate_application(struct.pack("<2I", RAM_END, APP_BASE + 0x100))
+
+
+class DfuPackageTests(unittest.TestCase):
+    def test_serial_dfu_packages_contain_the_current_applications(self) -> None:
+        for half in ("Left", "Right"):
+            binary = ROOT / "firmware" / f"NocFree_Rust_{half}.bin"
+            package = ROOT / "firmware" / f"NocFree_Rust_{half}_DFU.zip"
+            with self.subTest(half=half), zipfile.ZipFile(package) as archive:
+                self.assertEqual(
+                    archive.read(f"NocFree_Rust_{half}.bin"), binary.read_bytes()
+                )
+                manifest = json.loads(archive.read("manifest.json"))["manifest"]
+                application = manifest["application"]["init_packet_data"]
+                self.assertEqual(manifest["dfu_version"], 0.5)
+                self.assertEqual(application["device_type"], 82)
+                self.assertEqual(application["softdevice_req"], [0xFFFE])
 
 
 if __name__ == "__main__":

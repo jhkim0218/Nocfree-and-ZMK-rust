@@ -4,3 +4,4 @@ target = "thumbv7em-none-eabihf"
 [env]
 RUST_MIN_STACK = "33554432"
 LIBCLANG_PATH = { value = ".tools/llvm/bin", relative = true }
+EMBASSY_USB_MAX_INTERFACE_COUNT = "5"

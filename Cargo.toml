@@ -37,7 +37,6 @@ embassy-sync = "0.7.2"
 embassy-time = { version = "0.5", features = ["tick-hz-32_768"] }
 embassy-usb = "0.5.1"
 embedded-storage-async = "0.4"
-panic-halt = "1"
 static_cell = "2"
 
 [profile.dev]

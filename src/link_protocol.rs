@@ -1,5 +1,6 @@
 use crate::link_keymap::{
-    LINK_COLS, LINK_LAYERS, LINK_ROWS, LinkBinding, LinkKeymap, raw_from_matrix,
+    HOTKEY_SLOTS, HotkeySlot, LINK_COLS, LINK_LAYERS, LINK_ROWS, LinkBinding, LinkKeymap,
+    raw_from_matrix,
 };
 
 pub const MAX_FRAME_BYTES: usize = 261;
@@ -14,6 +15,14 @@ const SET_KEY: u8 = 17;
 const GET_KEY: u8 = 18;
 const GET_LAYER_ROW: u8 = 20;
 const SET_LAYER_ROW: u8 = 21;
+const SET_TEXT: u8 = 48;
+const GET_TEXT: u8 = 49;
+const CLEAR_TEXT: u8 = 50;
+const DELETE_TEXT: u8 = 51;
+const SET_HOTKEY: u8 = 52;
+const GET_HOTKEY: u8 = 53;
+const CLEAR_HOTKEY: u8 = 54;
+const DELETE_HOTKEY: u8 = 55;
 const CLEAR_ALL: u8 = 33;
 const CLEAR_LAYER: u8 = 34;
 const READ_VERSION: u8 = 81;
@@ -25,6 +34,14 @@ const RSP_SET_KEY: u8 = 144;
 const RSP_GET_KEY: u8 = 145;
 const RSP_GET_LAYER_ROW: u8 = 147;
 const RSP_SET_LAYER_ROW: u8 = 148;
+const RSP_SET_TEXT: u8 = 176;
+const RSP_GET_TEXT: u8 = 177;
+const RSP_CLEAR_TEXT: u8 = 178;
+const RSP_DELETE_TEXT: u8 = 179;
+const RSP_SET_HOTKEY: u8 = 180;
+const RSP_GET_HOTKEY: u8 = 181;
+const RSP_CLEAR_HOTKEY: u8 = 182;
+const RSP_DELETE_HOTKEY: u8 = 183;
 const RSP_CLEAR_ALL: u8 = 161;
 const RSP_CLEAR_LAYER: u8 = 162;
 const RSP_READ_VERSION: u8 = 209;
@@ -124,6 +141,39 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
             response_payload[0] = handle_set_layer_row(payload, keymap, &mut changed);
             RSP_SET_LAYER_ROW
         }
+        SET_HOTKEY => {
+            response_payload[0] = handle_set_hotkey(payload, keymap, &mut changed);
+            RSP_SET_HOTKEY
+        }
+        GET_HOTKEY => {
+            payload_len = encode_hotkey(payload, keymap, &mut response_payload);
+            RSP_GET_HOTKEY
+        }
+        CLEAR_HOTKEY | DELETE_HOTKEY => {
+            response_payload[0] = handle_clear_hotkey(payload, keymap, &mut changed);
+            if op == CLEAR_HOTKEY {
+                RSP_CLEAR_HOTKEY
+            } else {
+                RSP_DELETE_HOTKEY
+            }
+        }
+        GET_TEXT => {
+            if payload.len() == 1 && (payload[0] as usize) < HOTKEY_SLOTS {
+                response_payload[..3].copy_from_slice(&[OK, payload[0], 0]);
+                payload_len = 3;
+            } else {
+                response_payload[0] = OOR;
+            }
+            RSP_GET_TEXT
+        }
+        SET_TEXT | CLEAR_TEXT | DELETE_TEXT => {
+            response_payload[0] = BAD_ARG;
+            match op {
+                SET_TEXT => RSP_SET_TEXT,
+                CLEAR_TEXT => RSP_CLEAR_TEXT,
+                _ => RSP_DELETE_TEXT,
+            }
+        }
         CLEAR_ALL => {
             if payload.is_empty() {
                 keymap.reset_all();
@@ -177,6 +227,87 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
         len,
         changed,
     })
+}
+
+fn handle_set_hotkey(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut bool) -> u8 {
+    if payload.len() < 6 || payload[0] as usize >= HOTKEY_SLOTS {
+        return BAD_ARG;
+    }
+    if payload[1] == 0 {
+        return handle_clear_hotkey(&payload[..1], keymap, changed);
+    }
+    let event_count = payload[5] as usize;
+    if payload.len() != 6 + event_count * 3 || event_count == 0 || event_count > 5 {
+        return BAD_ARG;
+    }
+    let unbound = payload[2..5] == [u8::MAX; 3];
+    if !unbound
+        && (payload[4] as usize >= LINK_LAYERS
+            || raw_from_matrix(payload[2] as usize, payload[3] as usize).is_none())
+    {
+        return OOR;
+    }
+
+    let mut modifiers = 0_u8;
+    let mut key = None;
+    for event in payload[6..].chunks_exact(3) {
+        if event[2] != 1 {
+            return BAD_ARG;
+        }
+        let usage = u16::from_be_bytes([event[0], event[1]]);
+        match usage {
+            0xe0..=0xe7 => modifiers |= 1 << (usage - 0xe0),
+            0x04..=0xff if key.is_none() => key = Some(usage),
+            _ => return BAD_ARG,
+        }
+    }
+    let Some(key) = key else {
+        return BAD_ARG;
+    };
+    let hotkey = HotkeySlot {
+        empty: false,
+        row: payload[2],
+        col: payload[3],
+        layer: payload[4],
+        modifiers,
+        key,
+    };
+    let _ = keymap.set_hotkey(payload[0] as usize, hotkey);
+    *changed = true;
+    OK
+}
+
+fn encode_hotkey(payload: &[u8], keymap: &LinkKeymap, output: &mut [u8]) -> usize {
+    if payload.len() != 1 || payload[0] as usize >= HOTKEY_SLOTS {
+        output[0] = OOR;
+        return 1;
+    }
+    let slot_id = payload[0];
+    let slot = keymap.hotkey(slot_id as usize).unwrap_or(HotkeySlot::EMPTY);
+    if slot.empty {
+        output[..3].copy_from_slice(&[OK, slot_id, 0]);
+        return 3;
+    }
+    output[..7].copy_from_slice(&[OK, slot_id, 1, slot.row, slot.col, slot.layer, 0]);
+    let mut length = 7;
+    for bit in 0..8 {
+        if slot.modifiers & (1 << bit) != 0 {
+            output[length..length + 3].copy_from_slice(&[0, 0xe0 + bit, 1]);
+            length += 3;
+            output[6] += 1;
+        }
+    }
+    output[length..length + 3].copy_from_slice(&[(slot.key >> 8) as u8, slot.key as u8, 1]);
+    output[6] += 1;
+    length + 3
+}
+
+fn handle_clear_hotkey(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut bool) -> u8 {
+    if payload.len() != 1 || !keymap.clear_hotkey(payload[0] as usize) {
+        return OOR;
+    }
+    *changed = true;
+    OK
 }
 
 fn handle_set_layer_row(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut bool) -> u8 {
@@ -311,5 +442,77 @@ mod tests {
         let response = run(SET_KEY, &[0, 9, 9, 0, 0, 4], &mut keymap);
         assert_eq!(response.as_slice()[4], OOR);
         assert!(!response.changed);
+    }
+
+    #[test]
+    fn hotkey_slots_round_trip_in_link_wire_format() {
+        let mut keymap = LinkKeymap::default();
+        let set_payload = [
+            2,
+            1,
+            u8::MAX,
+            u8::MAX,
+            u8::MAX,
+            3,
+            0,
+            0xe0,
+            1,
+            0,
+            0xe2,
+            1,
+            0,
+            0x4c,
+            1,
+        ];
+        let set = run(SET_HOTKEY, &set_payload, &mut keymap);
+        assert_eq!(set.as_slice()[2], RSP_SET_HOTKEY);
+        assert_eq!(set.as_slice()[4], OK);
+        assert!(set.changed);
+
+        let get = run(GET_HOTKEY, &[2], &mut keymap);
+        assert_eq!(get.as_slice()[2], RSP_GET_HOTKEY);
+        assert_eq!(
+            &get.as_slice()[4..],
+            &[
+                OK,
+                2,
+                1,
+                u8::MAX,
+                u8::MAX,
+                u8::MAX,
+                3,
+                0,
+                0xe0,
+                1,
+                0,
+                0xe2,
+                1,
+                0,
+                0x4c,
+                1,
+                0xfe,
+                0xff,
+            ]
+        );
+        assert_eq!(
+            keymap.hotkey(2).unwrap().action(),
+            crate::keymap::Action::Chord {
+                modifiers: (1 << 0) | (1 << 2),
+                key: 0x4c,
+            }
+        );
+    }
+
+    #[test]
+    fn quick_text_queries_return_empty_without_timing_out_link() {
+        let mut keymap = LinkKeymap::default();
+        let get = run(GET_TEXT, &[15], &mut keymap);
+        assert_eq!(
+            get.as_slice(),
+            &[0xff, 0xfe, RSP_GET_TEXT, 3, OK, 15, 0, 0xfe, 0xff]
+        );
+        let unsupported = run(SET_TEXT, &[0, 1, 0xff, 0xff, 0xff, 1, b'a'], &mut keymap);
+        assert_eq!(unsupported.as_slice()[4], BAD_ARG);
+        assert!(!unsupported.changed);
     }
 }

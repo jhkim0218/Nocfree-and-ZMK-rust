@@ -3,7 +3,7 @@
 
 use core::slice;
 
-use embassy_futures::join::{join, join4};
+use embassy_futures::join::{join, join4, join5};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_nrf::bind_interrupts;
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
@@ -21,6 +21,7 @@ use embassy_usb::{Builder, Config, Handler};
 use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
+use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
@@ -46,7 +47,6 @@ use nrf_softdevice::ble::{
     Address, EncryptError, SecurityMode, central, gatt_client, gatt_server, peripheral,
 };
 use nrf_softdevice::{RawError, Softdevice};
-use panic_halt as _;
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
@@ -80,11 +80,14 @@ impl Handler for UsbStatus {
 }
 
 async fn process_key_states() -> ! {
+    BONDS.wait_ready().await;
     let mut engine = ReportEngine::default();
     let mut merger = SnapshotMerger::default();
     loop {
         let (half, state) = decode_half_state(INPUT_STATE.wait_changed().await);
-        let effects = engine.apply_snapshot(merger.update(half, state));
+        let effects = engine.apply_snapshot_with(merger.update(half, state), |layer, raw| {
+            BONDS.key_action(layer, raw)
+        });
         for command in effects.commands() {
             match *command {
                 Command::ResetLeft => reboot_application(),
@@ -358,17 +361,18 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let expanders = Pca9555Bus::new(twim);
 
     let usb_driver = Driver::new(peripherals.USBD, Irqs, &*vbus);
-    let mut usb_config = Config::new(0x1d50, 0x615e);
+    let mut usb_config = Config::new(0x2886, 0x8029);
     usb_config.manufacturer = Some("NocFree");
-    usb_config.product = Some("NocFree Rust");
+    usb_config.product = Some("NocFree & ANSI");
     usb_config.serial_number = Some("RUST-LEFT");
     let mut config_descriptor = [0; 256];
-    let mut bos_descriptor = [0; 32];
-    let mut msos_descriptor = [0; 0];
+    let mut bos_descriptor = [0; 64];
+    let mut msos_descriptor = [0; 256];
     let mut control_buf = [0; 128];
     let mut keyboard_state = HidState::new();
     let mut consumer_state = HidState::new();
     let mut cdc_state = CdcState::new();
+    let mut link_state = LinkUsbState::new();
     let mut usb_status = UsbStatus;
     let mut usb_builder = Builder::new(
         usb_driver,
@@ -400,16 +404,18 @@ async fn main(_spawner: embassy_executor::Spawner) {
         },
     );
     let cdc = CdcAcmClass::new(&mut usb_builder, &mut cdc_state, 64);
+    let link = LinkUsbClass::new(&mut usb_builder, &mut link_state);
     let mut usb_device = usb_builder.build();
 
     join(
         softdevice.run_with_callback(|event| update_usb_power(vbus, event)),
         join(
-            join4(
+            join5(
                 usb_device.run(),
                 cdc_recovery(cdc),
                 run_usb_reports(keyboard, consumer),
                 hardware_scanner::run(Half::Left, expanders, &INPUT_STATE),
+                link.run(&BONDS),
             ),
             join4(
                 process_key_states(),
