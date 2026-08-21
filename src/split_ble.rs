@@ -14,6 +14,13 @@ pub struct SplitService {
         security = "justworks"
     )]
     pub command: u8,
+
+    #[characteristic(
+        uuid = "f3641403-00b0-4240-ba50-05ca45bf8abc",
+        notify,
+        security = "justworks"
+    )]
+    pub battery: u8,
 }
 
 #[nrf_softdevice::gatt_server]
@@ -32,4 +39,7 @@ pub struct SplitClient {
         write_without_response
     )]
     pub command: u8,
+
+    #[characteristic(uuid = "f3641403-00b0-4240-ba50-05ca45bf8abc", notify)]
+    pub battery: u8,
 }

@@ -31,10 +31,10 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("rx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
         self.assertIn("tx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
 
-    def test_split_state_and_dfu_command_require_encryption(self) -> None:
+    def test_split_state_commands_and_battery_require_encryption(self) -> None:
         split = read("src/split_ble.rs")
         macro = read("vendor/nrf-softdevice-macro/src/lib.rs")
-        self.assertEqual(split.count('security = "justworks"'), 2)
+        self.assertEqual(split.count('security = "justworks"'), 3)
         self.assertIn("Metadata::new(props)", macro)
         self.assertIn(".security(#security_inner)", macro)
 
@@ -68,7 +68,7 @@ class RepositoryContractTests(unittest.TestCase):
     def test_cross_half_updates_share_one_fifo(self) -> None:
         central = read("src/bin/central.rs")
         self.assertIn("static INPUT_STATE: KeyState<32>", central)
-        self.assertIn("INPUT_STATE.wait_changed().await", central)
+        self.assertIn("INPUT_STATE.wait_changed(),", central)
         self.assertNotIn("LOCAL_STATE.wait_changed()", central)
         self.assertNotIn("REMOTE_STATE.wait_changed()", central)
 
@@ -93,10 +93,13 @@ class RepositoryContractTests(unittest.TestCase):
         for firmware in (central, right):
             self.assertIn("peripherals.P0_11", firmware)
             self.assertIn("peripherals.P1_09", firmware)
-            self.assertNotIn("Output::new", firmware)
+            self.assertIn("peripherals.P0_04", firmware)
+            self.assertIn("peripherals.P0_05", firmware)
+            self.assertIn("peripherals.P0_20", firmware)
         self.assertIn("Input::new(peripherals.P0_15, Pull::Up)", central)
         self.assertIn("Input::new(peripherals.P0_17, Pull::Up)", central)
         self.assertNotIn("peripherals.P0_15", right)
+        self.assertIn("peripherals.P0_31", right)
 
     def test_scanner_retries_transient_expander_startup_failures(self) -> None:
         scanner = read("src/hardware_scanner.rs")

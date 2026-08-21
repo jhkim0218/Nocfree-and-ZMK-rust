@@ -1,12 +1,12 @@
-pub const PROFILE_COUNT: usize = 5;
+pub const PROFILE_COUNT: usize = 3;
 pub const SPLIT_BOND_SLOT: u8 = PROFILE_COUNT as u8;
 pub const SYS_ATTR_CAPACITY: usize = 62;
 pub const RECORD_BYTES: usize = 128;
 pub const STORAGE_START: u32 = 0x65000;
 pub const STORAGE_END: u32 = 0x6d000;
 pub const PAGE_SIZE: u32 = 0x1000;
-pub const SETTINGS_PAGE: u8 = PROFILE_COUNT as u8;
-pub const SPLIT_PAGE: u8 = SETTINGS_PAGE + 1;
+pub const SETTINGS_PAGE: u8 = 5;
+pub const SPLIT_PAGE: u8 = 6;
 
 const BOND_MAGIC: [u8; 4] = *b"NFB1";
 const SETTINGS_MAGIC: [u8; 4] = *b"NFS1";
@@ -143,14 +143,15 @@ mod tests {
 
     #[test]
     fn selected_profile_round_trips_and_checks_crc() {
-        let mut encoded = encode_selected_profile(4);
-        assert_eq!(decode_selected_profile(&encoded), Some(4));
-        encoded[5] = 3;
+        let mut encoded = encode_selected_profile(2);
+        assert_eq!(decode_selected_profile(&encoded), Some(2));
+        encoded[5] = 1;
         assert_eq!(decode_selected_profile(&encoded), None);
     }
 
     #[test]
     fn bond_pages_stay_below_factory_flash() {
+        assert_eq!(PROFILE_COUNT, 3);
         assert_eq!(STORAGE_START + SETTINGS_PAGE as u32 * PAGE_SIZE, 0x6a000);
         assert_eq!(STORAGE_START + SPLIT_PAGE as u32 * PAGE_SIZE, 0x6b000);
         assert_eq!(STORAGE_START + (SPLIT_PAGE as u32 + 1) * PAGE_SIZE, 0x6c000);

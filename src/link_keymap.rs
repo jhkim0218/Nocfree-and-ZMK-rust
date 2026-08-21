@@ -11,7 +11,7 @@ pub const LINK_KEYMAP_RECORD_BYTES: usize = 12 + LINK_KEYMAP_BYTES + HOTKEY_SLOT
 pub const LINK_KEYMAP_PAGE: u8 = 7;
 
 const MAGIC: [u8; 4] = *b"NFK1";
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 const LEFT_STARTS: [usize; LINK_ROWS] = [0, 7, 14, 20, 26, 32];
 const LEFT_COUNTS: [usize; LINK_ROWS] = [7, 7, 6, 6, 6, 5];
 const RIGHT_STARTS: [usize; LINK_ROWS] = [37, 45, 53, 61, 69, 77];
@@ -288,10 +288,27 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::Consumer(usage) => LinkBinding::new(2, usage),
         Action::ResetLeft => LinkBinding::new(0x80, 1),
         Action::BootRight => LinkBinding::new(0x80, 2),
+        Action::BootLeft => LinkBinding::new(0x80, 3),
         Action::ProfileSelect(profile) => LinkBinding::new(0x80, 0x10 + profile as u16),
+        Action::ProfileShortcut(profile) => LinkBinding::new(0x80, 0x40 + profile as u16),
         Action::ProfileClear => LinkBinding::new(0x80, 0x20),
         Action::OutputUsb => LinkBinding::new(0x80, 0x30),
         Action::OutputBle => LinkBinding::new(0x80, 0x31),
+        Action::BacklightToggle => LinkBinding::new(0x80, 0x50),
+        Action::BacklightDown => LinkBinding::new(0x80, 0x51),
+        Action::BacklightUp => LinkBinding::new(0x80, 0x52),
+        Action::BatteryStatus => LinkBinding::new(0x80, 0x53),
+        Action::SystemF3 => LinkBinding::new(0x80, 0x54),
+        Action::SystemF4 => LinkBinding::new(0x80, 0x55),
+        Action::SystemShortcut {
+            system: 0,
+            key: 0x10,
+        } => LinkBinding::new(0x80, 0x56),
+        Action::SystemShortcut {
+            system: 1,
+            key: 0x11,
+        } => LinkBinding::new(0x80, 0x57),
+        Action::SystemShortcut { .. } => LinkBinding::new(0x00, 0),
     }
 }
 
@@ -374,10 +391,26 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
         0x80 => match binding.value {
             1 => Action::ResetLeft,
             2 => Action::BootRight,
-            0x10..=0x14 => Action::ProfileSelect((binding.value - 0x10) as u8),
+            3 => Action::BootLeft,
+            0x10..=0x12 => Action::ProfileSelect((binding.value - 0x10) as u8),
             0x20 => Action::ProfileClear,
             0x30 => Action::OutputUsb,
             0x31 => Action::OutputBle,
+            0x40..=0x42 => Action::ProfileShortcut((binding.value - 0x40) as u8),
+            0x50 => Action::BacklightToggle,
+            0x51 => Action::BacklightDown,
+            0x52 => Action::BacklightUp,
+            0x53 => Action::BatteryStatus,
+            0x54 => Action::SystemF3,
+            0x55 => Action::SystemF4,
+            0x56 => Action::SystemShortcut {
+                system: 0,
+                key: 0x10,
+            },
+            0x57 => Action::SystemShortcut {
+                system: 1,
+                key: 0x11,
+            },
             _ => Action::NoAction,
         },
         _ => Action::NoAction,
@@ -441,7 +474,11 @@ mod tests {
         ));
         assert!(map.set_system(0));
         let mut encoded = map.encode();
+        assert_eq!(encoded[4], VERSION);
         assert_eq!(LinkKeymap::decode(&encoded), Some(map));
+        encoded[4] = VERSION - 1;
+        assert_eq!(LinkKeymap::decode(&encoded), None);
+        encoded[4] = VERSION;
         encoded[100] ^= 1;
         assert_eq!(LinkKeymap::decode(&encoded), None);
     }

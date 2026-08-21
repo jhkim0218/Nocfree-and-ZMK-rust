@@ -1,6 +1,10 @@
 pub const SERVICE_UUID_LE: [u8; 16] = 0xf3641400_00b0_4240_ba50_05ca45bf8abc_u128.to_le_bytes();
 pub const STATE_BYTES: usize = 8;
 pub const COMMAND_BOOTLOADER: u8 = 1;
+pub const COMMAND_BACKLIGHT_TOGGLE: u8 = 2;
+pub const COMMAND_BACKLIGHT_DOWN: u8 = 3;
+pub const COMMAND_BACKLIGHT_UP: u8 = 4;
+pub const COMMAND_BATTERY_REQUEST: u8 = 5;
 pub const CONNECTION_INTERVAL_UNITS: u16 = 6;
 pub const CONNECTION_LATENCY: u16 = 30;
 pub const CONNECTION_TIMEOUT_UNITS: u16 = 400;

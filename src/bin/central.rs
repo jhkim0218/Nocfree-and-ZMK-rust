@@ -2,23 +2,29 @@
 #![no_std]
 
 use core::slice;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use embassy_futures::join::{join, join5};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_nrf::bind_interrupts;
-use embassy_nrf::gpio::{Input, Pull};
+use embassy_nrf::gpio::{Input, Level, Output, OutputDrive, Pull};
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::{TWISPI0, USBD};
+use embassy_nrf::pwm::SimplePwm;
+use embassy_nrf::saadc::{self, Saadc};
 use embassy_nrf::twim::{self, Twim};
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_nrf::usb::{self, Driver};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::class::hid::{Config as HidConfig, HidWriter, State as HidState};
 use embassy_usb::driver::Driver as UsbDriver;
 use embassy_usb::{Builder, Config, Handler};
+use nocfree_and_rust::backlight::{BacklightCommand, BacklightState};
+use nocfree_and_rust::battery::percent_from_sample;
+use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
 use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
@@ -27,14 +33,16 @@ use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
-    cdc_recovery, enable_usb_power_events, reboot_application, softdevice_config, update_usb_power,
+    cdc_recovery, enable_usb_power_events, reboot_application, reboot_to_bootloader,
+    softdevice_config, update_usb_power,
 };
 use nocfree_and_rust::report::{Command, ReportEngine};
 use nocfree_and_rust::scanner::{Half, SnapshotMerger, decode_half_state, encode_half_state};
 use nocfree_and_rust::split_ble::{SplitClient, SplitClientEvent};
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY, CONNECTION_TIMEOUT_UNITS,
-    advertisement_has_split_service,
+    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
+    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
+    CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
 };
 use nocfree_and_rust::usb_descriptor::{
     CONSUMER_REPORT_BYTES, CONSUMER_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES,
@@ -54,18 +62,26 @@ use static_cell::StaticCell;
 bind_interrupts!(struct Irqs {
     USBD => usb::InterruptHandler<USBD>;
     TWISPI0 => twim::InterruptHandler<TWISPI0>;
+    SAADC => saadc::InterruptHandler;
 });
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BleControl {
-    SelectProfile(u8),
-    ClearProfile,
+    Select(u8),
+    Pair(u8),
+    Clear,
 }
 
 static INPUT_STATE: KeyState<32> = KeyState::new();
 static OUTPUT: OutputRouter = OutputRouter::new();
 static SPLIT_COMMAND: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BLE_CONTROL: Signal<CriticalSectionRawMutex, BleControl> = Signal::new();
+static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Signal::new();
+static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static BATTERY_STATUS: Signal<CriticalSectionRawMutex, BatteryLevels> = Signal::new();
+static RIGHT_BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
+static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(0);
+static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
 
@@ -100,21 +116,41 @@ async fn process_key_states() -> ! {
     BONDS.wait_ready().await;
     let mut engine = ReportEngine::default();
     let mut merger = SnapshotMerger::default();
+    let mut snapshot = 0;
     loop {
-        let (half, state) = decode_half_state(INPUT_STATE.wait_changed().await);
-        let effects = engine.apply_snapshot_with(merger.update(half, state), |layer, raw| {
-            BONDS.key_action(layer, raw)
-        });
+        if let Either::First(encoded) = select(
+            INPUT_STATE.wait_changed(),
+            Timer::after(Duration::from_millis(20)),
+        )
+        .await
+        {
+            let (half, state) = decode_half_state(encoded);
+            snapshot = merger.update(half, state);
+        }
+        let effects =
+            engine.apply_snapshot_with_at(snapshot, Instant::now().as_millis(), |layer, raw| {
+                BONDS.key_action(layer, raw)
+            });
         for command in effects.commands() {
             match *command {
                 Command::ResetLeft => reboot_application(),
+                Command::BootLeft => reboot_to_bootloader(),
                 Command::BootRight => SPLIT_COMMAND.signal(COMMAND_BOOTLOADER),
-                Command::ProfileSelect(profile) => {
-                    BLE_CONTROL.signal(BleControl::SelectProfile(profile))
-                }
-                Command::ProfileClear => BLE_CONTROL.signal(BleControl::ClearProfile),
+                Command::ProfileSelect(profile) => BLE_CONTROL.signal(BleControl::Select(profile)),
+                Command::ProfilePair(profile) => BLE_CONTROL.signal(BleControl::Pair(profile)),
+                Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
                 Command::OutputUsb => OUTPUT.set_mode(OutputMode::Usb),
                 Command::OutputBle => OUTPUT.set_mode(OutputMode::Ble),
+                Command::BacklightToggle => {
+                    set_backlight(BacklightCommand::Toggle, COMMAND_BACKLIGHT_TOGGLE)
+                }
+                Command::BacklightDown => {
+                    set_backlight(BacklightCommand::Down, COMMAND_BACKLIGHT_DOWN)
+                }
+                Command::BacklightUp => set_backlight(BacklightCommand::Up, COMMAND_BACKLIGHT_UP),
+                Command::BatteryStatus => BATTERY_REQUEST.signal(()),
+                Command::SystemSelect(system) => BONDS.set_system(system),
+                Command::KeyTap(key) => KEY_TAP.signal(key),
                 Command::None => {}
             }
         }
@@ -124,6 +160,82 @@ async fn process_key_states() -> ! {
                 consumer: effects.consumer,
             });
         }
+    }
+}
+
+fn set_backlight(command: BacklightCommand, split_command: u8) {
+    BACKLIGHT_CONTROL.signal(command);
+    SPLIT_COMMAND.signal(split_command);
+}
+
+async fn sample_battery(saadc: &mut Saadc<'_, 1>, enable: &mut Output<'_>) -> u8 {
+    enable.set_high();
+    Timer::after(Duration::from_millis(5)).await;
+    let mut total = 0_i32;
+    for _ in 0..8 {
+        let mut sample = [0_i16; 1];
+        saadc.sample(&mut sample).await;
+        total += sample[0] as i32;
+    }
+    enable.set_low();
+    percent_from_sample((total / 8) as i16)
+}
+
+async fn run_hardware(
+    mut pwm: SimplePwm<'_>,
+    mut enable: Output<'_>,
+    mut saadc: Saadc<'_, 1>,
+) -> ! {
+    pwm.set_period(10_000);
+    let mut state = BacklightState::default();
+    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    saadc.calibrate().await;
+    loop {
+        match select(BACKLIGHT_CONTROL.wait(), BATTERY_REQUEST.wait()).await {
+            Either::First(command) => {
+                state.apply(command);
+                pwm.set_duty(0, state.duty(pwm.max_duty()));
+            }
+            Either::Second(()) => {
+                RIGHT_BATTERY_UPDATE.reset();
+                SPLIT_COMMAND.signal(COMMAND_BATTERY_REQUEST);
+                pwm.set_duty(0, 0);
+                let left = sample_battery(&mut saadc, &mut enable).await;
+                pwm.set_duty(0, state.duty(pwm.max_duty()));
+                let right = with_timeout(Duration::from_millis(500), RIGHT_BATTERY_UPDATE.wait())
+                    .await
+                    .unwrap_or_else(|_| RIGHT_BATTERY.load(Ordering::Acquire));
+                BATTERY_STATUS.signal(BatteryLevels { left, right });
+            }
+        }
+    }
+}
+
+async fn run_battery_status_output() -> ! {
+    loop {
+        let text = StatusText::new(BATTERY_STATUS.wait().await);
+        for &byte in text.as_bytes() {
+            OUTPUT.send_transient(ReportFrame {
+                keyboard: key_report(byte),
+                consumer: 0,
+            });
+            Timer::after(Duration::from_millis(8)).await;
+            OUTPUT.send_transient(ReportFrame::default());
+            Timer::after(Duration::from_millis(8)).await;
+        }
+        OUTPUT.republish();
+    }
+}
+
+async fn run_key_tap_output() -> ! {
+    loop {
+        OUTPUT.send_transient(ReportFrame {
+            keyboard: usage_report(KEY_TAP.wait().await, 0),
+            consumer: 0,
+        });
+        Timer::after(Duration::from_millis(8)).await;
+        OUTPUT.send_transient(ReportFrame::default());
+        OUTPUT.republish();
     }
 }
 
@@ -200,29 +312,53 @@ async fn send_ble_notification(mut send: impl FnMut() -> Result<(), NotifyValueE
 
 fn apply_ble_control(control: BleControl) {
     match control {
-        BleControl::SelectProfile(profile) => BONDS.select(profile),
-        BleControl::ClearProfile => BONDS.clear_selected(),
+        BleControl::Select(profile) => BONDS.select(profile),
+        BleControl::Pair(profile) => BONDS.pair(profile),
+        BleControl::Clear => BONDS.clear_selected(),
     }
 }
 
 async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
     BONDS.wait_ready().await;
-    static ADVERTISEMENT: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+    static ADVERTISEMENT_1: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
         .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
         .services_16(
             ServiceList::Complete,
             &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
         )
         .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
-        .full_name("NocFree Rust")
+        .full_name("NocFree 1")
+        .build();
+    static ADVERTISEMENT_2: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
+        .services_16(
+            ServiceList::Complete,
+            &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
+        )
+        .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
+        .full_name("NocFree 2")
+        .build();
+    static ADVERTISEMENT_3: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
+        .services_16(
+            ServiceList::Complete,
+            &[ServiceUuid16::HUMAN_INTERFACE_DEVICE],
+        )
+        .raw(AdvertisementDataType::APPEARANCE, &[0xc1, 0x03])
+        .full_name("NocFree 3")
         .build();
     static SCAN_RESPONSE: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new().build();
     loop {
+        let advertisement = match BONDS.selected() {
+            0 => &ADVERTISEMENT_1,
+            1 => &ADVERTISEMENT_2,
+            _ => &ADVERTISEMENT_3,
+        };
         let advertising_config = peripheral::Config::default();
         let advertising = peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
-                adv_data: &ADVERTISEMENT,
+                adv_data: advertisement,
                 scan_data: &SCAN_RESPONSE,
             },
             &advertising_config,
@@ -314,10 +450,18 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             INPUT_STATE.publish(encode_half_state(Half::Right, 0));
             continue;
         }
+        if client.battery_cccd_write(true).await.is_err() {
+            INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+            continue;
+        }
 
         let notifications = gatt_client::run(&connection, &client, |event| match event {
             SplitClientEvent::StateNotification(bytes) => {
                 INPUT_STATE.publish(encode_half_state(Half::Right, u64::from_le_bytes(bytes)));
+            }
+            SplitClientEvent::BatteryNotification(level) => {
+                RIGHT_BATTERY.store(level, Ordering::Release);
+                RIGHT_BATTERY_UPDATE.signal(level);
             }
         });
         match select(notifications, send_split_commands(&client)).await {
@@ -362,6 +506,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let peripherals = embassy_nrf::init(nrf_config);
     interrupt::USBD.set_priority(Priority::P2);
     interrupt::TWISPI0.set_priority(Priority::P3);
+    interrupt::SAADC.set_priority(Priority::P3);
 
     let softdevice = Softdevice::enable(&softdevice_config(b"NocFree Rust"));
     let ble_hid_server = BleHidServer::new(softdevice).unwrap();
@@ -371,6 +516,14 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
     let ble_detect = Input::new(peripherals.P0_15, Pull::Up);
     let receiver_detect = Input::new(peripherals.P0_17, Pull::Up);
+    let backlight_enable = Output::new(peripherals.P0_05, Level::Low, OutputDrive::Standard);
+    let backlight_pwm = SimplePwm::new_1ch(peripherals.PWM2, peripherals.P0_20);
+    let battery_saadc = Saadc::new(
+        peripherals.SAADC,
+        Irqs,
+        saadc::Config::default(),
+        [saadc::ChannelConfig::single_ended(peripherals.P0_04)],
+    );
 
     let mut sda = peripherals.P0_11;
     let mut scl = peripherals.P1_09;
@@ -448,7 +601,13 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 run_mode_switch(ble_detect, receiver_detect),
                 run_split_central(softdevice),
                 run_ble_host(softdevice, &ble_hid_server),
-                run_storage(flash, &BONDS),
+                join(
+                    run_storage(flash, &BONDS),
+                    join(
+                        run_hardware(backlight_pwm, backlight_enable, battery_saadc),
+                        join(run_battery_status_output(), run_key_tap_output()),
+                    ),
+                ),
             ),
         ),
     )

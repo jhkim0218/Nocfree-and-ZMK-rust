@@ -93,18 +93,23 @@ hotkey는 구현·실기 검증됐습니다.
 - SET/GET key, layer row, clear layer/all, system/version/battery
 - hotkey 16개 SET/GET/CLEAR/DELETE와 실제 HID chord
 - `ReportEngine::apply_snapshot_with`가 매 입력에서 동적 binding 조회
-- page 7 `0x6c000`에 CRC 포함 version-2 record 저장
+- page 7 `0x6c000`에 CRC 포함 version-3 record 저장. version 2는 새 기본 Fn
+  레이어 적용을 위해 한 번 무효화되며 BLE/split bond는 보존
 - quick text GET은 빈 슬롯, SET/CLEAR/DELETE/실행은 미지원
 
 ### 단축키
 
-- `Fn+1` .. `Fn+5`: BLE 프로필 선택
-- `Fn+0`: 현재 BLE 프로필 삭제
+- `Fn+1`/`Fn+2`/`Fn+3`: 짧게 프로필 선택, 1초 홀드로 해당 프로필 페어링
+- `Fn+5`: 3초 홀드로 왼쪽 UF2 부트로더
+- `Fn+0`: 3초 홀드로 오른쪽 UF2 부트로더
+- `Fn+I`: 3초 홀드로 `L {왼쪽 배터리} R {오른쪽 배터리}` 입력
+- `Fn+Tab`, `Fn+F5/F6`: 백라이트 토글/밝기 조절
 - `Fn+U`: USB 출력
 - `Fn+B`: BLE 출력
-- `Fn+F10/F11/F12`: 음소거/볼륨 내림/볼륨 올림
+- `Fn+F7` .. `Fn+F12`: 미디어 제어
+- `Fn+M`/`Fn+N`: 짧게 M/N, 1초 홀드로 macOS/Windows 모드 저장
 - `Fn+Esc`: 왼쪽 앱 재시작, DFU 아님
-- `Fn+Delete`: split을 통해 오른쪽 UF2 부트로더
+- `Fn+Delete`: 이전 복구 호환용 오른쪽 UF2 부트로더
 - 양쪽 독립 복구: 해당 반쪽 CDC 1200-baud touch
 
 ## 5. flash 메모리
@@ -118,19 +123,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x35aff`, 오른쪽
-`0x27000..0x300ff`입니다.
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x371ff`, 오른쪽
+`0x27000..0x308ff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 60,388 | `C81FB31C9117C908C3EFB479A9501784594BF6DEE4008A19EDE7830981A0D253` |
-| `firmware/NocFree_Rust_Left.uf2` | 120,832 | `617ACCFB6AFEE0484396102732FB7AE5A3CF847F43302D962FB54682939C79AC` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 61,264 | `EA1B568C9444B5536B2F5A869561D41D6F35FC9A16E31CFAABF97DE618821250` |
-| `firmware/NocFree_Rust_Right.bin` | 36,948 | `ACC150B6FB721197B5121EEA914E160C5F1B60A19C14F9C2F681AA15BAEBC104` |
-| `firmware/NocFree_Rust_Right.uf2` | 74,240 | `5591FABA2CA68A148DF1010C92A8ECE0E42624AE30B81066932B98CE71697C3C` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 37,830 | `42ECE256855EF152699D5C86071A8A217ABDB13D34A42254DC3B36234E2D5FD4` |
+| `firmware/NocFree_Rust_Left.bin` | 65,900 | `2159C4435C7FCFCAD35E4A8526D8A2E4789F38D190DE75EACB4F151A94361F6D` |
+| `firmware/NocFree_Rust_Left.uf2` | 132,096 | `8EBEEF9396139E54C69ED5335E39876D8075F434E30FF047B2A95A6FA46F8421` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 66,776 | `F412EC2A668CAAFB425CF8D753897339F2F86A8389944AA770A806733DF0CEB0` |
+| `firmware/NocFree_Rust_Right.bin` | 39,076 | `760F55A6CBBC8DCD019C2C2B8F83C0B5083515DA3461A0A250344CC9DC188054` |
+| `firmware/NocFree_Rust_Right.uf2` | 78,336 | `A6BFA71F382E5F853D7176D60C694346CD348B31FD6B5E13F8F5CEAEFB89E47A` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `F7D5CD9007B8E563E92F88C1B57960B5E621C254987350BA8DE56026149F9BDB` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -156,7 +161,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 44/44
+- Rust host tests: 52/52
 - Python contract/artifact tests: 16/16
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
@@ -191,6 +196,8 @@ zxcvbnm,./
 - Print Screen은 Windows가 먼저 캡처하므로 수동 스크린샷으로 확인
 - 한국어 Windows에서 Right Alt는 `KanaMode`로 보고되는 정상 VK alias
 - 양쪽 Fn 확인
+- `Fn+I` 3초 홀드로 `L 24 R 11` 출력 확인. ADC 핀, divider enable,
+  12-bit/`130/100` 환산은 포팅 가이드와 일치하며 완충 기준 퍼센트 보정은 남음
 
 ### Link
 
@@ -220,6 +227,10 @@ zxcvbnm,./
 ### DFU와 순정 원복
 
 양쪽 모두 최신 계열 이미지로 다음 사이클을 실제 통과했습니다.
+
+- `Fn+5`로 왼쪽 DFU 진입 확인
+- DFU 단축키를 3초 홀드로 변경한 뒤 짧은 `Fn+5`가 DFU에 들어가지 않음 확인
+- `Fn+0` 3초 홀드로 오른쪽 DFU 진입, 최신 오른쪽 UF2 복귀와 `jkl` 확인
 
 1. Rust CDC 1200 touch → NocFree & / S140 7.3.0 UF2
 2. 역할별 순정 V2.3.0 UF2 설치와 순정 부모 ID 확인

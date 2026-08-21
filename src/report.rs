@@ -3,6 +3,9 @@ use crate::keymap::{Action, KEY_COUNT, base_action, function_action};
 pub const KEY_BITMAP_BYTES: usize = 14;
 const FIRST_BITMAP_USAGE: u8 = 0x04;
 const LAST_BITMAP_USAGE: u8 = 0x73;
+pub const HOLD_MS: u64 = 1_000;
+pub const BATTERY_HOLD_MS: u64 = 3_000;
+pub const DFU_HOLD_MS: u64 = 3_000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[repr(C)]
@@ -23,22 +26,34 @@ pub enum Command {
     #[default]
     None,
     ResetLeft,
+    BootLeft,
     BootRight,
     ProfileSelect(u8),
+    ProfilePair(u8),
     ProfileClear,
     OutputUsb,
     OutputBle,
+    BacklightToggle,
+    BacklightDown,
+    BacklightUp,
+    BatteryStatus,
+    SystemSelect(u8),
+    KeyTap(u8),
 }
 
 impl Command {
     const fn from_action(action: Action) -> Self {
         match action {
             Action::ResetLeft => Command::ResetLeft,
-            Action::BootRight => Command::BootRight,
+            Action::BootLeft | Action::BootRight => Command::None,
             Action::ProfileSelect(profile) => Command::ProfileSelect(profile),
             Action::ProfileClear => Command::ProfileClear,
             Action::OutputUsb => Command::OutputUsb,
             Action::OutputBle => Command::OutputBle,
+            Action::BacklightToggle => Command::BacklightToggle,
+            Action::BacklightDown => Command::BacklightDown,
+            Action::BacklightUp => Command::BacklightUp,
+            Action::BatteryStatus => Command::None,
             _ => Command::None,
         }
     }
@@ -66,6 +81,8 @@ pub struct ReportEngine {
     default_layer: u8,
     keyboard: KeyboardReport,
     consumer: u16,
+    pressed_at: [u64; KEY_COUNT],
+    hold_triggered: u128,
 }
 
 impl Default for ReportEngine {
@@ -76,13 +93,19 @@ impl Default for ReportEngine {
             default_layer: 0,
             keyboard: KeyboardReport::default(),
             consumer: 0,
+            pressed_at: [0; KEY_COUNT],
+            hold_triggered: 0,
         }
     }
 }
 
 impl ReportEngine {
     pub fn apply_snapshot(&mut self, snapshot: u128) -> Effects {
-        self.apply_snapshot_with(snapshot, |layer, raw| {
+        self.apply_snapshot_at(snapshot, 0)
+    }
+
+    pub fn apply_snapshot_at(&mut self, snapshot: u128, now_ms: u64) -> Effects {
+        self.apply_snapshot_with_at(snapshot, now_ms, |layer, raw| {
             if layer == 0 {
                 base_action(raw)
             } else if layer == 1 {
@@ -96,6 +119,15 @@ impl ReportEngine {
     pub fn apply_snapshot_with(
         &mut self,
         snapshot: u128,
+        mut resolve: impl FnMut(u8, usize) -> Action,
+    ) -> Effects {
+        self.apply_snapshot_with_at(snapshot, 0, &mut resolve)
+    }
+
+    pub fn apply_snapshot_with_at(
+        &mut self,
+        snapshot: u128,
+        now_ms: u64,
         mut resolve: impl FnMut(u8, usize) -> Action,
     ) -> Effects {
         let snapshot = snapshot & ((1_u128 << KEY_COUNT) - 1);
@@ -125,7 +157,46 @@ impl ReportEngine {
                 continue;
             }
             if snapshot & bit == 0 {
+                if self.hold_triggered & bit == 0 {
+                    let command = match self.assigned[raw] {
+                        Action::ProfileShortcut(profile) => {
+                            if now_ms.saturating_sub(self.pressed_at[raw]) >= HOLD_MS {
+                                Command::ProfilePair(profile)
+                            } else {
+                                Command::ProfileSelect(profile)
+                            }
+                        }
+                        Action::BatteryStatus
+                            if now_ms.saturating_sub(self.pressed_at[raw]) >= BATTERY_HOLD_MS =>
+                        {
+                            Command::BatteryStatus
+                        }
+                        Action::BootLeft
+                            if now_ms.saturating_sub(self.pressed_at[raw]) >= DFU_HOLD_MS =>
+                        {
+                            Command::BootLeft
+                        }
+                        Action::BootRight
+                            if now_ms.saturating_sub(self.pressed_at[raw]) >= DFU_HOLD_MS =>
+                        {
+                            Command::BootRight
+                        }
+                        Action::SystemShortcut { system, key } => {
+                            if now_ms.saturating_sub(self.pressed_at[raw]) >= HOLD_MS {
+                                Command::SystemSelect(system)
+                            } else {
+                                Command::KeyTap(key)
+                            }
+                        }
+                        _ => Command::None,
+                    };
+                    if command != Command::None && command_count < commands.len() {
+                        commands[command_count] = command;
+                        command_count += 1;
+                    }
+                }
                 self.assigned[raw] = Action::Transparent;
+                self.hold_triggered &= !bit;
                 continue;
             }
 
@@ -145,11 +216,50 @@ impl ReportEngine {
                 action = Action::NoAction;
             }
             self.assigned[raw] = action;
+            self.pressed_at[raw] = now_ms;
 
             let command = Command::from_action(action);
             if command != Command::None && command_count < commands.len() {
                 commands[command_count] = command;
                 command_count += 1;
+            }
+        }
+
+        for raw in 0..KEY_COUNT {
+            let bit = 1_u128 << raw;
+            if snapshot & bit == 0 || self.hold_triggered & bit != 0 {
+                continue;
+            }
+            let command = match self.assigned[raw] {
+                Action::ProfileShortcut(profile)
+                    if now_ms.saturating_sub(self.pressed_at[raw]) >= HOLD_MS =>
+                {
+                    Command::ProfilePair(profile)
+                }
+                Action::BatteryStatus
+                    if now_ms.saturating_sub(self.pressed_at[raw]) >= BATTERY_HOLD_MS =>
+                {
+                    Command::BatteryStatus
+                }
+                Action::BootLeft if now_ms.saturating_sub(self.pressed_at[raw]) >= DFU_HOLD_MS => {
+                    Command::BootLeft
+                }
+                Action::BootRight if now_ms.saturating_sub(self.pressed_at[raw]) >= DFU_HOLD_MS => {
+                    Command::BootRight
+                }
+                Action::SystemShortcut { system, .. }
+                    if now_ms.saturating_sub(self.pressed_at[raw]) >= HOLD_MS =>
+                {
+                    Command::SystemSelect(system)
+                }
+                _ => Command::None,
+            };
+            if command != Command::None {
+                if command_count < commands.len() {
+                    commands[command_count] = command;
+                    command_count += 1;
+                }
+                self.hold_triggered |= bit;
             }
         }
 
@@ -220,16 +330,84 @@ mod tests {
         for fn_raw in [LEFT_FN_RAW, RIGHT_FN_RAW] {
             let mut engine = ReportEngine::default();
             let effects = engine.apply_snapshot((1_u128 << fn_raw) | (1_u128 << 8));
-            assert_eq!(effects.commands(), &[Command::ProfileSelect(0)]);
+            assert!(effects.commands().is_empty());
             assert_eq!(effects.keyboard, KeyboardReport::default());
+            let effects = engine.apply_snapshot_at(1_u128 << fn_raw, 100);
+            assert_eq!(effects.commands(), &[Command::ProfileSelect(0)]);
         }
+    }
+
+    #[test]
+    fn profile_shortcut_taps_select_and_holds_pair_once() {
+        let mut engine = ReportEngine::default();
+        let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << 8);
+        assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
+        assert!(engine.apply_snapshot_at(keys, 1_009).commands().is_empty());
+        assert_eq!(
+            engine.apply_snapshot_at(keys, 1_010).commands(),
+            &[Command::ProfilePair(0)]
+        );
+        assert!(engine.apply_snapshot_at(keys, 2_000).commands().is_empty());
+        assert!(
+            engine
+                .apply_snapshot_at(1_u128 << LEFT_FN_RAW, 2_001)
+                .commands()
+                .is_empty()
+        );
+
+        let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << 9);
+        assert!(engine.apply_snapshot_at(keys, 3_000).commands().is_empty());
+        assert_eq!(
+            engine
+                .apply_snapshot_at(1_u128 << LEFT_FN_RAW, 3_999)
+                .commands(),
+            &[Command::ProfileSelect(1)]
+        );
+    }
+
+    #[test]
+    fn battery_status_requires_three_seconds_and_triggers_once() {
+        for fn_raw in [LEFT_FN_RAW, RIGHT_FN_RAW] {
+            let mut engine = ReportEngine::default();
+            let keys = (1_u128 << fn_raw) | (1_u128 << 55);
+            assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
+            assert!(engine.apply_snapshot_at(keys, 3_009).commands().is_empty());
+            assert_eq!(
+                engine.apply_snapshot_at(keys, 3_010).commands(),
+                &[Command::BatteryStatus]
+            );
+            assert!(engine.apply_snapshot_at(keys, 4_000).commands().is_empty());
+            assert!(engine.apply_snapshot_at(0, 4_001).commands().is_empty());
+        }
+    }
+
+    #[test]
+    fn system_shortcuts_tap_letters_and_hold_to_select_the_os() {
+        let mut engine = ReportEngine::default();
+        let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << 69);
+        assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
+        assert_eq!(
+            engine
+                .apply_snapshot_at(1_u128 << LEFT_FN_RAW, 1_009)
+                .commands(),
+            &[Command::KeyTap(0x11)]
+        );
+
+        let keys = (1_u128 << RIGHT_FN_RAW) | (1_u128 << 70);
+        assert!(engine.apply_snapshot_at(keys, 2_000).commands().is_empty());
+        assert_eq!(
+            engine.apply_snapshot_at(keys, 3_000).commands(),
+            &[Command::SystemSelect(0)]
+        );
+        assert!(engine.apply_snapshot_at(keys, 4_000).commands().is_empty());
+        assert!(engine.apply_snapshot_at(0, 4_001).commands().is_empty());
     }
 
     #[test]
     fn transparent_function_keys_keep_their_base_action() {
         let mut engine = ReportEngine::default();
-        let effects = engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << 14));
-        assert!(key_is_set(&effects.keyboard, 0x2b));
+        let effects = engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << 15));
+        assert!(key_is_set(&effects.keyboard, 0x14));
     }
 
     #[test]
@@ -250,10 +428,18 @@ mod tests {
     }
 
     #[test]
-    fn right_delete_requests_right_bootloader() {
-        let mut engine = ReportEngine::default();
-        let effects = engine.apply_snapshot((1_u128 << RIGHT_FN_RAW) | (1_u128 << 68));
-        assert_eq!(effects.commands(), &[Command::BootRight]);
+    fn dfu_shortcuts_require_three_seconds_and_trigger_once() {
+        for (fn_raw, key_raw, command) in [
+            (LEFT_FN_RAW, 12, Command::BootLeft),
+            (RIGHT_FN_RAW, 48, Command::BootRight),
+        ] {
+            let mut engine = ReportEngine::default();
+            let keys = (1_u128 << fn_raw) | (1_u128 << key_raw);
+            assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
+            assert!(engine.apply_snapshot_at(keys, 3_009).commands().is_empty());
+            assert_eq!(engine.apply_snapshot_at(keys, 3_010).commands(), &[command]);
+            assert!(engine.apply_snapshot_at(keys, 4_000).commands().is_empty());
+        }
     }
 
     #[test]

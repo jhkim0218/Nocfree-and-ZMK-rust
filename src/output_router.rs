@@ -61,6 +61,11 @@ impl OutputRouter {
         self.publish(self.latest.lock(Cell::get));
     }
 
+    pub fn send_transient(&self, frame: ReportFrame) {
+        Self::enqueue_latest(&self.usb_queue, frame);
+        Self::enqueue_latest(&self.ble_queue, frame);
+    }
+
     pub fn set_mode(&self, mode: OutputMode) {
         let previous = self.routes();
         self.mode.store(mode as u8, Ordering::Release);

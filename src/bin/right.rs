@@ -4,14 +4,21 @@
 use embassy_futures::join::{join, join4};
 use embassy_futures::select::{Either, select};
 use embassy_nrf::bind_interrupts;
+use embassy_nrf::gpio::{Level, Output, OutputDrive};
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::{TWISPI0, USBD};
+use embassy_nrf::pwm::SimplePwm;
+use embassy_nrf::saadc::{self, Saadc};
 use embassy_nrf::twim::{self, Twim};
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_nrf::usb::{self, Driver};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::{Builder, Config};
+use nocfree_and_rust::backlight::{BacklightCommand, BacklightState};
+use nocfree_and_rust::battery::percent_from_sample;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
 use nocfree_and_rust::pca9555::Pca9555Bus;
@@ -21,7 +28,10 @@ use nocfree_and_rust::platform::{
 };
 use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
-use nocfree_and_rust::split_protocol::{COMMAND_BOOTLOADER, SERVICE_UUID_LE};
+use nocfree_and_rust::split_protocol::{
+    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
+    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
+};
 use nrf_softdevice::Softdevice;
 use nrf_softdevice::ble::advertisement_builder::{
     Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload, ServiceList,
@@ -32,18 +42,70 @@ use static_cell::StaticCell;
 bind_interrupts!(struct Irqs {
     USBD => usb::InterruptHandler<USBD>;
     TWISPI0 => twim::InterruptHandler<TWISPI0>;
+    SAADC => saadc::InterruptHandler;
 });
 
 static KEY_STATE: KeyState<32> = KeyState::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
+static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Signal::new();
+static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 
-async fn notify_key_state(connection: &nrf_softdevice::ble::Connection, server: &SplitServer) -> ! {
+async fn sample_battery(saadc: &mut Saadc<'_, 1>, enable: &mut Output<'_>) -> u8 {
+    enable.set_high();
+    Timer::after(Duration::from_millis(5)).await;
+    let mut total = 0_i32;
+    for _ in 0..8 {
+        let mut sample = [0_i16; 1];
+        saadc.sample(&mut sample).await;
+        total += sample[0] as i32;
+    }
+    enable.set_low();
+    percent_from_sample((total / 8) as i16)
+}
+
+async fn run_hardware(
+    mut pwm: SimplePwm<'_>,
+    _backlight_enable: Output<'_>,
+    mut battery_enable: Output<'_>,
+    mut saadc: Saadc<'_, 1>,
+) -> ! {
+    pwm.set_period(10_000);
+    let mut state = BacklightState::default();
+    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    saadc.calibrate().await;
+    loop {
+        match select(BACKLIGHT_CONTROL.wait(), BATTERY_REQUEST.wait()).await {
+            Either::First(command) => {
+                state.apply(command);
+                pwm.set_duty(0, state.duty(pwm.max_duty()));
+            }
+            Either::Second(()) => {
+                BATTERY_UPDATE.signal(sample_battery(&mut saadc, &mut battery_enable).await)
+            }
+        }
+    }
+}
+
+async fn notify_split_state(
+    connection: &nrf_softdevice::ble::Connection,
+    server: &SplitServer,
+) -> ! {
     KEY_STATE.replace(KEY_STATE.latest());
     loop {
-        let state = KEY_STATE.wait_changed().await.to_le_bytes();
-        while server.split.state_notify(connection, &state).is_err() {
-            Timer::after(Duration::from_millis(20)).await;
+        match select(KEY_STATE.wait_changed(), BATTERY_UPDATE.wait()).await {
+            Either::First(state) => {
+                let state = state.to_le_bytes();
+                while server.split.state_notify(connection, &state).is_err() {
+                    Timer::after(Duration::from_millis(20)).await;
+                }
+            }
+            Either::Second(level) => {
+                while server.split.battery_notify(connection, &level).is_err() {
+                    Timer::after(Duration::from_millis(20)).await;
+                }
+            }
         }
     }
 }
@@ -73,6 +135,7 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             Ok(connection) => connection,
             Err(_) => continue,
         };
+        BATTERY_REQUEST.signal(());
 
         let server_run = gatt_server::run(&connection, server, |event| match event {
             SplitServerEvent::Split(SplitServiceEvent::CommandWrite(command))
@@ -80,12 +143,25 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             {
                 reboot_to_bootloader()
             }
+            SplitServerEvent::Split(SplitServiceEvent::CommandWrite(command)) => {
+                let control = match command {
+                    COMMAND_BACKLIGHT_TOGGLE => Some(BacklightCommand::Toggle),
+                    COMMAND_BACKLIGHT_DOWN => Some(BacklightCommand::Down),
+                    COMMAND_BACKLIGHT_UP => Some(BacklightCommand::Up),
+                    _ => None,
+                };
+                if let Some(control) = control {
+                    BACKLIGHT_CONTROL.signal(control);
+                } else if command == COMMAND_BATTERY_REQUEST {
+                    BATTERY_REQUEST.signal(());
+                }
+            }
             SplitServerEvent::Split(SplitServiceEvent::StateCccdWrite {
                 notifications: true,
             }) => KEY_STATE.replace(KEY_STATE.latest()),
             _ => {}
         });
-        match select(server_run, notify_key_state(&connection, server)).await {
+        match select(server_run, notify_split_state(&connection, server)).await {
             Either::First(_) => {}
             Either::Second(never) => match never {},
         }
@@ -100,6 +176,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let peripherals = embassy_nrf::init(nrf_config);
     interrupt::USBD.set_priority(Priority::P2);
     interrupt::TWISPI0.set_priority(Priority::P3);
+    interrupt::SAADC.set_priority(Priority::P3);
 
     let softdevice = Softdevice::enable(&softdevice_config(b"NocFree Rust Right"));
     let split_server = SplitServer::new(softdevice).unwrap();
@@ -107,6 +184,15 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let (usb_detected, power_ready) = enable_usb_power_events();
     static VBUS: StaticCell<SoftwareVbusDetect> = StaticCell::new();
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
+    let backlight_enable = Output::new(peripherals.P0_05, Level::Low, OutputDrive::Standard);
+    let backlight_pwm = SimplePwm::new_1ch(peripherals.PWM2, peripherals.P0_20);
+    let battery_enable = Output::new(peripherals.P0_31, Level::Low, OutputDrive::Standard);
+    let battery_saadc = Saadc::new(
+        peripherals.SAADC,
+        Irqs,
+        saadc::Config::default(),
+        [saadc::ChannelConfig::single_ended(peripherals.P0_04)],
+    );
 
     let mut sda = peripherals.P0_11;
     let mut scl = peripherals.P1_09;
@@ -152,7 +238,15 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 hardware_scanner::run(Half::Right, expanders, &KEY_STATE),
                 run_split_peripheral(softdevice, &split_server),
             ),
-            run_storage(flash, &BONDS),
+            join(
+                run_storage(flash, &BONDS),
+                run_hardware(
+                    backlight_pwm,
+                    backlight_enable,
+                    battery_enable,
+                    battery_saadc,
+                ),
+            ),
         ),
     )
     .await;

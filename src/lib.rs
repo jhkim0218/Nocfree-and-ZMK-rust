@@ -1,5 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 
+pub mod backlight;
+pub mod battery;
+pub mod battery_status;
 #[cfg(target_arch = "arm")]
 pub mod ble_hid;
 pub mod bond_record;

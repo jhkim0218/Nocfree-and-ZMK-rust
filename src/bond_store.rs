@@ -73,13 +73,29 @@ impl BondStore {
     }
 
     pub fn selected(&self) -> u8 {
-        self.selected.load(Ordering::Acquire).min(4)
+        self.selected
+            .load(Ordering::Acquire)
+            .min(PROFILE_COUNT as u8 - 1)
     }
 
     pub fn select(&self, profile: u8) {
-        let profile = profile.min(4);
+        let profile = profile.min(PROFILE_COUNT as u8 - 1);
         self.selected.store(profile, Ordering::Release);
         self.request_save(SETTINGS_PAGE);
+    }
+
+    pub fn pair(&self, profile: u8) {
+        self.select(profile);
+        self.clear_selected();
+    }
+
+    pub fn set_system(&self, system: u8) {
+        let changed = self
+            .keymap
+            .lock(|keymap| keymap.borrow_mut().set_system(system));
+        if changed {
+            self.request_save(LINK_KEYMAP_PAGE);
+        }
     }
 
     pub fn clear_selected(&self) {
@@ -99,8 +115,25 @@ impl BondStore {
     }
 
     pub fn key_action(&self, layer: u8, raw: usize) -> Action {
-        self.keymap
-            .lock(|keymap| keymap.borrow().action(layer as usize, raw))
+        self.keymap.lock(|keymap| {
+            let keymap = keymap.borrow();
+            match (keymap.system(), keymap.action(layer as usize, raw)) {
+                (0, Action::SystemF3) => Action::Consumer(0x029f),
+                (0, Action::SystemF4) => Action::Chord {
+                    modifiers: 1 << 3,
+                    key: 0x2c,
+                },
+                (_, Action::SystemF3) => Action::Chord {
+                    modifiers: 1 << 3,
+                    key: 0x2b,
+                },
+                (_, Action::SystemF4) => Action::Chord {
+                    modifiers: 1 << 3,
+                    key: 0x16,
+                },
+                (_, action) => action,
+            }
+        })
     }
 
     pub fn handle_link_frame(&self, frame: &[u8]) -> Option<LinkResponse> {

@@ -19,11 +19,23 @@ pub enum Action {
     LayerMomentary(u8),
     LayerToggle(u8),
     ResetLeft,
+    BootLeft,
     BootRight,
     ProfileSelect(u8),
+    ProfileShortcut(u8),
     ProfileClear,
     OutputUsb,
     OutputBle,
+    BacklightToggle,
+    BacklightDown,
+    BacklightUp,
+    BatteryStatus,
+    SystemShortcut {
+        system: u8,
+        key: u8,
+    },
+    SystemF3,
+    SystemF4,
 }
 
 macro_rules! k {
@@ -78,16 +90,34 @@ pub const fn base_action(raw: usize) -> Action {
 pub const fn function_action(raw: usize) -> Action {
     match raw_to_visual(raw) {
         0 => Action::ResetLeft,
+        1 => Action::Consumer(0x006f),
+        2 => Action::Consumer(0x0070),
+        3 => Action::SystemF3,
+        4 => Action::SystemF4,
+        5 => Action::BacklightDown,
+        6 => Action::BacklightUp,
+        7 => Action::Consumer(0x00b6),
+        8 => Action::Consumer(0x00cd),
+        9 => Action::Consumer(0x00b5),
         10 => Action::Consumer(0x00e2),
         11 => Action::Consumer(0x00ea),
         12 => Action::Consumer(0x00e9),
-        16 => Action::ProfileSelect(0),
-        17 => Action::ProfileSelect(1),
-        18 => Action::ProfileSelect(2),
-        19 => Action::ProfileSelect(3),
-        20 => Action::ProfileSelect(4),
-        25 => Action::ProfileClear,
+        16 => Action::ProfileShortcut(0),
+        17 => Action::ProfileShortcut(1),
+        18 => Action::ProfileShortcut(2),
+        20 => Action::BootLeft,
+        25 => Action::BootRight,
+        30 => Action::BacklightToggle,
         37 => Action::OutputUsb,
+        38 => Action::BatteryStatus,
+        64 => Action::SystemShortcut {
+            system: 1,
+            key: 0x11,
+        },
+        65 => Action::SystemShortcut {
+            system: 0,
+            key: 0x10,
+        },
         57 => Action::BootRight,
         63 => Action::OutputBle,
         _ => Action::Transparent,
@@ -120,12 +150,39 @@ mod tests {
     }
 
     #[test]
-    fn sparse_function_layer_matches_zmk() {
-        assert_eq!(function_action(8), Action::ProfileSelect(0));
-        assert_eq!(function_action(12), Action::ProfileSelect(4));
-        assert_eq!(function_action(48), Action::ProfileClear);
+    fn function_layer_matches_nocfree_shortcuts() {
+        assert_eq!(function_action(8), Action::ProfileShortcut(0));
+        assert_eq!(function_action(9), Action::ProfileShortcut(1));
+        assert_eq!(function_action(10), Action::ProfileShortcut(2));
+        assert_eq!(function_action(12), Action::BootLeft);
+        assert_eq!(function_action(48), Action::BootRight);
+        assert_eq!(function_action(14), Action::BacklightToggle);
+        assert_eq!(function_action(55), Action::BatteryStatus);
+        assert_eq!(
+            function_action(69),
+            Action::SystemShortcut {
+                system: 1,
+                key: 0x11
+            }
+        );
+        assert_eq!(
+            function_action(70),
+            Action::SystemShortcut {
+                system: 0,
+                key: 0x10
+            }
+        );
         assert_eq!(function_action(54), Action::OutputUsb);
         assert_eq!(function_action(31), Action::OutputBle);
+        assert_eq!(function_action(1), Action::Consumer(0x006f));
+        assert_eq!(function_action(2), Action::Consumer(0x0070));
+        assert_eq!(function_action(3), Action::SystemF3);
+        assert_eq!(function_action(4), Action::SystemF4);
+        assert_eq!(function_action(5), Action::BacklightDown);
+        assert_eq!(function_action(6), Action::BacklightUp);
+        assert_eq!(function_action(37), Action::Consumer(0x00b6));
+        assert_eq!(function_action(38), Action::Consumer(0x00cd));
+        assert_eq!(function_action(39), Action::Consumer(0x00b5));
         assert_eq!(function_action(40), Action::Consumer(0x00e2));
         assert_eq!(function_action(41), Action::Consumer(0x00ea));
         assert_eq!(function_action(42), Action::Consumer(0x00e9));
