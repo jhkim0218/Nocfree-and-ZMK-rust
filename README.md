@@ -1,31 +1,42 @@
 # NocFree-and-rust
 
-NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
-옮긴 프로젝트입니다. 기준은
-[`jhkim0218/NocFree-and-zmk`](https://github.com/jhkim0218/NocFree-and-zmk.git)
-커밋 `e5e2f470795e92609f7ee6e810470fa6976557d1`입니다.
+[한국어](README_ko.md)
 
-2026-08-21 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
-84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
-역할별 순정 원복을 통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저
-읽으십시오.
+This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
+`no_std` Rust firmware for the nRF52833. The original project is
+[`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),
+and this repository is an independent Rust port.
 
-## 역할
+As of 2026-08-21, the latest Rust images are installed on both halves and have
+passed hardware tests for USB, BLE, all 84 physical keys, the physical
+mode/power switches, shortcuts, NocFree Link key changes, DFU on both halves,
+and restoring each half to the stock firmware. New contributors should read
+[HANDOFF.md](HANDOFF.md) first.
 
-- **왼쪽 (`central`)**: 왼쪽 37키, 오른쪽 split 수신, 전체 84키 키맵,
-  USB/BLE HID, BLE 멀티 페어링 슬롯 3개, NocFree Link를 담당합니다.
-- **오른쪽 (`right`)**: 오른쪽 47키를 스캔해 암호화 BLE split으로 왼쪽에
-  전달합니다. 오른쪽 USB는 HID가 아니라 독립 CDC 복구용입니다.
+> [!IMPORTANT]
+> Battery percentages are not calibrated yet, control of the status LEDs beside
+> the physical switches does not accurately reproduce the stock firmware, and
+> the factory USB dongle/2.4G function is not implemented or verified.
 
-양쪽은 PCA9555 세 개(`0x20`, `0x22`, `0x24`)를 SDA P0.11/SCL P1.09에서
-100 kHz로 읽습니다. active-low 입력, 5 ms debounce, 1M BLE PHY를 사용합니다.
-부트로더나 다른 펌웨어가 I2C 전송 중 MCU를 재시작해도 외부 확장칩이 걸린 채
-남지 않도록 TWIM 초기화 전에 최대 9회의 bus-clear clock과 STOP을 보냅니다.
+## Roles
 
-## 빌드
+- **Left (`central`)**: Handles the 37 left-side keys, split input from the
+  right half, the complete 84-key keymap, USB/BLE HID, three BLE multi-pairing
+  slots, and NocFree Link.
+- **Right (`right`)**: Scans the 47 right-side keys and sends them to the left
+  half over an encrypted BLE split connection. Right-side USB is an independent
+  CDC recovery interface, not a HID interface.
 
-Windows PowerShell에서 다음을 실행합니다. Rust, Python 3,
-`adafruit-nrfutil` 0.5.3.post16이 필요합니다.
+Both halves read three PCA9555 devices (`0x20`, `0x22`, and `0x24`) over SDA
+P0.11/SCL P1.09 at 100 kHz. They use active-low inputs, 5 ms debounce, and the
+1M BLE PHY. Before TWIM initialization, the firmware sends up to nine bus-clear
+clocks followed by STOP so the external expanders do not remain stuck if the
+MCU restarts during an I2C transfer from the bootloader or another firmware.
+
+## Build
+
+Run the following in Windows PowerShell. Rust, Python 3, and
+`adafruit-nrfutil` 0.5.3.post16 are required.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -36,18 +47,18 @@ $buildExit = $LASTEXITCODE
 if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
 ```
 
-스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
-BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 마지막 결과는 Rust 52개, Python/계약/아티팩트 17개
-테스트 통과입니다.
+The script runs formatting, Windows host tests, host/ARM Clippy, release builds
+for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
+family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
+passed 52 Rust tests and 17 Python/contract/artifact tests.
 
-키보드에서 실행되는 코드는 전부 Rust `no_std`입니다. `tools/*.py`와 Python
-패키지인 `adafruit-nrfutil`은 PC에서 산출물을 만들고 검사할 때만 사용되며
-키보드에는 들어가지 않습니다.
+All code that runs on the keyboard is Rust `no_std`. The `tools/*.py` files and
+the Python package `adafruit-nrfutil` are used only on the PC to create and
+verify artifacts; they are not installed on the keyboard.
 
-## 최신 산출물
+## Latest artifacts
 
-| 파일 | 크기(bytes) | SHA-256 |
+| File | Size (bytes) | SHA-256 |
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
 | `firmware/NocFree_Rust_Left.uf2` | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
@@ -56,131 +67,139 @@ BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BI
 | `firmware/NocFree_Rust_Right.uf2` | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
 | `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `8E50F55DCAFC3D3583C6E5B082D319C6371EFC100047433AC48B0470D751EB38` |
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x375ff`, 오른쪽 `0x308ff`까지만
-기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
+The UF2 files write only from the application start at `0x27000` through
+`0x375ff` on the left and `0x308ff` on the right. They preserve the SoftDevice,
+storage, factory filesystem, and UF2 bootloader.
 
-## NocFree Link 키 변경
+## Changing keys with NocFree Link
 
-왼쪽은 `link.nocfree.com`이 인식하는 VID/PID `2886:8029`, 제품명
-`NocFree & ANSI`, WinUSB vendor bulk interface를 제공합니다.
+The left half provides VID/PID `2886:8029`, product name `NocFree & ANSI`, and
+the WinUSB vendor bulk interface recognized by `link.nocfree.com`.
 
-- 8개 레이어 × 84개 물리 키
-- 16개 hotkey 슬롯과 실제 HID chord 실행
-- 키맵/hotkey CRC 포함 flash 영구 저장
-- 단일 키 변경, 재부팅 후 보존, hotkey 생성/삭제, 기본값 복구 실기 통과
+- 8 layers × 84 physical keys
+- 16 hotkey slots with actual HID chord execution
+- Persistent flash storage with keymap/hotkey CRCs
+- Hardware-tested single-key changes, persistence after reboot, hotkey
+  creation/deletion, and default restoration
 
-ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocFree Link를
-선택했습니다. quick text는 조회 시 빈 슬롯으로 응답해 웹앱 timeout을 막지만
-저장·실행은 구현하지 않았습니다. Link의 배터리 조회도 현재 `0xff`(사용할 수
-없음)를 반환하므로, 배터리 확인은 아래 `Fn+I`를 사용해야 합니다.
+ZMK Studio is not implemented; NocFree Link was selected from the two requested
+configuration paths. Quick Text queries return empty slots to prevent web-app
+timeouts, but storing and executing Quick Text is not implemented. Link battery
+queries currently return `0xff` (unavailable), so use `Fn+I` below to check the
+batteries.
 
-## 구현 상태
+## Implementation status
 
-| 상태 | 기능 | 현재 범위와 제한 |
+| Status | Feature | Current scope and limitations |
 |---|---|---|
-| 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
-| 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| 완료 | 양쪽 split | 오른쪽 입력과 배터리 값을 암호화 BLE split으로 왼쪽에 전달하고, 링크 단절 뒤 자동 복구 |
-| 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
-| 완료 | 백라이트 | 양쪽 흰색 백라이트 동기 제어, 토글과 20% 단위 밝기 조절 |
-| 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
-| 완료 | NocFree Link 키맵 | 8×84 키, hotkey 16개, 실행·삭제·기본값 복구와 CRC 포함 flash 저장 |
-| 완료 | 복구 | 양쪽 독립 CDC 1200-baud DFU, Fn DFU 단축키, Rust↔순정 V2.3.0 왕복 |
-| 부분 | 배터리 | 양쪽 ADC 측정과 `Fn+I` 출력은 동작. 현재 3.45–4.20 V 선형 환산이라 완충/방전 실측에 따른 퍼센트 곡선 보정이 남음 |
-| 부분 | NocFree Link 호환 | 키맵과 hotkey는 동작. Link 배터리 표시는 미지원이며 quick text는 빈 조회만 지원하고 저장·삭제·실행은 미지원 |
-| 부분 | 순정 전원 관리 | 배터리 divider는 측정할 때만 켬. 순정과 같은 idle 전류·deep sleep·충전/저전압 임계값은 아직 계측 검증하지 않음 |
-| 미구현 | 2.4 GHz 통신 | 공장 USB receiver, 왼쪽 외부 nRF24L01, 오른쪽/별도 numpad의 ESB 연결은 사용하지 않으며 현재 split은 BLE 전용 |
-| 미구현 | 순정 상태 표시등 | 빨간 충전/저전압 LED와 파란 상태 LED의 순정 동작 재현 |
-| 미구현 | 기타 설정 경로 | ZMK Studio와 공장 firmware updater의 완전한 호환은 제공하지 않음 |
+| Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
+| Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
+| Complete | Split connection | Encrypted BLE transport of right-side input and battery data to the left, with automatic recovery after link loss |
+| Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
+| Complete | Backlight | Synchronized white backlight on both halves, toggle, and 20% brightness steps |
+| Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
+| Complete | NocFree Link keymap | 8×84 keys, 16 hotkeys, execution/deletion/default restoration, and flash storage with CRCs |
+| Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |
+| Partial | Battery | ADC measurement on both halves and `Fn+I` output work. Percentage-curve calibration against measured full/empty cells remains; the current conversion is linear from 3.45 to 4.20 V |
+| Partial | NocFree Link compatibility | Keymaps and hotkeys work. Link battery display is unsupported; Quick Text supports empty queries only, not storage, deletion, or execution |
+| Partial | Stock power management | The battery divider is enabled only while measuring. Stock-equivalent idle current, deep sleep, charging, and low-voltage thresholds have not been measured and verified |
+| Not implemented | Factory USB dongle / 2.4 GHz communication | Dongle pairing and input are not functional or verified. The factory USB receiver, left external nRF24L01, and ESB links to the right half/separate numpad are unused; the current split connection is BLE-only |
+| Not implemented | LEDs beside the physical switches | Their indication and control do not accurately match the stock firmware. Stock behavior of the red charge/low-voltage LED and blue status LED remains to be reproduced |
+| Not implemented | Other configuration paths | Full compatibility with ZMK Studio and the factory firmware updater |
 
-## 전체 기본 단축키
+## Default shortcuts
 
-왼쪽 Fn과 오른쪽 Fn은 같은 레이어를 사용합니다. 아래 표는 NocFree Link에서
-키를 바꾸기 전의 firmware 기본값입니다.
+The left and right Fn keys use the same layer. This table lists the firmware
+defaults before any changes made with NocFree Link.
 
-| 키 | 누르는 방법 | 동작 |
+| Key | Activation | Action |
 |---|---|---|
-| `Fn+Esc` | 즉시 | 왼쪽 애플리케이션 재시작. DFU가 아님 |
-| `Fn+F1` / `Fn+F2` | 즉시 | 화면 밝기 내림 / 올림 |
-| `Fn+F3` | 즉시 | macOS: Mission Control, Windows: Task View |
-| `Fn+F4` | 즉시 | macOS: Spotlight, Windows: Search |
-| `Fn+F5` / `Fn+F6` | 즉시 | 양쪽 백라이트 밝기 20% 내림 / 올림 |
-| `Fn+F7` / `F8` / `F9` | 즉시 | 이전 곡 / 재생·일시정지 / 다음 곡 |
-| `Fn+F10` / `F11` / `F12` | 즉시 | 음소거 / 볼륨 내림 / 볼륨 올림 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 짧게 | BLE 페어링 슬롯 1 / 2 / 3 선택 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 1초 홀드 | 해당 슬롯의 bond를 삭제하고 새 호스트 페어링 시작 |
-| `Fn+5` | 3초 홀드 | **왼쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
-| `Fn+0` | 3초 홀드 | **오른쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
-| `Fn+Tab` | 즉시 | 양쪽 백라이트 켜기 / 끄기 |
-| `Fn+I` | 3초 홀드 | `L {왼쪽 퍼센트} R {오른쪽 퍼센트}`를 현재 출력으로 입력. 짧게 누르면 무동작 |
-| `Fn+Delete` | 3초 홀드 | 호환용 **오른쪽** DFU 별칭. 새 조작은 `Fn+0` 권장 |
-| `Fn+M` | 짧게 / 1초 홀드 | 짧게 M 입력 / 홀드하면 macOS 모드 영구 저장 |
-| `Fn+N` | 짧게 / 1초 홀드 | 짧게 N 입력 / 홀드하면 Windows 모드 영구 저장 |
+| `Fn+Esc` | Immediate | Restart the left application; this is not DFU |
+| `Fn+F1` / `Fn+F2` | Immediate | Display brightness down / up |
+| `Fn+F3` | Immediate | macOS: Mission Control; Windows: Task View |
+| `Fn+F4` | Immediate | macOS: Spotlight; Windows: Search |
+| `Fn+F5` / `Fn+F6` | Immediate | Backlight brightness down / up by 20% on both halves |
+| `Fn+F7` / `F8` / `F9` | Immediate | Previous track / play-pause / next track |
+| `Fn+F10` / `F11` / `F12` | Immediate | Mute / volume down / volume up |
+| `Fn+1` / `Fn+2` / `Fn+3` | Short press | Select BLE pairing slot 1 / 2 / 3 |
+| `Fn+1` / `Fn+2` / `Fn+3` | Hold 1 second | Delete the selected slot's bond and start pairing a new host |
+| `Fn+5` | Hold 3 seconds | Enter the **left** UF2 bootloader; a short press does nothing |
+| `Fn+0` | Hold 3 seconds | Enter the **right** UF2 bootloader; a short press does nothing |
+| `Fn+Tab` | Immediate | Toggle the backlight on both halves |
+| `Fn+I` | Hold 3 seconds | Type `L {left percentage} R {right percentage}` through the active output; a short press does nothing |
+| `Fn+Delete` | Hold 3 seconds | Compatibility alias for **right** DFU; use `Fn+0` for new workflows |
+| `Fn+M` | Short press / hold 1 second | Type M on a short press / persist macOS mode on hold |
+| `Fn+N` | Short press / hold 1 second | Type N on a short press / persist Windows mode on hold |
 
-표에 없는 `Fn+키`는 별도 기능이 없는 transparent 동작이라 원래 키가
-입력됩니다. 특히 기준 ZMK의 `Fn+6`(활성 프로필 삭제)과 `Fn+7`(USB/BLE
-toggle)은 Rust에서 같은 위치에 구현하지 않았습니다. 슬롯 삭제·페어링은
-대상 `Fn+1/2/3`을 1초 홀드하고, 출력 선택은 왼쪽 물리 스위치를 사용하십시오.
-`Fn+U`와 `Fn+B`는 출력 전환 기능이 없으며 각각 원래 문자로 동작합니다.
-DFU는 오입력 방지를 위해 기준 ZMK의 즉시 실행 대신 3초 홀드로
-변경했습니다.
+An unlisted `Fn+key` is transparent and types the original key. In particular,
+the baseline ZMK positions `Fn+6` (clear active profile) and `Fn+7` (toggle
+USB/BLE) are not implemented at those positions in Rust. Hold the target
+`Fn+1/2/3` for one second to clear and pair a slot, and use the left physical
+switch to select the output. `Fn+U` and `Fn+B` have no output-switching behavior
+and type their original letters. DFU was changed from immediate activation in
+the baseline ZMK behavior to a three-second hold to prevent accidental entry.
 
-왼쪽 DFU와 split이 끊긴 오른쪽 DFU는 각 반쪽의 CDC 1200-baud touch를
-사용합니다. NocFree &에는 외부 리셋 버튼이 없습니다. 확인되지 않은 PCB
-패드를 쇼트하지 마십시오. 정확한 절차는 [RECOVERY.md](RECOVERY.md)에 있습니다.
+Use each half's CDC 1200-baud touch for left-side DFU or right-side DFU while
+the split connection is down. The NocFree & has no external reset button. Do
+not short unverified PCB pads. See [RECOVERY.md](RECOVERY.md) for the exact
+procedure.
 
-## 물리 스위치
+## Physical switches
 
-왼쪽 3단 스위치는 P0.15/P0.17 active-low 입력으로 동작합니다. 위치 의미는
-[NocFree & 공식 설명서](https://www.nocfree.com/pages/nocfree-and-manual)를
-기준으로 확인했습니다.
+The left three-position switch uses active-low inputs on P0.15/P0.17. Position
+meanings were verified against the
+[official NocFree & manual](https://www.nocfree.com/pages/nocfree-and-manual).
 
-- 위 **2.4G**: 아직 2.4G transport가 없어 USB/BLE 출력을 모두 안전하게 차단
-- 가운데 **Wired**: USB HID 출력 선택
-- 아래 **Bluetooth**: BLE HID 출력 선택
+- Top, **2.4G**: Safely blocks USB and BLE output because the 2.4G transport is
+  not implemented yet
+- Middle, **Wired**: Selects USB HID output
+- Bottom, **Bluetooth**: Selects BLE HID output
 
-두 감지 핀이 동시에 low인 전환 순간에는 이전 출력을 유지하며, 20 ms 동안
-같은 위치가 확인된 뒤에만 모드를 바꿉니다. Wired에서 왼쪽 USB가 없으면
-HID 출력은 없지만 스위치가 전원을 끄지는 않으므로 MCU와 스캐너는 배터리를
-소모합니다.
+During a transition where both sensing pins are low, the previous output is
+kept. The mode changes only after the same position remains stable for 20 ms.
+If left-side USB is disconnected in Wired mode, there is no HID output, but the
+switch does not turn off the keyboard; the MCU and scanner continue consuming
+battery power.
 
-오른쪽 스위치는 펌웨어 입력이 아니라 배터리 전원선의 물리 ON/OFF입니다. 위가
-OFF, 아래가 ON입니다. 오른쪽 USB가 연결되면 VBUS가 배터리 스위치를 우회하므로
-OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
+The right switch is not a firmware input; it physically switches the battery
+power line. Up is OFF and down is ON. When right-side USB is connected, VBUS
+bypasses the battery switch, so the board remaining powered while switched OFF
+is expected hardware behavior.
 
-## 실기 검증
+## Hardware verification
 
-| 요구사항 | 최신 이미지의 증거 |
+| Requirement | Evidence from the latest images |
 |---|---|
-| USB 양쪽 입력/순서 | `asdfjkljamjamjam`, 전체 문자 배열, 교차 `jam` 반복 통과 |
-| 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
-| 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
-| BLE | 새 페어링 `freshcapture` → Wired `freshwired2` → 장치 삭제·재페어링 없는 BLE `reconnectcapture` 통과 |
-| BLE 멀티 페어링 | 슬롯 1은 Windows 11, 슬롯 2는 Android에서 페어링·연결 확인 |
-| 왼쪽 물리 모드 | Wired `wiredswitchok`, BLE `bleswitchok`/`bleagainok`, 2.4G 무출력 `24silentok` 통과 |
-| 오른쪽 물리 전원 | 오른쪽 USB 분리 후 ON `jkluiop`, OFF 무입력, ON 복귀 `jkluiop` 통과 |
-| Link | A→B, Shift+B hotkey, 재부팅 보존, 삭제/기본 A 복구 통과 |
-| 양쪽 순정 원복 | Rust→순정 V2.3.0→serial DFU→같은 Rust→입력 통과 |
-| 오른쪽 DFU 단축키 | `Fn+Delete`→UF2 확인→최신 Rust→전원 재인가 없이 `jkluiop` 통과 |
-| 미디어 | mute/unmute, volume down/up 통과 |
-| 배터리 | `Fn+I` 3초 홀드로 `L 24 R 11` 출력; 완충 기준 퍼센트 보정은 아직 필요 |
-| 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
-| 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |
+| USB input and ordering from both halves | Passed `asdfjkljamjamjam`, the full character layout, and alternating `jam` repetitions |
+| All 84 physical keys | Automated sweep of 50 character keys and 33 non-text keys, plus manual Print Screen verification |
+| Korean Windows special keys | Verified the Right Alt `KanaMode` mapping and OS handling of Print Screen |
+| BLE | Passed fresh pairing `freshcapture` → Wired `freshwired2` → BLE `reconnectcapture` without deleting or re-pairing the device |
+| BLE multi-pairing | Pairing and connection verified with slot 1 on Windows 11 and slot 2 on Android |
+| Left physical mode switch | Passed Wired `wiredswitchok`, BLE `bleswitchok`/`bleagainok`, and no output at 2.4G with `24silentok` |
+| Right physical power switch | With right-side USB disconnected: ON produced `jkluiop`, OFF produced no input, and returning to ON produced `jkluiop` |
+| Link | Passed A→B, Shift+B hotkey, persistence after reboot, deletion, and restoring default A |
+| Stock restoration on both halves | Passed Rust→stock V2.3.0→serial DFU→same Rust→input |
+| Right DFU shortcut | Passed `Fn+Delete`→UF2 detection→latest Rust→`jkluiop` without a power cycle |
+| Media | Passed mute/unmute and volume down/up |
+| Battery | `Fn+I` held for three seconds typed `L 24 R 11`; full-charge percentage calibration is still required |
+| New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
+| Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
 
-BLE 호스트 실기 검증은 **Windows 11과 Android에서만** 수행했습니다. macOS,
-iOS, Linux 및 세 번째 호스트는 확인하지 않았습니다. `NocFree 1`/`2`/`3`은
-선택된 페어링 슬롯을 나타내는 광고 이름이며 서로 다른 Bluetooth identity가
-아닙니다. 따라서 같은 Windows 11 PC에서는 기존 장치 이름이 선택 슬롯에 따라
-바뀌어 보일 수 있고, 빈 슬롯의 새 페어링은 Android 같은 다른 호스트에서
-확인해야 합니다.
+BLE host hardware testing was performed **only on Windows 11 and Android**.
+macOS, iOS, Linux, and a third host have not been tested. `NocFree 1`/`2`/`3`
+are advertising names for the selected pairing slot, not separate Bluetooth
+identities. On the same Windows 11 PC, the existing device name can therefore
+appear to change with the selected slot. New pairing in an empty slot was
+verified with another host, Android.
 
-최신 이미지 검증에서는 슬롯 1의 기존 bond와 Windows 장치를 각각 한 번
-삭제하고 새로 페어링했습니다. 이후 같은 bond로 Bluetooth→Wired→Bluetooth를
-전환했으며 Windows 장치 삭제나 재페어링 없이 HID 입력이 즉시 복구됐습니다.
-펌웨어는 Windows의 CCCD write를 받는 즉시 시스템 속성을 RAM/flash에 저장하고,
-재연결 보안이 완료되면 알림 전송 전에 복원합니다.
+For the latest image verification, the existing slot 1 bond and Windows device
+were each deleted once before fresh pairing. The same bond was then switched
+Bluetooth→Wired→Bluetooth, and HID input recovered immediately without deleting
+the Windows device or pairing again. The firmware stores Windows CCCD system
+attributes in RAM/flash as soon as it receives the CCCD write and restores them
+after reconnection security completes, before sending notifications.
 
-## 코드 읽는 순서
+## Suggested reading order
 
 1. `src/keymap.rs`, `src/link_keymap.rs`
 2. `src/scanner.rs`, `src/pca9555.rs`, `src/hardware_scanner.rs`
@@ -189,6 +208,7 @@ iOS, Linux 및 세 번째 호스트는 확인하지 않았습니다. `NocFree 1`
 5. `src/bin/central.rs`, `src/link_usb.rs`, `src/link_protocol.rs`
 6. `src/platform.rs`, `src/bond_store.rs`, `src/bond_record.rs`
 
-`vendor/nrf-softdevice`와 macro 폴더는 upstream 커밋
-`b0ac850c0a5a05b8a5aef4f752b48115755b8542`의 로컬 사본입니다. 1M PHY와
-보안 CCCD 변경 이유는 각 `README.nocfree.md`에 기록돼 있습니다.
+The `vendor/nrf-softdevice` and macro directories are local copies of upstream
+commit `b0ac850c0a5a05b8a5aef4f752b48115755b8542`. Their respective
+`README.nocfree.md` files document the reasons for the 1M PHY and secure CCCD
+changes.
