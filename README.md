@@ -16,6 +16,9 @@ mode/power switches, shortcuts, NocFree Link key changes, DFU on both halves,
 and restoring each half to the stock firmware. New contributors should read
 [HANDOFF.md](HANDOFF.md) first.
 
+For the stock-firmware comparison, missing-feature priorities, and battery
+calibration procedure, see [ROADMAP.md](ROADMAP.md).
+
 > [!IMPORTANT]
 > Battery percentages are not calibrated yet, control of the status LEDs beside
 > the physical switches does not accurately reproduce the stock firmware, and
