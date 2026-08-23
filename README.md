@@ -136,6 +136,13 @@ batteries.
 | Partial | LEDs beside the physical switches | The left blue LED flashes during pairing until bonding or profile selection, and both red shared charger lines use open-drain-style 0.5-second low-battery flashing at 10% or below. Blue pairing was hardware-tested; red low-battery flashing passed automated tests but could not be observed with both batteries full. Charging/full and other stock indications remain |
 | Not implemented | Other configuration paths | Full compatibility with ZMK Studio and the factory firmware updater |
 
+## Power and wake behavior
+
+- After 30 seconds without a NocFree key press, both backlights turn off even when USB power is connected. The next key press wakes the backlights and is normally reported.
+- On battery power, the left central enters nRF52 System OFF after five minutes without a NocFree key press. It first requests both backlights to turn off. USB power and active BLE pairing prevent System OFF.
+- Wake the sleeping left half by connecting USB or holding a key on the left half until the keyboard reconnects. Because System OFF wake resets the MCU, a very short wake-key tap can be consumed during boot.
+- The right half remains in low-activity System ON so it can automatically reconnect over the BLE-only split. After its first split connection, disconnected advertising is slowed from 250 ms to 1 second. Right-half System OFF and the resulting current reduction are not claimed or verified.
+
 ## Default shortcuts
 
 The left and right Fn keys use the same layer. This table lists the firmware
