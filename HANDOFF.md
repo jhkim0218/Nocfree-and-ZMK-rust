@@ -214,7 +214,17 @@ zxcvbnm,./
   0%가 실물에서 완전 점등으로 출력되어 `Fn+Tab`과 timeout이 모두 소등되지 않았음
 - USB 전원을 연결한 상태에서 10초 진단 이미지로 `Fn+Tab` 양쪽 소등/점등,
   10초 자동 소등, 첫 키 입력과 동시 wake를 실기 확인. 저장소와 배포 artifact는
-  같은 경로에서 상수만 30초로 변경했으며 사용자 실물은 요청대로 10초 이미지를 유지
+  같은 경로에서 상수만 30초로 변경했고 이후 deep-sleep 진단 이미지부터 실물에도
+  30초 백라이트 timeout이 설치됨
+- 왼쪽 central은 배터리 상태에서 NocFree 키 무입력 5분 뒤 System OFF. USB 전원,
+  BLE pairing, low 상태의 왼쪽 PCA9555 INT에서는 진입하지 않음. 진입 전 양쪽
+  백라이트 Idle 명령을 보내고 split 최대 latency 232.5 ms보다 긴 300 ms를 기다림
+- 동일 경로의 10초 진단 이미지에서 USB 연결 중 sleep 차단, 배터리 System OFF,
+  양쪽 백라이트 소등, 왼쪽 USB wake, 왼쪽 키 홀드 wake, BLE와 오른쪽 입력 복귀 확인.
+  System OFF는 reset wake라 짧은 wake key 탭의 문자 보존은 보장하지 않음
+- 오른쪽은 왼쪽 wake 후 자동 재연결을 위해 System OFF에 넣지 않음. CPU idle과
+  PCA9555 INT scan을 유지하며 최초 split 연결 뒤 단절 광고 주기를 250 ms에서
+  1초로 늦춤. 광고 송신 빈도는 1/4이지만 실제 전류 감소량은 아직 미측정
 
 ### Link
 

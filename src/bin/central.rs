@@ -33,9 +33,10 @@ use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
-    cdc_recovery, enable_usb_power_events, reboot_application, reboot_to_bootloader,
-    softdevice_config, update_usb_power,
+    cdc_recovery, enable_usb_power_events, key_wake_ready, reboot_application,
+    reboot_to_bootloader, softdevice_config, try_system_off, update_usb_power, usb_power_detected,
 };
+use nocfree_and_rust::power_policy::{DEEP_SLEEP_PREP_MS, DEEP_SLEEP_SECS, should_system_off};
 use nocfree_and_rust::report::{Command, ReportEngine};
 use nocfree_and_rust::scanner::{Half, SnapshotMerger, decode_half_state, encode_half_state};
 use nocfree_and_rust::split_ble::{SplitClient, SplitClientEvent};
@@ -84,6 +85,7 @@ static SPLIT_COMMAND: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BLE_CONTROL: Signal<CriticalSectionRawMutex, BleControl> = Signal::new();
 static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Signal::new();
 static BACKLIGHT_ACTIVITY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static POWER_ACTIVITY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_STATUS: Signal<CriticalSectionRawMutex, BatteryLevels> = Signal::new();
 static RIGHT_BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
@@ -153,6 +155,7 @@ async fn process_key_states() -> ! {
             snapshot = merger.update(half, state);
             if snapshot & !previous != 0 {
                 BACKLIGHT_ACTIVITY.signal(());
+                POWER_ACTIVITY.signal(());
             }
         }
         let effects =
@@ -208,6 +211,33 @@ async fn run_backlight_timeout() -> ! {
         set_backlight(BacklightCommand::Idle, COMMAND_BACKLIGHT_IDLE);
         BACKLIGHT_ACTIVITY.wait().await;
         set_backlight(BacklightCommand::Wake, COMMAND_BACKLIGHT_WAKE);
+    }
+}
+
+async fn run_deep_sleep() -> ! {
+    loop {
+        while with_timeout(Duration::from_secs(DEEP_SLEEP_SECS), POWER_ACTIVITY.wait())
+            .await
+            .is_ok()
+        {}
+        loop {
+            if should_system_off(usb_power_detected(), BONDS.is_pairing(), key_wake_ready(31)) {
+                set_backlight(BacklightCommand::Idle, COMMAND_BACKLIGHT_IDLE);
+                Timer::after(Duration::from_millis(DEEP_SLEEP_PREP_MS)).await;
+                if POWER_ACTIVITY.try_take().is_some() {
+                    break;
+                }
+                if should_system_off(usb_power_detected(), BONDS.is_pairing(), key_wake_ready(31)) {
+                    try_system_off(31);
+                }
+            }
+            if with_timeout(Duration::from_secs(1), POWER_ACTIVITY.wait())
+                .await
+                .is_ok()
+            {
+                break;
+            }
+        }
     }
 }
 
@@ -755,7 +785,10 @@ async fn main(_spawner: embassy_executor::Spawner) {
                             run_status_leds(red_status, blue_status),
                             join(
                                 run_backlight_timeout(),
-                                join(run_battery_status_output(), run_key_tap_output()),
+                                join(
+                                    run_deep_sleep(),
+                                    join(run_battery_status_output(), run_key_tap_output()),
+                                ),
                             ),
                         ),
                     ),

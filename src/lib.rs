@@ -21,6 +21,7 @@ pub mod output_router;
 pub mod pca9555;
 #[cfg(target_arch = "arm")]
 pub mod platform;
+pub mod power_policy;
 pub mod report;
 pub mod scanner;
 #[cfg(target_arch = "arm")]

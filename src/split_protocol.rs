@@ -10,6 +10,8 @@ pub const COMMAND_BACKLIGHT_WAKE: u8 = 7;
 pub const CONNECTION_INTERVAL_UNITS: u16 = 6;
 pub const CONNECTION_LATENCY: u16 = 30;
 pub const CONNECTION_TIMEOUT_UNITS: u16 = 400;
+pub const FAST_ADVERTISING_INTERVAL_UNITS: u32 = 400;
+pub const IDLE_ADVERTISING_INTERVAL_UNITS: u32 = 1_600;
 
 pub fn advertisement_has_split_service(mut data: &[u8]) -> bool {
     while let Some((&length, rest)) = data.split_first() {
@@ -57,5 +59,7 @@ mod tests {
         assert_eq!(CONNECTION_INTERVAL_UNITS, 6);
         assert_eq!(CONNECTION_LATENCY, 30);
         assert_eq!(CONNECTION_TIMEOUT_UNITS, 400);
+        assert_eq!(FAST_ADVERTISING_INTERVAL_UNITS, 400);
+        assert_eq!(IDLE_ADVERTISING_INTERVAL_UNITS, 1_600);
     }
 }

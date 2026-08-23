@@ -1,6 +1,8 @@
 use core::mem;
 use core::panic::PanicInfo;
 
+use embassy_nrf::pac;
+use embassy_nrf::pac::gpio::vals::Sense;
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::CdcAcmClass;
@@ -72,6 +74,35 @@ pub fn update_usb_power(vbus: &SoftwareVbusDetect, event: SocEvent) {
         SocEvent::PowerUsbRemoved => vbus.detected(false),
         SocEvent::PowerUsbPowerReady => vbus.ready(),
         _ => {}
+    }
+}
+
+pub fn usb_power_detected() -> bool {
+    let mut status = 0_u32;
+    unsafe {
+        assert_eq!(
+            raw::sd_power_usbregstatus_get(&mut status),
+            raw::NRF_SUCCESS
+        );
+    }
+    status & 1 != 0
+}
+
+pub fn key_wake_ready(pin: usize) -> bool {
+    pac::P0.in_().read().pin(pin)
+}
+
+pub fn try_system_off(pin: usize) -> bool {
+    if !key_wake_ready(pin) {
+        return false;
+    }
+    pac::P0
+        .pin_cnf(pin)
+        .modify(|config| config.set_sense(Sense::LOW));
+    let result = unsafe { raw::sd_power_system_off() };
+    assert_eq!(result, raw::NRF_SUCCESS);
+    loop {
+        cortex_m::asm::wfe();
     }
 }
 

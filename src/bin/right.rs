@@ -32,7 +32,8 @@ use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
 use nocfree_and_rust::split_protocol::{
     COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_IDLE, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
-    COMMAND_BACKLIGHT_WAKE, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
+    COMMAND_BACKLIGHT_WAKE, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER,
+    FAST_ADVERTISING_INTERVAL_UNITS, IDLE_ADVERTISING_INTERVAL_UNITS, SERVICE_UUID_LE,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
 use nrf_softdevice::Softdevice;
@@ -159,14 +160,23 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         .full_name("NocFree Rust Right")
         .build();
 
+    let mut has_connected = false;
     loop {
+        let advertising_config = peripheral::Config {
+            interval: if has_connected {
+                IDLE_ADVERTISING_INTERVAL_UNITS
+            } else {
+                FAST_ADVERTISING_INTERVAL_UNITS
+            },
+            ..Default::default()
+        };
         let connection = match peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
                 adv_data: &ADVERTISEMENT,
                 scan_data: &SCAN_RESPONSE,
             },
-            &peripheral::Config::default(),
+            &advertising_config,
             &SPLIT_SECURITY,
         )
         .await
@@ -174,6 +184,7 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             Ok(connection) => connection,
             Err(_) => continue,
         };
+        has_connected = true;
         BATTERY_REQUEST.signal(());
 
         let server_run = gatt_server::run(&connection, server, |event| match event {

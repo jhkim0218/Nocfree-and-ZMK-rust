@@ -34,7 +34,7 @@ right Rust images.
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
 | Done | Backlight timeout | Backlight off after 30 seconds without a NocFree key press | Both halves now turn off independently of USB power and wake without losing the first key | A 10-second diagnostic image passed hardware testing; release images use the same path with a 30-second constant |
-| P1 | Deep sleep | Sleep after 30 minutes; a left-side key wakes after long sleep | No deep sleep or soft-off state | Measured sleep current and reliable wake/reconnect across repeated cycles |
+| Done | Left-central System OFF | Sleep after five minutes on battery; wake from a left key or left USB | A 10-second diagnostic passed USB blocking, battery System OFF, both-backlight preparation, USB/key wake, BLE restore, and right split reconnect; release timeout is five minutes | Measure sleep current and repeat long-duration wake cycles. A quick wake-key tap is not guaranteed to survive reset boot |
 | Done | Periodic battery manager | Ongoing level and low-battery monitoring | Both halves sample every 60 seconds and on `Fn+I`; filtered values feed `Fn+I`, split battery transport, and low-battery LEDs | Automated tests, `L 100 R 100` hardware result, and stable long-running readings |
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
 | P1 | Charging awareness | Charging and fully charged are distinct from discharge percentage | VBUS/charger state is not incorporated | Charging/full states are correct and voltage under charge does not falsely imply 100% |
@@ -148,10 +148,12 @@ One battery manager should supply:
 3. **Done:** replace idle 10 ms polling with left `P0.31`/right `P0.05`
    interrupt wake plus a 250 ms safety scan; keep 3 ms active debounce scans.
 4. **Done:** add the 30-second backlight timeout; first verify the same path with a 10-second diagnostic image.
-5. Add 30-minute deep sleep with wake from left `P0.31`, right `P0.05`, USB, and
-   any required mode-switch source. Verify the first wake key is not lost.
-6. Measure BLE advertising/scanning and reconnect current; add backoff only
-   where measurements show a significant cost.
+5. **Done:** add five-minute battery-only System OFF for the left central with
+   wake from left `P0.31` or left USB. Keep the right in System ON idle because
+   the BLE-only split has no physical path for the left to wake a powered-off right.
+6. **Partially done:** after the first split connection, slow right-side
+   disconnected advertising from 250 ms to 1 second. Measure the actual current
+   reduction before claiming a battery-life improvement.
 7. Re-run latency, rollover, split reconnect, BLE multi-pairing, DFU, and warm
    I2C recovery tests after every power change.
 
