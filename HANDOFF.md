@@ -205,6 +205,10 @@ zxcvbnm,./
 - 양쪽 빨간 LED는 공유 charger 선을 직접 high로 구동하지 않는 open-drain
   방식이며 10% 이하에서 0.5초 간격 점멸. 자동 테스트는 통과했으나 양쪽이
   완충이라 실물 저전압 점멸은 미확인
+- idle 스캔은 기존 10 ms polling 대신 왼쪽 `P0.31`/오른쪽 `P0.05` PCA9555
+  active-low INT 또는 250 ms 안전 timer로 깨어남. debounce 중에는 3 ms 유지
+- 양쪽 모두 3초 idle 뒤 첫 키 즉시 입력, 2초 hold 반복, release 중단과 좌우
+  혼합 입력 순서 실기 통과. idle 전체 스캔은 약 100회/s에서 4회/s로 감소
 
 ### Link
 

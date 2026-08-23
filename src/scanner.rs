@@ -3,6 +3,7 @@ use crate::keymap::{LEFT_KEY_COUNT, RIGHT_KEY_COUNT};
 pub const EXPANDER_ADDRESSES: [u8; 3] = [0x20, 0x22, 0x24];
 pub const ACTIVE_SCAN_MS: u16 = 3;
 pub const IDLE_SCAN_MS: u16 = 10;
+pub const IDLE_SAFETY_SCAN_MS: u16 = 250;
 pub const DEBOUNCE_PRESS_MS: u16 = 5;
 pub const DEBOUNCE_RELEASE_MS: u16 = 5;
 
@@ -213,6 +214,12 @@ mod tests {
         assert_eq!(failure_backoff_ms(1), 20);
         assert_eq!(failure_backoff_ms(7), 1000);
         assert_eq!(failure_backoff_ms(u8::MAX), 1000);
+    }
+
+    #[test]
+    fn idle_safety_scan_is_much_slower_than_the_old_poll() {
+        assert_eq!(IDLE_SAFETY_SCAN_MS, 250);
+        assert!(IDLE_SAFETY_SCAN_MS >= IDLE_SCAN_MS * 20);
     }
 
     #[test]

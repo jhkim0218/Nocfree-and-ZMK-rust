@@ -639,6 +639,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
     let ble_detect = Input::new(peripherals.P0_15, Pull::Up);
     let receiver_detect = Input::new(peripherals.P0_17, Pull::Up);
+    let key_interrupt = Input::new(peripherals.P0_31, Pull::Up);
     let battery_enable = Output::new(peripherals.P0_05, Level::Low, OutputDrive::Standard);
     let backlight_pwm = SimplePwm::new_1ch(peripherals.PWM2, peripherals.P0_20);
     let red_status = Flex::new(peripherals.P0_09);
@@ -718,7 +719,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 usb_device.run(),
                 cdc_recovery(cdc),
                 run_usb_reports(keyboard, consumer),
-                hardware_scanner::run(Half::Left, expanders, &INPUT_STATE),
+                hardware_scanner::run(Half::Left, expanders, key_interrupt, &INPUT_STATE),
                 link.run(&BONDS),
             ),
             join5(

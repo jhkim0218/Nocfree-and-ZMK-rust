@@ -133,16 +133,19 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("Input::new(peripherals.P0_15, Pull::Up)", central)
         self.assertIn("Input::new(peripherals.P0_17, Pull::Up)", central)
         self.assertIn("peripherals.P0_05", central)
+        self.assertIn("Input::new(peripherals.P0_31, Pull::Up)", central)
         self.assertIn("peripherals.P0_09", central)
         self.assertIn("peripherals.P0_10", central)
         self.assertNotIn("peripherals.P0_15", right)
-        self.assertNotIn("peripherals.P0_05", right)
+        self.assertIn("Input::new(peripherals.P0_05, Pull::Up)", right)
         self.assertIn("peripherals.P0_17", right)
         self.assertIn("peripherals.P0_31", right)
 
     def test_scanner_retries_transient_expander_startup_failures(self) -> None:
         scanner = read("src/hardware_scanner.rs")
         self.assertIn("while expanders.configure_and_verify().await.is_err()", scanner)
+        self.assertIn("interrupt.wait_for_low()", scanner)
+        self.assertIn("IDLE_SAFETY_SCAN_MS", scanner)
         self.assertNotIn("core::future::pending", scanner)
 
     def test_both_halves_recover_i2c_before_starting_twim(self) -> None:

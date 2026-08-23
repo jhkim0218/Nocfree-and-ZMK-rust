@@ -16,8 +16,8 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | 순정 왼쪽 ANSI | 295,936 | `0x27000..0x4B1FF` |
 | 순정 오른쪽 ANSI | 162,304 | `0x27000..0x3ACFF` |
 | 순정 2.4 GHz 동글 | 143,872 | `0x27000..0x388FF` |
-| Rust 왼쪽 ANSI | 135,680 | `0x27000..0x378FF` |
-| Rust 오른쪽 ANSI | 79,360 | `0x27000..0x30AFF` |
+| Rust 왼쪽 ANSI | 136,192 | `0x27000..0x379FF` |
+| Rust 오른쪽 ANSI | 80,384 | `0x27000..0x30CFF` |
 
 순정에 별도 동글 이미지가 있다는 점은 공장 2.4 GHz 기능이 세 firmware로 구성된
 시스템임을 보여줍니다. 왼쪽과 오른쪽 Rust 이미지만 바꿔서는 복원할 수 없습니다.
@@ -26,11 +26,11 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 
 | 우선순위 | 영역 | 순정 동작 / 목표 | 현재 Rust 상태 | 완료 판정 |
 |---|---|---|---|---|
-| 완료 | 오른쪽 `P0.05` 핀 역할 | active-low PCA9555 `INT` | 잘못된 출력을 제거해 향후 interrupt 스캐너가 사용할 수 있게 둠 | 핀 변경 후 키 스캔과 warm recovery 통과 |
+| 완료 | 오른쪽 `P0.05` 핀 역할 | active-low PCA9555 `INT` | 잘못된 출력을 제거하고 현재 오른쪽 스캐너 wake에 사용 | 핀 변경 후 키 스캔과 warm recovery 통과 |
 | P0 | 배터리 정확도 | 양쪽 1100 mAh 배터리의 의미 있는 잔량 | 순정 V2.3.0 환산과 75/25 필터 복구; 완충된 양쪽에서 100% 확인 | 방전 구간별 DMM 전압 오차와 퍼센트 오차 기록 |
 | P0 | 상태 LED | 페어링/연결/Wired, 저전압, 충전, 완충 표시 | 파란 페어링과 open-drain 빨간 저전압 점멸 구현. 충전/완충 등은 남음 | 파란 페어링 실기 통과, 10% 이하 빨간 점멸 실물 확인, 나머지 순정 truth table을 전기적 충돌 없이 재현 |
 | P0 | 소비전류 기준 | 공식 사용 시간은 충전당 약 2주 | idle 전류와 배터리 사용 시간 미측정 | 같은 반쪽·같은 조건에서 순정/Rust 전류 비교 완료 |
-| P1 | idle 스캔 | PCA9555 `INT` wake와 안전용 주기 스캔 | idle에도 expander 세 개를 10 ms마다 polling | 누락/stuck key 없이 I2C 활동 시간과 idle 전류 감소 |
+| 완료 | idle 스캔 | PCA9555 `INT` wake와 안전용 주기 스캔 | 왼쪽 `P0.31`과 오른쪽 `P0.05`로 즉시 wake, active debounce는 3 ms 유지, interrupt 유실은 250 ms 전체 스캔으로 복구 | 양쪽 idle 첫 키·hold·release·혼합 순서 실기 통과, idle 스캔 약 100회/s에서 4회/s로 감소 |
 | P1 | 백라이트 timeout | 5분 무입력 후 자동 소등 | 무입력 timer 없음 | 5분 후 꺼지고 첫 wake key 손실 없이 복귀 |
 | P1 | deep sleep | 30분 후 sleep, 장시간 sleep은 왼쪽 키로 wake | deep sleep/soft-off 없음 | 반복 sleep/wake/reconnect와 sleep 전류 실측 통과 |
 | 완료 | 주기적 배터리 관리 | 잔량과 저전압을 계속 감시 | 양쪽 모두 60초마다 그리고 `Fn+I` 요청 때 측정하며 필터값을 `Fn+I`, split 배터리 전달, 저전압 LED에서 공유 | 자동 테스트, 실기 `L 100 R 100`, 장시간 표시 안정성 확인 |
@@ -138,9 +138,9 @@ hardware revision별 gain과 offset을 구합니다.
 
 1. 코드 변경 전에 순정/Rust 소비전류를 측정합니다. 양쪽, 연결/비연결,
    백라이트 off/20%/100%, USB 연결/분리를 같은 조건으로 비교합니다.
-2. **완료:** 오른쪽 `P0.05` 출력을 중단했습니다. interrupt wake 사용은 3번에 남아 있습니다.
-3. idle 10 ms polling을 interrupt wake + 보수적인 주기 전체 스캔으로 바꿉니다.
-   debounce 중에는 3 ms active scan을 유지합니다.
+2. **완료:** 오른쪽 `P0.05` 출력 구동을 중단했습니다.
+3. **완료:** idle 10 ms polling을 왼쪽 `P0.31`/오른쪽 `P0.05` interrupt
+   wake + 250 ms 안전 스캔으로 바꾸고 3 ms active debounce를 유지합니다.
 4. 5분 백라이트 자동 소등을 구현합니다.
 5. 왼쪽 `P0.31`, 오른쪽 `P0.05`, USB와 필요한 mode-switch source로 깨는 30분
    deep sleep을 구현합니다. 첫 wake key가 사라지지 않는지 확인합니다.

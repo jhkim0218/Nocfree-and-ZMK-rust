@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use embassy_futures::join::{join, join4};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_nrf::bind_interrupts;
-use embassy_nrf::gpio::{Flex, Level, Output, OutputDrive, Pull};
+use embassy_nrf::gpio::{Flex, Input, Level, Output, OutputDrive, Pull};
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::{TWISPI0, USBD};
 use embassy_nrf::pwm::SimplePwm;
@@ -225,6 +225,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
     let backlight_pwm = SimplePwm::new_1ch(peripherals.PWM2, peripherals.P0_20);
     let red_status = Flex::new(peripherals.P0_17);
+    let key_interrupt = Input::new(peripherals.P0_05, Pull::Up);
     let battery_enable = Output::new(peripherals.P0_31, Level::Low, OutputDrive::Standard);
     let battery_saadc = Saadc::new(
         peripherals.SAADC,
@@ -274,7 +275,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
             join4(
                 usb_device.run(),
                 cdc_recovery(cdc),
-                hardware_scanner::run(Half::Right, expanders, &KEY_STATE),
+                hardware_scanner::run(Half::Right, expanders, key_interrupt, &KEY_STATE),
                 run_split_peripheral(softdevice, &split_server),
             ),
             join(

@@ -17,8 +17,8 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock left ANSI | 295,936 | `0x27000..0x4B1FF` |
 | Stock right ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
-| Rust left ANSI | 135,680 | `0x27000..0x378FF` |
-| Rust right ANSI | 79,360 | `0x27000..0x30AFF` |
+| Rust left ANSI | 136,192 | `0x27000..0x379FF` |
+| Rust right ANSI | 80,384 | `0x27000..0x30CFF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -28,11 +28,11 @@ right Rust images.
 
 | Priority | Area | Stock behavior / target | Current Rust state | Completion evidence |
 |---|---|---|---|---|
-| Done | Right `P0.05` pin role | PCA9555 `INT`, active low | The erroneous output was removed; the pin is left available for a future interrupt-driven scanner | Key scanning and warm recovery pass after the pin change |
+| Done | Right `P0.05` pin role | PCA9555 `INT`, active low | The erroneous output was removed and the pin now wakes the right scanner | Key scanning and warm recovery pass after the pin change |
 | P0 | Battery accuracy | Meaningful levels for both 1100 mAh batteries | Recovered stock V2.3.0 conversion and 75/25 filter; both fully charged halves reported 100% | DMM error and percentage error are recorded for both halves across a discharge cycle |
 | P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
-| P1 | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | All three expanders are polled every 10 ms | No missed/stuck keys; idle bus activity and current are materially reduced |
+| Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
 | P1 | Backlight timeout | Backlight off after 5 minutes of inactivity | No inactivity timeout | Turns off at 5 minutes and restores on input without losing the first key |
 | P1 | Deep sleep | Sleep after 30 minutes; a left-side key wakes after long sleep | No deep sleep or soft-off state | Measured sleep current and reliable wake/reconnect across repeated cycles |
 | Done | Periodic battery manager | Ongoing level and low-battery monitoring | Both halves sample every 60 seconds and on `Fn+I`; filtered values feed `Fn+I`, split battery transport, and low-battery LEDs | Automated tests, `L 100 R 100` hardware result, and stable long-running readings |
@@ -144,9 +144,9 @@ One battery manager should supply:
 
 1. Measure stock and Rust current before changing code: left/right, connected
    and disconnected, backlight off/20%/100%, and USB absent/present.
-2. **Done:** stop driving right `P0.05`; using it for interrupt wake remains part of step 3.
-3. Replace idle 10 ms polling with interrupt wake plus a conservative periodic
-   full scan. Keep 3 ms active scans for debounce.
+2. **Done:** stop driving right `P0.05` as an output.
+3. **Done:** replace idle 10 ms polling with left `P0.31`/right `P0.05`
+   interrupt wake plus a 250 ms safety scan; keep 3 ms active debounce scans.
 4. Add the 5-minute backlight timeout.
 5. Add 30-minute deep sleep with wake from left `P0.31`, right `P0.05`, USB, and
    any required mode-switch source. Verify the first wake key is not lost.

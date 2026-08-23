@@ -131,7 +131,7 @@ batteries.
 | Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |
 | Partial | Battery | Both halves use the recovered stock V2.3.0 ADC/divider conversion, 75/25 voltage filter, 2.31–3.30 V percentage curve, 60-second sampling, and `Fn+I` output. Both fully charged halves reported 100%; a complete discharge cycle and DMM validation remain |
 | Partial | NocFree Link compatibility | Keymaps and hotkeys work. Link battery display is unsupported; Quick Text supports empty queries only, not storage, deletion, or execution |
-| Partial | Stock power management | The battery divider is enabled only while measuring, and right `P0.05` is no longer driven because it is the PCA9555 interrupt line. Stock-equivalent idle current, deep sleep, charging state, and battery life have not been measured and verified |
+| Partial | Stock power management | The battery divider is enabled only while measuring. Idle key scanning waits on the left `P0.31`/right `P0.05` PCA9555 interrupt lines with a 250 ms safety scan instead of polling every 10 ms. Deep sleep, charging state, and stock-equivalent battery life have not been measured and verified |
 | Not implemented | Factory USB dongle / 2.4 GHz communication | Dongle pairing and input are not functional or verified. The factory USB receiver, left external nRF24L01, and ESB links to the right half/separate numpad are unused; the current split connection is BLE-only |
 | Partial | LEDs beside the physical switches | The left blue LED flashes during pairing until bonding or profile selection, and both red shared charger lines use open-drain-style 0.5-second low-battery flashing at 10% or below. Blue pairing was hardware-tested; red low-battery flashing passed automated tests but could not be observed with both batteries full. Charging/full and other stock indications remain |
 | Not implemented | Other configuration paths | Full compatibility with ZMK Studio and the factory firmware updater |
@@ -212,6 +212,7 @@ is expected hardware behavior.
 | Media | Passed mute/unmute and volume down/up |
 | Battery | After restoring the stock V2.3.0 conversion and filter, `Fn+I` held for three seconds typed `L 100 R 100` on two fully charged halves; discharge behavior remains a long-running hardware test |
 | Status LEDs | Left blue LED continued flashing after releasing a held `Fn+3`, then stopped when a short `Fn+1` restored the bonded Windows slot. Red low-battery flashing was not physically observable because both halves were above 10% |
+| Interrupt-driven idle scan | After three seconds idle, both halves immediately detected the first key, repeated held keys, stopped on release, and preserved mixed left/right input order. A 250 ms safety scan remains as a missed-interrupt fallback |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
 

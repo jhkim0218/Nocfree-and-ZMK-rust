@@ -1,7 +1,8 @@
 use core::cell::Cell;
 
+use embassy_futures::select::select;
 use embassy_nrf::Peri;
-use embassy_nrf::gpio::{Flex, OutputDrive, Pin, Pull};
+use embassy_nrf::gpio::{Flex, Input, OutputDrive, Pin, Pull};
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Channel, TrySendError};
@@ -10,7 +11,7 @@ use embedded_hal_async::i2c::I2c;
 
 use crate::pca9555::Pca9555Bus;
 use crate::scanner::{
-    ACTIVE_SCAN_MS, Debouncer, Half, IDLE_SCAN_MS, decode_pressed, failure_backoff_ms,
+    ACTIVE_SCAN_MS, Debouncer, Half, IDLE_SAFETY_SCAN_MS, decode_pressed, failure_backoff_ms,
 };
 
 pub async fn recover_i2c_bus(sda: Peri<'_, impl Pin>, scl: Peri<'_, impl Pin>) {
@@ -98,6 +99,7 @@ impl<const N: usize> KeyState<N> {
 pub async fn run<I, const N: usize>(
     half: Half,
     mut expanders: Pca9555Bus<I>,
+    mut interrupt: Input<'_>,
     state: &KeyState<N>,
 ) -> !
 where
@@ -139,11 +141,14 @@ where
             state.publish(update.pressed as u64);
         }
 
-        let period_ms = if update.active {
-            ACTIVE_SCAN_MS
+        if update.active {
+            Timer::at(scan_started + Duration::from_millis(ACTIVE_SCAN_MS as u64)).await;
         } else {
-            IDLE_SCAN_MS
-        };
-        Timer::at(scan_started + Duration::from_millis(period_ms as u64)).await;
+            let _ = select(
+                interrupt.wait_for_low(),
+                Timer::after(Duration::from_millis(IDLE_SAFETY_SCAN_MS as u64)),
+            )
+            .await;
+        }
     }
 }
