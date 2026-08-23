@@ -31,8 +31,8 @@ use nocfree_and_rust::platform::{
 use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
-    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
+    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_IDLE, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
+    COMMAND_BACKLIGHT_WAKE, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
 use nrf_softdevice::Softdevice;
@@ -84,7 +84,7 @@ async fn run_hardware(
     pwm.set_duty(0, state.duty(pwm.max_duty()));
     saadc.calibrate().await;
     let mut filter = VoltageFilter::new();
-    pwm.set_duty(0, 0);
+    pwm.set_duty(0, pwm.max_duty());
     let initial = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
     BATTERY_LEVEL.store(initial, Ordering::Release);
     BATTERY_UPDATE.signal(initial);
@@ -102,7 +102,7 @@ async fn run_hardware(
                 pwm.set_duty(0, state.duty(pwm.max_duty()));
             }
             Either3::Second(()) | Either3::Third(()) => {
-                pwm.set_duty(0, 0);
+                pwm.set_duty(0, pwm.max_duty());
                 let level = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
                 BATTERY_LEVEL.store(level, Ordering::Release);
                 BATTERY_UPDATE.signal(level);
@@ -187,6 +187,8 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
                     COMMAND_BACKLIGHT_TOGGLE => Some(BacklightCommand::Toggle),
                     COMMAND_BACKLIGHT_DOWN => Some(BacklightCommand::Down),
                     COMMAND_BACKLIGHT_UP => Some(BacklightCommand::Up),
+                    COMMAND_BACKLIGHT_IDLE => Some(BacklightCommand::Idle),
+                    COMMAND_BACKLIGHT_WAKE => Some(BacklightCommand::Wake),
                     _ => None,
                 };
                 if let Some(control) = control {

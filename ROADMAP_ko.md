@@ -31,7 +31,7 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P0 | 상태 LED | 페어링/연결/Wired, 저전압, 충전, 완충 표시 | 파란 페어링과 open-drain 빨간 저전압 점멸 구현. 충전/완충 등은 남음 | 파란 페어링 실기 통과, 10% 이하 빨간 점멸 실물 확인, 나머지 순정 truth table을 전기적 충돌 없이 재현 |
 | P0 | 소비전류 기준 | 공식 사용 시간은 충전당 약 2주 | idle 전류와 배터리 사용 시간 미측정 | 같은 반쪽·같은 조건에서 순정/Rust 전류 비교 완료 |
 | 완료 | idle 스캔 | PCA9555 `INT` wake와 안전용 주기 스캔 | 왼쪽 `P0.31`과 오른쪽 `P0.05`로 즉시 wake, active debounce는 3 ms 유지, interrupt 유실은 250 ms 전체 스캔으로 복구 | 양쪽 idle 첫 키·hold·release·혼합 순서 실기 통과, idle 스캔 약 100회/s에서 4회/s로 감소 |
-| P1 | 백라이트 timeout | 5분 무입력 후 자동 소등 | 무입력 timer 없음 | 5분 후 꺼지고 첫 wake key 손실 없이 복귀 |
+| 완료 | 백라이트 timeout | NocFree 키 무입력 30초 후 자동 소등 | USB 전원과 무관하게 양쪽이 꺼지고 첫 키 손실 없이 복귀 | 동일 경로의 10초 진단 이미지를 실기 검증했고 배포 이미지는 상수만 30초로 변경 |
 | P1 | deep sleep | 30분 후 sleep, 장시간 sleep은 왼쪽 키로 wake | deep sleep/soft-off 없음 | 반복 sleep/wake/reconnect와 sleep 전류 실측 통과 |
 | 완료 | 주기적 배터리 관리 | 잔량과 저전압을 계속 감시 | 양쪽 모두 60초마다 그리고 `Fn+I` 요청 때 측정하며 필터값을 `Fn+I`, split 배터리 전달, 저전압 LED에서 공유 | 자동 테스트, 실기 `L 100 R 100`, 장시간 표시 안정성 확인 |
 | P1 | 배터리 표시 경로 | `Fn+I`와 NocFree Link에서 유효한 정보 표시 | `Fn+I` 동작, Link는 `0xff`, BLE Battery Service 없음 | `Fn+I`/Link/BLE 값 일치, 오른쪽 단절을 0%로 오표시하지 않음 |
@@ -141,7 +141,7 @@ hardware revision별 gain과 offset을 구합니다.
 2. **완료:** 오른쪽 `P0.05` 출력 구동을 중단했습니다.
 3. **완료:** idle 10 ms polling을 왼쪽 `P0.31`/오른쪽 `P0.05` interrupt
    wake + 250 ms 안전 스캔으로 바꾸고 3 ms active debounce를 유지합니다.
-4. 5분 백라이트 자동 소등을 구현합니다.
+4. **완료:** 동일 경로를 10초 진단 이미지로 먼저 확인한 뒤 30초 백라이트 자동 소등을 구현했습니다.
 5. 왼쪽 `P0.31`, 오른쪽 `P0.05`, USB와 필요한 mode-switch source로 깨는 30분
    deep sleep을 구현합니다. 첫 wake key가 사라지지 않는지 확인합니다.
 6. BLE advertising/scanning/reconnect 전류를 측정하고 실제 영향이 큰 경로에만

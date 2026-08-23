@@ -33,7 +33,7 @@ right Rust images.
 | P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
-| P1 | Backlight timeout | Backlight off after 5 minutes of inactivity | No inactivity timeout | Turns off at 5 minutes and restores on input without losing the first key |
+| Done | Backlight timeout | Backlight off after 30 seconds without a NocFree key press | Both halves now turn off independently of USB power and wake without losing the first key | A 10-second diagnostic image passed hardware testing; release images use the same path with a 30-second constant |
 | P1 | Deep sleep | Sleep after 30 minutes; a left-side key wakes after long sleep | No deep sleep or soft-off state | Measured sleep current and reliable wake/reconnect across repeated cycles |
 | Done | Periodic battery manager | Ongoing level and low-battery monitoring | Both halves sample every 60 seconds and on `Fn+I`; filtered values feed `Fn+I`, split battery transport, and low-battery LEDs | Automated tests, `L 100 R 100` hardware result, and stable long-running readings |
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
@@ -147,7 +147,7 @@ One battery manager should supply:
 2. **Done:** stop driving right `P0.05` as an output.
 3. **Done:** replace idle 10 ms polling with left `P0.31`/right `P0.05`
    interrupt wake plus a 250 ms safety scan; keep 3 ms active debounce scans.
-4. Add the 5-minute backlight timeout.
+4. **Done:** add the 30-second backlight timeout; first verify the same path with a 10-second diagnostic image.
 5. Add 30-minute deep sleep with wake from left `P0.31`, right `P0.05`, USB, and
    any required mode-switch source. Verify the first wake key is not lost.
 6. Measure BLE advertising/scanning and reconnect current; add backoff only

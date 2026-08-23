@@ -125,7 +125,7 @@ batteries.
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
 | Complete | Split connection | Encrypted BLE transport of right-side input and battery data to the left, with automatic recovery after link loss |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
-| Complete | Backlight | Synchronized white backlight on both halves, toggle, and 20% brightness steps |
+| Complete | Backlight | Corrected active-high PWM polarity, synchronized toggle and 20% brightness steps, plus automatic shutoff on both halves after 30 seconds without a NocFree key press. The first key wakes both halves without being discarded, including while USB power is connected |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
 | Complete | NocFree Link keymap | 8×84 keys, 16 hotkeys, execution/deletion/default restoration, and flash storage with CRCs |
 | Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |
@@ -213,6 +213,7 @@ is expected hardware behavior.
 | Battery | After restoring the stock V2.3.0 conversion and filter, `Fn+I` held for three seconds typed `L 100 R 100` on two fully charged halves; discharge behavior remains a long-running hardware test |
 | Status LEDs | Left blue LED continued flashing after releasing a held `Fn+3`, then stopped when a short `Fn+1` restored the bonded Windows slot. Red low-battery flashing was not physically observable because both halves were above 10% |
 | Interrupt-driven idle scan | After three seconds idle, both halves immediately detected the first key, repeated held keys, stopped on release, and preserved mixed left/right input order. A 250 ms safety scan remains as a missed-interrupt fallback |
+| Backlight auto-off | A 10-second diagnostic image passed `Fn+Tab` off/on, automatic shutoff of both halves with USB connected, and first-key input plus wake. The release images use the same path with only the timeout changed to 30 seconds; the user's keyboard intentionally remains on the 10-second diagnostic image |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
 

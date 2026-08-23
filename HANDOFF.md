@@ -209,6 +209,12 @@ zxcvbnm,./
   active-low INT 또는 250 ms 안전 timer로 깨어남. debounce 중에는 3 ms 유지
 - 양쪽 모두 3초 idle 뒤 첫 키 즉시 입력, 2초 hold 반복, release 중단과 좌우
   혼합 입력 순서 실기 통과. idle 전체 스캔은 약 100회/s에서 4회/s로 감소
+- Embassy `SimplePwm`이 nRF PWM sample의 polarity bit를 제거하므로 논리 밝기를
+  hardware compare 값으로 반전해 ZMK의 `PWM_POLARITY_NORMAL`과 맞춤. 수정 전에는
+  0%가 실물에서 완전 점등으로 출력되어 `Fn+Tab`과 timeout이 모두 소등되지 않았음
+- USB 전원을 연결한 상태에서 10초 진단 이미지로 `Fn+Tab` 양쪽 소등/점등,
+  10초 자동 소등, 첫 키 입력과 동시 wake를 실기 확인. 저장소와 배포 artifact는
+  같은 경로에서 상수만 30초로 변경했으며 사용자 실물은 요청대로 10초 이미지를 유지
 
 ### Link
 
