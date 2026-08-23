@@ -10,7 +10,7 @@ and this repository is an independent Rust port.
 This firmware supports **only the 84-key NocFree & ANSI model**. Other NocFree
 models and ISO layouts are not supported.
 
-As of 2026-08-21, the latest Rust images are installed on both halves and have
+As of 2026-08-23, the latest Rust images are installed on both halves and have
 passed hardware tests for USB, BLE, all 84 physical keys, the physical
 mode/power switches, shortcuts, NocFree Link key changes, DFU on both halves,
 and restoring each half to the stock firmware. New contributors should read
@@ -20,9 +20,11 @@ For the stock-firmware comparison, missing-feature priorities, and battery
 calibration procedure, see [ROADMAP.md](ROADMAP.md).
 
 > [!IMPORTANT]
-> Battery percentages are not calibrated yet, control of the status LEDs beside
-> the physical switches does not accurately reproduce the stock firmware, and
-> the factory USB dongle/2.4G function is not implemented or verified.
+> Battery conversion now follows the recovered stock V2.3.0 algorithm, but a
+> full discharge cycle and power-consumption measurements are still pending.
+> Blue pairing and red low-battery LED patterns are implemented; charging/full
+> and other stock LED states remain incomplete. The factory USB dongle/2.4G
+> function is not implemented or verified.
 
 ## Roles
 
@@ -127,11 +129,11 @@ batteries.
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
 | Complete | NocFree Link keymap | 8×84 keys, 16 hotkeys, execution/deletion/default restoration, and flash storage with CRCs |
 | Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |
-| Partial | Battery | ADC measurement on both halves and `Fn+I` output work. Percentage-curve calibration against measured full/empty cells remains; the current conversion is linear from 3.45 to 4.20 V |
+| Partial | Battery | Both halves use the recovered stock V2.3.0 ADC/divider conversion, 75/25 voltage filter, 2.31–3.30 V percentage curve, 60-second sampling, and `Fn+I` output. Both fully charged halves reported 100%; a complete discharge cycle and DMM validation remain |
 | Partial | NocFree Link compatibility | Keymaps and hotkeys work. Link battery display is unsupported; Quick Text supports empty queries only, not storage, deletion, or execution |
-| Partial | Stock power management | The battery divider is enabled only while measuring. Stock-equivalent idle current, deep sleep, charging, and low-voltage thresholds have not been measured and verified |
+| Partial | Stock power management | The battery divider is enabled only while measuring, and right `P0.05` is no longer driven because it is the PCA9555 interrupt line. Stock-equivalent idle current, deep sleep, charging state, and battery life have not been measured and verified |
 | Not implemented | Factory USB dongle / 2.4 GHz communication | Dongle pairing and input are not functional or verified. The factory USB receiver, left external nRF24L01, and ESB links to the right half/separate numpad are unused; the current split connection is BLE-only |
-| Not implemented | LEDs beside the physical switches | Their indication and control do not accurately match the stock firmware. Stock behavior of the red charge/low-voltage LED and blue status LED remains to be reproduced |
+| Partial | LEDs beside the physical switches | The left blue LED flashes during pairing until bonding or profile selection, and both red shared charger lines use open-drain-style 0.5-second low-battery flashing at 10% or below. Blue pairing was hardware-tested; red low-battery flashing passed automated tests but could not be observed with both batteries full. Charging/full and other stock indications remain |
 | Not implemented | Other configuration paths | Full compatibility with ZMK Studio and the factory firmware updater |
 
 ## Default shortcuts
@@ -208,7 +210,8 @@ is expected hardware behavior.
 | Stock restoration on both halves | Passed Rust→stock V2.3.0→serial DFU→same Rust→input |
 | Right DFU shortcut | Passed `Fn+Delete`→UF2 detection→latest Rust→`jkluiop` without a power cycle |
 | Media | Passed mute/unmute and volume down/up |
-| Battery | `Fn+I` held for three seconds typed `L 24 R 11`; full-charge percentage calibration is still required |
+| Battery | After restoring the stock V2.3.0 conversion and filter, `Fn+I` held for three seconds typed `L 100 R 100` on two fully charged halves; discharge behavior remains a long-running hardware test |
+| Status LEDs | Left blue LED continued flashing after releasing a held `Fn+3`, then stopped when a short `Fn+1` restored the bonded Windows slot. Red low-battery flashing was not physically observable because both halves were above 10% |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
 

@@ -7,7 +7,7 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use embassy_futures::join::{join, join5};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_nrf::bind_interrupts;
-use embassy_nrf::gpio::{Input, Level, Output, OutputDrive, Pull};
+use embassy_nrf::gpio::{Flex, Input, Level, Output, OutputDrive, Pull};
 use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::{TWISPI0, USBD};
 use embassy_nrf::pwm::SimplePwm;
@@ -23,7 +23,7 @@ use embassy_usb::class::hid::{Config as HidConfig, HidWriter, State as HidState}
 use embassy_usb::driver::Driver as UsbDriver;
 use embassy_usb::{Builder, Config, Handler};
 use nocfree_and_rust::backlight::{BacklightCommand, BacklightState};
-use nocfree_and_rust::battery::percent_from_sample;
+use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
 use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
@@ -44,6 +44,7 @@ use nocfree_and_rust::split_protocol::{
     COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
     CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
 };
+use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on, pairing_led_on};
 use nocfree_and_rust::usb_descriptor::{
     CONSUMER_REPORT_BYTES, CONSUMER_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES,
     KEYBOARD_REPORT_DESCRIPTOR,
@@ -85,7 +86,8 @@ static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Si
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_STATUS: Signal<CriticalSectionRawMutex, BatteryLevels> = Signal::new();
 static RIGHT_BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
-static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(0);
+static LEFT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
+static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
 static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
@@ -189,7 +191,11 @@ fn set_backlight(command: BacklightCommand, split_command: u8) {
     SPLIT_COMMAND.signal(split_command);
 }
 
-async fn sample_battery(saadc: &mut Saadc<'_, 1>, enable: &mut Output<'_>) -> u8 {
+async fn sample_battery(
+    saadc: &mut Saadc<'_, 1>,
+    enable: &mut Output<'_>,
+    filter: &mut VoltageFilter,
+) -> u8 {
     enable.set_high();
     Timer::after(Duration::from_millis(5)).await;
     let mut total = 0_i32;
@@ -199,7 +205,8 @@ async fn sample_battery(saadc: &mut Saadc<'_, 1>, enable: &mut Output<'_>) -> u8
         total += sample[0] as i32;
     }
     enable.set_low();
-    percent_from_sample((total / 8) as i16)
+    let millivolts = millivolts_from_sample((total / 8) as i16);
+    percent_from_millivolts(filter.update(millivolts))
 }
 
 async fn run_hardware(
@@ -211,24 +218,62 @@ async fn run_hardware(
     let mut state = BacklightState::default();
     pwm.set_duty(0, state.duty(pwm.max_duty()));
     saadc.calibrate().await;
+    let mut filter = VoltageFilter::new();
+    pwm.set_duty(0, 0);
+    let initial = sample_battery(&mut saadc, &mut enable, &mut filter).await;
+    LEFT_BATTERY.store(initial, Ordering::Release);
+    pwm.set_duty(0, state.duty(pwm.max_duty()));
     loop {
-        match select(BACKLIGHT_CONTROL.wait(), BATTERY_REQUEST.wait()).await {
-            Either::First(command) => {
+        match select3(
+            BACKLIGHT_CONTROL.wait(),
+            BATTERY_REQUEST.wait(),
+            Timer::after(Duration::from_secs(60)),
+        )
+        .await
+        {
+            Either3::First(command) => {
                 state.apply(command);
                 pwm.set_duty(0, state.duty(pwm.max_duty()));
             }
-            Either::Second(()) => {
+            Either3::Second(()) => {
                 RIGHT_BATTERY_UPDATE.reset();
                 SPLIT_COMMAND.signal(COMMAND_BATTERY_REQUEST);
                 pwm.set_duty(0, 0);
-                let left = sample_battery(&mut saadc, &mut enable).await;
+                let left = sample_battery(&mut saadc, &mut enable, &mut filter).await;
+                LEFT_BATTERY.store(left, Ordering::Release);
                 pwm.set_duty(0, state.duty(pwm.max_duty()));
                 let right = with_timeout(Duration::from_millis(500), RIGHT_BATTERY_UPDATE.wait())
                     .await
                     .unwrap_or_else(|_| RIGHT_BATTERY.load(Ordering::Acquire));
                 BATTERY_STATUS.signal(BatteryLevels { left, right });
             }
+            Either3::Third(()) => {
+                pwm.set_duty(0, 0);
+                let level = sample_battery(&mut saadc, &mut enable, &mut filter).await;
+                LEFT_BATTERY.store(level, Ordering::Release);
+                pwm.set_duty(0, state.duty(pwm.max_duty()));
+            }
         }
+    }
+}
+
+async fn run_status_leds(mut red: Flex<'_>, mut blue: Output<'_>) -> ! {
+    red.set_high();
+    red.set_as_input_output(Pull::None, OutputDrive::Standard0Disconnect1);
+    let mut tick = 0_u32;
+    loop {
+        if low_battery_led_on(LEFT_BATTERY.load(Ordering::Acquire), tick) {
+            red.set_low();
+        } else {
+            red.set_high();
+        }
+        if pairing_led_on(BONDS.is_pairing() && OUTPUT.should_send_ble(), tick) {
+            blue.set_low();
+        } else {
+            blue.set_high();
+        }
+        tick = tick.wrapping_add(1);
+        Timer::after(Duration::from_millis(250)).await;
     }
 }
 
@@ -447,7 +492,6 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
                 continue;
             }
         };
-
         if !BONDS.accepts_connection(&connection)
             || connection.request_security().is_err()
             || !wait_for_security(&connection).await
@@ -595,8 +639,10 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let vbus = VBUS.init(SoftwareVbusDetect::new(usb_detected, power_ready));
     let ble_detect = Input::new(peripherals.P0_15, Pull::Up);
     let receiver_detect = Input::new(peripherals.P0_17, Pull::Up);
-    let backlight_enable = Output::new(peripherals.P0_05, Level::Low, OutputDrive::Standard);
+    let battery_enable = Output::new(peripherals.P0_05, Level::Low, OutputDrive::Standard);
     let backlight_pwm = SimplePwm::new_1ch(peripherals.PWM2, peripherals.P0_20);
+    let red_status = Flex::new(peripherals.P0_09);
+    let blue_status = Output::new(peripherals.P0_10, Level::High, OutputDrive::Standard);
     let battery_saadc = Saadc::new(
         peripherals.SAADC,
         Irqs,
@@ -683,8 +729,11 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 join(
                     run_storage(flash, &BONDS),
                     join(
-                        run_hardware(backlight_pwm, backlight_enable, battery_saadc),
-                        join(run_battery_status_output(), run_key_tap_output()),
+                        run_hardware(backlight_pwm, battery_enable, battery_saadc),
+                        join(
+                            run_status_leds(red_status, blue_status),
+                            join(run_battery_status_output(), run_key_tap_output()),
+                        ),
                     ),
                 ),
             ),

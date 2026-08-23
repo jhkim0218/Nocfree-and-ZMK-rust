@@ -1,6 +1,6 @@
 # NocFree Rust 펌웨어 작업 인계서
 
-마지막 갱신: 2026-08-21 (Asia/Seoul)
+마지막 갱신: 2026-08-23 (Asia/Seoul)
 
 이 문서는 다른 AI나 작업자가 대화 기록 없이 현재 상태를 이어가기 위한 기준
 문서입니다. 먼저 `git status`, 양쪽 USB 부모 ID, 산출물 해시를 확인하십시오.
@@ -16,7 +16,7 @@
 4. 양쪽 DFU, 역할별 순정 복귀, 같은 Rust 펌웨어 재설치
 5. 왼쪽 3단 모드 스위치와 오른쪽 배터리 ON/OFF 스위치
 
-2026-08-21 최신 이미지로 다섯 항목을 모두 실기 검증했습니다. 키 변경 경로는
+2026-08-23 최신 이미지로 다섯 항목을 모두 실기 검증했습니다. 키 변경 경로는
 NocFree Link를 선택했으며 ZMK Studio는 구현하지 않았습니다. Link quick text는
 빈 조회 응답만 제공하고 저장/실행은 구현하지 않았습니다. 일반 키 변경과
 hotkey는 구현·실기 검증됐습니다.
@@ -27,7 +27,7 @@ hotkey는 구현·실기 검증됐습니다.
 
 - 경로: `D:\study\nocfree\NocFree-and-rust`
 - branch: `main`
-- remote: 없음
+- remote: `https://github.com/jhkim0218/Nocfree-and-ZMK-rust.git`
 - Link 구현 체크포인트: `e936062 feat: integrate NocFree Link keymap protocol`
 - 최종 상태는 `git log -1`과 `git status`를 권위 있는 값으로 사용
 
@@ -196,8 +196,15 @@ zxcvbnm,./
 - Print Screen은 Windows가 먼저 캡처하므로 수동 스크린샷으로 확인
 - 한국어 Windows에서 Right Alt는 `KanaMode`로 보고되는 정상 VK alias
 - 양쪽 Fn 확인
-- `Fn+I` 3초 홀드로 `L 24 R 11` 출력 확인. ADC 핀, divider enable,
-  12-bit/`130/100` 환산은 포팅 가이드와 일치하며 완충 기준 퍼센트 보정은 남음
+- 순정 V2.3.0의 ADC 3.3 V 환산, `130/100` divider, 75/25 IIR filter와
+  2.31–3.30 V 퍼센트 계산을 복구해 구현
+- 양쪽 최신 이미지에서 `Fn+I` 3초 홀드로 완충 상태 `L 100 R 100` 확인.
+  전체 방전 주기와 DMM 비교는 장기 검증으로 남음
+- 왼쪽 파란 LED는 `Fn+3` 페어링을 시작한 뒤 키에서 손을 떼도 계속 점멸하고,
+  `Fn+1`로 bond 슬롯을 선택하면 꺼지는 것을 실기 확인
+- 양쪽 빨간 LED는 공유 charger 선을 직접 high로 구동하지 않는 open-drain
+  방식이며 10% 이하에서 0.5초 간격 점멸. 자동 테스트는 통과했으나 양쪽이
+  완충이라 실물 저전압 점멸은 미확인
 
 ### Link
 

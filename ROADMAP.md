@@ -17,8 +17,8 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock left ANSI | 295,936 | `0x27000..0x4B1FF` |
 | Stock right ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
-| Rust left ANSI | 134,144 | `0x27000..0x375FF` |
-| Rust right ANSI | 78,336 | `0x27000..0x308FF` |
+| Rust left ANSI | 135,680 | `0x27000..0x378FF` |
+| Rust right ANSI | 79,360 | `0x27000..0x30AFF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -28,14 +28,14 @@ right Rust images.
 
 | Priority | Area | Stock behavior / target | Current Rust state | Completion evidence |
 |---|---|---|---|---|
-| P0 | Right `P0.05` pin role | PCA9555 `INT`, active low | Configured as an unused output named `_backlight_enable` | Pin is high-impedance input; key scanning and warm recovery still pass |
-| P0 | Battery accuracy | Meaningful levels for both 1100 mAh batteries | Eight-sample ADC average, fixed `130/100` divider scale, linear 3.45–4.20 V percentage | DMM error and percentage error are recorded for both halves across a discharge cycle |
-| P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Not implemented | Stock truth table is captured and reproduced without electrical contention |
+| Done | Right `P0.05` pin role | PCA9555 `INT`, active low | The erroneous output was removed; the pin is left available for a future interrupt-driven scanner | Key scanning and warm recovery pass after the pin change |
+| P0 | Battery accuracy | Meaningful levels for both 1100 mAh batteries | Recovered stock V2.3.0 conversion and 75/25 filter; both fully charged halves reported 100% | DMM error and percentage error are recorded for both halves across a discharge cycle |
+| P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
 | P1 | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | All three expanders are polled every 10 ms | No missed/stuck keys; idle bus activity and current are materially reduced |
 | P1 | Backlight timeout | Backlight off after 5 minutes of inactivity | No inactivity timeout | Turns off at 5 minutes and restores on input without losing the first key |
 | P1 | Deep sleep | Sleep after 30 minutes; a left-side key wakes after long sleep | No deep sleep or soft-off state | Measured sleep current and reliable wake/reconnect across repeated cycles |
-| P1 | Periodic battery manager | Ongoing level and low-battery monitoring | Samples only when `Fn+I` is requested | Periodic filtered readings feed every battery consumer |
+| Done | Periodic battery manager | Ongoing level and low-battery monitoring | Both halves sample every 60 seconds and on `Fn+I`; filtered values feed `Fn+I`, split battery transport, and low-battery LEDs | Automated tests, `L 100 R 100` hardware result, and stable long-running readings |
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
 | P1 | Charging awareness | Charging and fully charged are distinct from discharge percentage | VBUS/charger state is not incorporated | Charging/full states are correct and voltage under charge does not falsely imply 100% |
 | P1 | Backlight effects/settings | Static control, automatic behavior, and documented breathing support | Toggle and 20% static steps only | Selected effects work on both halves and persist if exposed in Link |
@@ -56,13 +56,34 @@ the firmware owns an indication, and release to high impedance while USB power
 is present so the charger circuit can drive the line. Never drive these lines
 high until the schematic and board revision have been verified.
 
-Before implementing patterns, flash stock V2.3.0 and record both halves in a
-truth table for boot, Wired, BLE advertising, BLE pairing, connected, low
-battery, charging, fully charged, and link loss. The official manual explicitly
-states that blue flashes during pairing and red flashes for low battery, but it
-does not define every timing pattern.
+The red outputs now use `Standard0Disconnect1`: firmware pulls low only during
+the 0.5-second-on/0.5-second-off low-battery pattern at 10% or below and releases
+the line otherwise. The blue active-low LED uses the same timing while a BLE
+profile is pairing. Hardware testing confirmed that blue keeps flashing after
+releasing `Fn+3` and stops after selecting the bonded slot with `Fn+1`. Both
+batteries were full, so physical red flashing remains unverified.
 
-## Battery correction plan
+The remaining work is to record stock V2.3.0 behavior for boot, Wired,
+connected, charging, fully charged, and link loss, then reproduce only verified
+patterns. The official manual explicitly states that blue flashes during
+pairing and red flashes for low battery, but it does not define every state or
+timing pattern.
+
+## Battery validation and correction plan
+
+The stock V2.3.0 battery path has been recovered and implemented:
+
+```text
+adc_mV = raw * 3300 / 4095
+battery_mV = adc_mV * 130 / 100
+filtered_mV = previous * 0.75 + new * 0.25
+percent = clamp(((floor(filtered_mV / 33) - 70) * 10) / 3, 0, 100)
+```
+
+The divider is enabled only for measurement, eight samples are averaged, both
+halves sample every 60 seconds, and a disconnected right half starts as unknown
+instead of 0%. The steps below validate the recovered behavior on real cells;
+they should change the stock curve only if measurements demonstrate a problem.
 
 ### 1. Measure the ADC path first
 
@@ -77,9 +98,9 @@ Fit a per-hardware-revision gain and offset:
 corrected_mV = measured_mV * gain + offset
 ```
 
-Do not tune the percentage curve until this voltage error is corrected. The
-current `130/100` divider factor is a documented starting point, not a complete
-calibration.
+Do not tune the percentage curve until this voltage error is known. The
+`130/100` divider factor is now known to be the stock implementation, but board
+and resistor tolerance still require measurement.
 
 ### 2. Capture a real discharge curve
 
@@ -89,19 +110,18 @@ elapsed time or, preferably, discharged mAh from a battery analyzer/power
 profiler. Repeat for the left and right halves because their radio roles and
 loads differ.
 
-Use a small piecewise lookup table derived from those measurements instead of
-the current linear 3.45–4.20 V conversion. Do not copy a generic Li-ion table
-without validating it on this cell and board.
+Compare the resulting curve with the recovered stock calculation. Keep the
+stock calculation if it is sufficiently accurate; otherwise use a small
+piecewise lookup table derived from the measurements. Do not copy a generic
+Li-ion table without validating it on this cell and board.
 
 ### 3. Stabilize the displayed value
 
-- Take samples only while the divider-enable pin is high, then turn it off.
-- Reject outliers and apply a small moving average or exponential filter.
+- Keep taking samples only while the divider-enable pin is high, then turn it off.
+- The current 75/25 IIR filter matches stock; add outlier rejection only if logs require it.
 - Add hysteresis so the displayed percentage does not jump around a boundary.
-- Sample periodically, but slowly enough that measurement itself does not waste
-  power; start with 30–60 seconds and adjust from measured current.
-- Use an explicit unknown value for a disconnected right half. The current
-  initial value of 0 can be mistaken for an empty battery.
+- Verify that the current 60-second period does not materially increase power use.
+- Keep the explicit unknown value for a right half that has not reported yet.
 
 ### 4. Separate charging from discharge estimation
 
@@ -124,7 +144,7 @@ One battery manager should supply:
 
 1. Measure stock and Rust current before changing code: left/right, connected
    and disconnected, backlight off/20%/100%, and USB absent/present.
-2. Stop driving right `P0.05` and validate it as the PCA9555 interrupt input.
+2. **Done:** stop driving right `P0.05`; using it for interrupt wake remains part of step 3.
 3. Replace idle 10 ms polling with interrupt wake plus a conservative periodic
    full scan. Keep 3 ms active scans for debounce.
 4. Add the 5-minute backlight timeout.

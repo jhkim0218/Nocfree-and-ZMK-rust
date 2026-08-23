@@ -113,6 +113,10 @@ impl BondStore {
         self.selected_peer().is_some() || self.pairing.load(Ordering::Acquire)
     }
 
+    pub fn is_pairing(&self) -> bool {
+        self.pairing.load(Ordering::Acquire)
+    }
+
     pub fn accepts_connection(&self, connection: &Connection) -> bool {
         match self.selected_peer() {
             Some(peer) => peer.peer_id.is_match(connection.peer_address()),

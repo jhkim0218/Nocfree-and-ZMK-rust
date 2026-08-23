@@ -129,11 +129,15 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn("peripherals.P0_11", firmware)
             self.assertIn("peripherals.P1_09", firmware)
             self.assertIn("peripherals.P0_04", firmware)
-            self.assertIn("peripherals.P0_05", firmware)
             self.assertIn("peripherals.P0_20", firmware)
         self.assertIn("Input::new(peripherals.P0_15, Pull::Up)", central)
         self.assertIn("Input::new(peripherals.P0_17, Pull::Up)", central)
+        self.assertIn("peripherals.P0_05", central)
+        self.assertIn("peripherals.P0_09", central)
+        self.assertIn("peripherals.P0_10", central)
         self.assertNotIn("peripherals.P0_15", right)
+        self.assertNotIn("peripherals.P0_05", right)
+        self.assertIn("peripherals.P0_17", right)
         self.assertIn("peripherals.P0_31", right)
 
     def test_scanner_retries_transient_expander_startup_failures(self) -> None:
