@@ -28,8 +28,8 @@ calibration procedure, see [ROADMAP.md](ROADMAP.md).
 >
 > Real-hardware testing on 2026-08-24 reopened rapid cross-half ordering,
 > desk-distance split reconnect, and backlight convergence. Absolute backlight
-> state synchronization and reconnect observability have since passed hardware
-> testing; ordering and reconnect tuning remain open. See
+> synchronization and P4 timestamp ordering have since passed hardware testing.
+> Controlled +8 dBm range/power comparison remains open. See
 > [PROGRESS.md](PROGRESS.md).
 
 ## Roles
@@ -77,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 67 Rust tests and 17 Python/contract/artifact tests.
+passed 71 Rust tests and 18 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -95,15 +95,15 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
-| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
+| `firmware/NocFree_Rust_Left.bin` | 80,964 | `22F38C6EA74CB155F19D3AA219CC5E3EF6239F73D9433C1750FBA3983AE436DD` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 81,840 | `DF597EA1650313A2917B4E2956EDDF801B0D165C470D7B6C1B817D137F947FFB` |
+| `firmware/NocFree_Rust_Right.bin` | 47,508 | `1D6CDBB284AA9008AE0D89CFFB10EB979EC7017B0EEBFB76AE81848139D23BA4` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,390 | `A181DCA39D8E6E7CCDFAAB3C3DB7DF72FF109A8FBB1E6FC091BC5D38BF34106F` |
 
 The UF2 files write only from the application start at `0x27000` through
-`0x395ff` on the left and `0x327ff` on the right. They preserve the SoftDevice,
+`0x3acff` on the left and `0x329ff` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
 
 ## Split reconnect diagnostics
@@ -163,12 +163,20 @@ failed once. Connection latency remains unchanged.
 
 ### P3.3 configured TX power
 
-The repository's right image now configures +8 dBm for both disconnected split
-advertising and the accepted split connection. Automated validation passed,
-but the user explicitly waived another hardware comparison to proceed to P4.
-Therefore +8 dBm range, security reliability, current consumption, and battery
-impact are **hardware-unverified**. The physical right keyboard remains on the
-hardware-tested P3.2 image until the new right UF2 is deliberately flashed.
+The current P4 right image configures +8 dBm for both disconnected split
+advertising and the accepted split connection and was deployed during P4 input
+testing. Wired and Bluetooth input passed, but controlled +8 dBm range,
+security, current-consumption, and battery comparisons remain unverified.
+
+### P4 global cross-half ordering
+
+RIGHT snapshots now carry source time, sequence, and reconciliation metadata in
+one 20-byte ATT value. LEFT estimates the clock offset with three samples before
+split-ready, refreshes it every 60 seconds, and holds both local and remote
+updates in one 3 ms reorder queue. Synthetic comparison of 1–5 ms over 10,000
+events selected 3 ms as the smallest clean window: lost=0, duplicate=0,
+reordered=0, stuck=0. Real `jam`/`ja` stress passed through Wired USB and Windows
+11 Bluetooth; other BLE host operating systems were not tested for P4.
 
 ## Changing keys with NocFree Link
 
@@ -193,7 +201,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P3.3 configured / hardware-unverified | Split connection | Standard MTU and staged/key-triggered advertising passed hardware checks. The repository right image adds +8 dBm, but its range, security, and power cost are not hardware-tested. Rapid cross-half events can still be reordered |
+| P4 complete / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and a 3 ms global queue passed 10,000 synthetic events plus Wired/Windows 11 Bluetooth stress. The deployed right uses +8 dBm, but controlled range, security, and power cost remain unmeasured |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
@@ -294,6 +302,7 @@ is expected hardware behavior.
 | Split reconnect diagnostics | At roughly 30 cm, logs captured `-75/-74 dBm`, one MTU-exchange failure, the next successful connection/security/GATT path, HCI disconnect reason `0x08`, and a right key pressed while disconnected. Both halves also passed 1200-baud recovery and returned to working input |
 | P3.1 split reconnect | ATT MTU 23 removed the observed MTU-exchange stage failure. Two user-approved right power cycles at roughly 30 cm both recovered input without moving the halves, but took 55,431/17,736 ms; Wired USB and Windows 11 Bluetooth output passed. Left 1200-baud recovery in Wired mode restored the same P3.1 image and reached split-ready in 4,358 ms |
 | P3.2 staged advertising | A short diagnostic proved 250/500/1,000 ms stages and disconnected-key return to 250 ms. Final 10/50-second durations passed two desk-distance input cycles in 6.142/17.208 seconds, Wired/Bluetooth output, and right 1200-baud recovery. One -85 dBm security timeout and noticeable Bluetooth delay keep P3 open for TX-power comparison |
+| P4 cross-half ordering | Compared 1–5 ms over 10,000 delayed alternating snapshots; 1/2 ms reordered and 3/4/5 ms were clean, so 3 ms was selected. Wired `jam`×10 and rapid `ja`, plus Windows 11 Bluetooth `asdfjkljam…`, passed without reordering or stuck keys. Both role-specific Fn DFU paths deployed and returned the matching images |
 | System OFF and split recovery | A 10-second diagnostic image blocked System OFF while USB was present, entered left-central System OFF on battery, shut off both backlights before sleeping, woke from left USB or a held left key, restored BLE, and accepted right-side input after split reconnect. Release images change only the System OFF timeout to five minutes. A short wake-key tap can be consumed by reset boot; hold the left key until reconnect if its character is required |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |

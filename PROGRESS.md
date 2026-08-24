@@ -19,12 +19,14 @@ Last updated: 2026-08-24 (Asia/Seoul)
 
 ## Open real-hardware regressions reported 2026-08-24
 
-### R1: cross-half ordering
+### R1: cross-half ordering — resolved in P4
 
 - Intended rapid input: `jam`
 - Observed output: `ajm`
 - Fast alternating input between the right and left halves can be reordered.
-- Previous FIFO/arrival-order tests are historical evidence, not current completion evidence.
+- P4 adds source timestamps, right sequence, clock-domain conversion, and a 3 ms
+  global reorder queue. The automated 10,000-event comparison and Wired/Windows
+  11 Bluetooth hardware stress passed.
 
 ### R2: split reconnect sensitivity
 
@@ -47,8 +49,8 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P0 Baseline and regression capture | Complete | Full build/test/artifact validation passed and regressions are documented |
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
-| P3 BLE reconnect tuning | P3.3 configured, hardware-unverified | P3.2 hardware checks pass with a remaining weak-signal timeout; repository right adds +8 dBm, but the user waived its hardware/power comparison to proceed to P4 |
-| P4 Cross-half ordering | Pending | 10,000+ automated events and USB/BLE hardware stress pass without loss, duplication, reordering, or stuck keys |
+| P3 BLE reconnect tuning | Partial | Current P4 right deploys +8 dBm; P3.2 reconnect checks pass, but +8 dBm range/security/power benefit is not controlled or measured |
+| P4 Cross-half ordering | Complete | 10,000 automated events and Wired/Windows 11 Bluetooth hardware stress passed without loss, duplication, reordering, or stuck keys |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
 | D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
@@ -179,6 +181,29 @@ Last updated: 2026-08-24 (Asia/Seoul)
 |---|---|---|---|
 | Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
 | Right P3.3 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` | `0x27000..0x327ff` |
+
+## P4 global cross-half ordering — complete
+
+- Each right snapshot carries pressed state, a monotonic source timestamp,
+  sequence, and reconciliation metadata in one 20-byte ATT value.
+- LEFT performs a three-sample minimum-RTT clock estimate before split-ready,
+  refreshes it every 60 seconds, and converts RIGHT source time to LEFT time.
+- LEFT local updates use the same 3 ms bounded reorder queue as RIGHT updates.
+- Comparing 1, 2, 3, 4, and 5 ms over 10,000 alternating snapshots with 4 ms
+  RIGHT delay found 1/2 ms reordered and 3/4/5 ms clean; 3 ms was selected.
+- Full validation passed: 71 Rust tests, 18 Python tests, formatting, host/ARM
+  Clippy, both releases, protected ranges, UF2 round trips, and DFU ZIP contents.
+- Hardware passed Wired `jam` x10 and rapid `ja`, then Windows 11 Bluetooth
+  `asdfjkljamjamjamjamjamjam`, with no observed reordering, stuck key, or
+  objectionable delay. P4 BLE-host scope is Windows 11 only.
+- RIGHT `Fn+0` entered verified serial `D82A03513BB02626` on F:, then LEFT
+  `Fn+5` entered `52CF50988BD1E6EE` on G:. Both matching P4 images returned as
+  `RUST-RIGHT` and `RUST-LEFT`.
+
+| Role | UF2 | SHA-256 | Written range |
+|---|---|---|---|
+| Left P4 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` | `0x27000..0x3acff` |
+| Right P4 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` | `0x27000..0x329ff` |
 
 ## Protected facts
 

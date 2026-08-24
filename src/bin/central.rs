@@ -3,7 +3,7 @@
 
 use core::cell::RefCell;
 use core::slice;
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use embassy_futures::join::{join, join5};
 use embassy_futures::select::{Either, Either3, select, select3};
@@ -29,7 +29,7 @@ use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_f
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
 use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
-use nocfree_and_rust::hardware_scanner::{self, KeyState};
+use nocfree_and_rust::hardware_scanner::{self, KeyState, KeyUpdate};
 use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
 use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
@@ -40,15 +40,20 @@ use nocfree_and_rust::platform::{
 };
 use nocfree_and_rust::power_policy::{DEEP_SLEEP_PREP_MS, DEEP_SLEEP_SECS, should_system_off};
 use nocfree_and_rust::report::{Command, ReportEngine};
-use nocfree_and_rust::scanner::{Half, SnapshotMerger, decode_half_state, encode_half_state};
+use nocfree_and_rust::scanner::{
+    Half, REORDER_WINDOW_MS, SequenceStatus, SnapshotMerger, SnapshotOrderer, TimedSnapshot,
+    decode_half_state, encode_half_state,
+};
 use nocfree_and_rust::split_ble::{SplitClient, SplitClientEvent};
 use nocfree_and_rust::split_diagnostics::{
     DIAGNOSTIC_CAPACITY, SplitDiagnosticEvent, SplitDiagnosticRole, SplitDiagnostics,
     duration_millis, pack_address, pack_connection_parameters,
 };
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
-    CONNECTION_TIMEOUT_UNITS, SPLIT_ATT_MTU, advertisement_has_split_service,
+    CLOCK_SYNC_REFRESH_SECS, CLOCK_SYNC_SAMPLES, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER,
+    CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY, CONNECTION_TIMEOUT_UNITS, ClockSample,
+    SPLIT_ATT_MTU, SplitStateFrame, advertisement_has_split_service, clock_request,
+    decode_clock_response,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on, pairing_led_on};
 use nocfree_and_rust::usb_descriptor::{
@@ -103,6 +108,10 @@ static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
 static SPLIT_DIAGNOSTICS: SplitDiagnostics<DIAGNOSTIC_CAPACITY> = SplitDiagnostics::new();
+static RIGHT_CLOCK: Mutex<CriticalSectionRawMutex, RefCell<Option<ClockSample>>> =
+    Mutex::new(RefCell::new(None));
+static ORDER_GAPS: AtomicU32 = AtomicU32::new(0);
+static ORDER_DUPLICATES: AtomicU32 = AtomicU32::new(0);
 
 fn elapsed_millis(start: Instant) -> u16 {
     duration_millis(start.as_millis(), Instant::now().as_millis())
@@ -175,54 +184,98 @@ async fn run_mode_switch(ble_detect: Input<'_>, receiver_detect: Input<'_>) -> !
     }
 }
 
+fn apply_key_snapshot(engine: &mut ReportEngine, snapshot: u128) {
+    let effects =
+        engine.apply_snapshot_with_at(snapshot, Instant::now().as_millis(), |layer, raw| {
+            BONDS.key_action(layer, raw)
+        });
+    for command in effects.commands() {
+        match *command {
+            Command::ResetLeft => reboot_application(),
+            Command::BootLeft => reboot_to_bootloader(),
+            Command::BootRight => SPLIT_COMMAND.signal(COMMAND_BOOTLOADER),
+            Command::ProfileSelect(profile) => BLE_CONTROL.signal(BleControl::Select(profile)),
+            Command::ProfilePair(profile) => BLE_CONTROL.signal(BleControl::Pair(profile)),
+            Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
+            Command::OutputUsb => set_output_mode(OutputMode::Usb),
+            Command::OutputBle => set_output_mode(OutputMode::Ble),
+            Command::BacklightToggle => set_backlight(BacklightCommand::Toggle),
+            Command::BacklightDown => set_backlight(BacklightCommand::Down),
+            Command::BacklightUp => set_backlight(BacklightCommand::Up),
+            Command::BatteryStatus => BATTERY_REQUEST.signal(()),
+            Command::SystemSelect(system) => BONDS.set_system(system),
+            Command::KeyTap(key) => KEY_TAP.signal(key),
+            Command::None => {}
+        }
+    }
+    if effects.keyboard_changed || effects.consumer_changed {
+        OUTPUT.publish(ReportFrame {
+            keyboard: effects.keyboard,
+            consumer: effects.consumer,
+        });
+    }
+}
+
 async fn process_key_states() -> ! {
+    const REORDER_WINDOW_MICROS: u64 = REORDER_WINDOW_MS * 1_000;
+    const MAINTENANCE_MICROS: u64 = 20_000;
+
     BONDS.wait_ready().await;
     let mut engine = ReportEngine::default();
     let mut merger = SnapshotMerger::default();
+    let mut orderer = SnapshotOrderer::<32>::new();
     let mut snapshot = 0;
+    let mut next_maintenance = Instant::now().as_micros() + MAINTENANCE_MICROS;
     loop {
-        if let Either::First(encoded) = select(
+        let now = Instant::now().as_micros();
+        let reorder_wait = orderer
+            .wait_micros(now, REORDER_WINDOW_MICROS)
+            .unwrap_or(MAINTENANCE_MICROS);
+        let maintenance_wait = next_maintenance.saturating_sub(now);
+        let wait = reorder_wait.min(maintenance_wait).max(1);
+        if let Either::First(update) = select(
             INPUT_STATE.wait_changed(),
-            Timer::after(Duration::from_millis(20)),
+            Timer::after(Duration::from_micros(wait)),
         )
         .await
         {
+            let (half, pressed) = decode_half_state(update.value);
+            let event = TimedSnapshot {
+                half,
+                pressed,
+                source_micros: update.source_micros,
+                sequence: update.sequence,
+                reconcile: update.reconcile,
+            };
+            match orderer.push(event) {
+                Ok(SequenceStatus::Duplicate) => {
+                    ORDER_DUPLICATES.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(SequenceStatus::Gap) => {
+                    ORDER_GAPS.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(SequenceStatus::First | SequenceStatus::Next) => {}
+                Err(_) => panic!("cross-half reorder queue overflow"),
+            }
+        }
+
+        let now = Instant::now().as_micros();
+        let mut applied = false;
+        while let Some(event) = orderer.pop_ready(now, REORDER_WINDOW_MICROS) {
             let previous = snapshot;
-            let (half, state) = decode_half_state(encoded);
-            snapshot = merger.update(half, state);
+            snapshot = merger.update(event.half, event.pressed);
             if snapshot & !previous != 0 {
                 BACKLIGHT_ACTIVITY.signal(());
                 POWER_ACTIVITY.signal(());
             }
+            apply_key_snapshot(&mut engine, snapshot);
+            applied = true;
         }
-        let effects =
-            engine.apply_snapshot_with_at(snapshot, Instant::now().as_millis(), |layer, raw| {
-                BONDS.key_action(layer, raw)
-            });
-        for command in effects.commands() {
-            match *command {
-                Command::ResetLeft => reboot_application(),
-                Command::BootLeft => reboot_to_bootloader(),
-                Command::BootRight => SPLIT_COMMAND.signal(COMMAND_BOOTLOADER),
-                Command::ProfileSelect(profile) => BLE_CONTROL.signal(BleControl::Select(profile)),
-                Command::ProfilePair(profile) => BLE_CONTROL.signal(BleControl::Pair(profile)),
-                Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
-                Command::OutputUsb => set_output_mode(OutputMode::Usb),
-                Command::OutputBle => set_output_mode(OutputMode::Ble),
-                Command::BacklightToggle => set_backlight(BacklightCommand::Toggle),
-                Command::BacklightDown => set_backlight(BacklightCommand::Down),
-                Command::BacklightUp => set_backlight(BacklightCommand::Up),
-                Command::BatteryStatus => BATTERY_REQUEST.signal(()),
-                Command::SystemSelect(system) => BONDS.set_system(system),
-                Command::KeyTap(key) => KEY_TAP.signal(key),
-                Command::None => {}
+        if applied || now >= next_maintenance {
+            if !applied {
+                apply_key_snapshot(&mut engine, snapshot);
             }
-        }
-        if effects.keyboard_changed || effects.consumer_changed {
-            OUTPUT.publish(ReportFrame {
-                keyboard: effects.keyboard,
-                consumer: effects.consumer,
-            });
+            next_maintenance = now + MAINTENANCE_MICROS;
         }
     }
 }
@@ -614,15 +667,60 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
     }
 }
 
+fn set_right_clock(sample: ClockSample) {
+    RIGHT_CLOCK.lock(|clock| *clock.borrow_mut() = Some(sample));
+}
+
+fn right_to_left_micros(right_micros: u64) -> Option<u64> {
+    RIGHT_CLOCK.lock(|clock| {
+        clock
+            .borrow()
+            .as_ref()
+            .map(|sample| sample.right_to_left(right_micros))
+    })
+}
+
+async fn synchronize_split_clock(client: &SplitClient) -> Result<ClockSample, ()> {
+    let mut best = None;
+    for _ in 0..CLOCK_SYNC_SAMPLES {
+        let sent = Instant::now().as_micros();
+        client
+            .clock_write(&clock_request(sent))
+            .await
+            .map_err(|_| ())?;
+        let response = client.clock_read().await.map_err(|_| ())?;
+        let received = Instant::now().as_micros();
+        let (echoed, right_received) = decode_clock_response(response);
+        let sample = ClockSample::estimate(sent, echoed, right_received, received).ok_or(())?;
+        if best.is_none_or(|previous: ClockSample| {
+            sample.round_trip_micros < previous.round_trip_micros
+        }) {
+            best = Some(sample);
+        }
+    }
+    best.ok_or(())
+}
+
 async fn send_split_commands(client: &SplitClient) -> ! {
     let _ = client.backlight_write(&current_backlight().encode()).await;
     loop {
-        match select(SPLIT_COMMAND.wait(), SPLIT_BACKLIGHT.wait()).await {
-            Either::First(command) => {
+        match select3(
+            SPLIT_COMMAND.wait(),
+            SPLIT_BACKLIGHT.wait(),
+            Timer::after(Duration::from_secs(CLOCK_SYNC_REFRESH_SECS)),
+        )
+        .await
+        {
+            Either3::First(command) => {
                 let _ = client.command_write_without_response(&command).await;
             }
-            Either::Second(snapshot) => {
+            Either3::Second(snapshot) => {
                 let _ = client.backlight_write(&snapshot.encode()).await;
+            }
+            Either3::Third(()) => {
+                if let Ok(sample) = synchronize_split_clock(client).await {
+                    set_right_clock(sample);
+                }
             }
         }
     }
@@ -739,7 +837,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             if had_split_peer {
                 BONDS.clear_split_peer();
             }
-            INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+            INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
             continue;
         }
         SPLIT_DIAGNOSTICS.record(
@@ -766,7 +864,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
                     elapsed_millis(gatt_started),
                     0,
                 );
-                INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+                INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
                 continue;
             }
         };
@@ -777,7 +875,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
                 elapsed_millis(gatt_started),
                 0,
             );
-            INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+            INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
             continue;
         }
         if client.battery_cccd_write(true).await.is_err() {
@@ -787,7 +885,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
                 elapsed_millis(gatt_started),
                 0,
             );
-            INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+            INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
             continue;
         }
         SPLIT_DIAGNOSTICS.record(
@@ -796,6 +894,20 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             elapsed_millis(gatt_started),
             0,
         );
+        let clock = match synchronize_split_clock(&client).await {
+            Ok(clock) => clock,
+            Err(()) => {
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::GattError,
+                    8,
+                    elapsed_millis(gatt_started),
+                    0,
+                );
+                INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
+                continue;
+            }
+        };
+        set_right_clock(clock);
         SPLIT_DIAGNOSTICS.record(
             SplitDiagnosticEvent::SplitReady,
             0,
@@ -805,7 +917,16 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
 
         let notifications = gatt_client::run(&connection, &client, |event| match event {
             SplitClientEvent::StateNotification(bytes) => {
-                INPUT_STATE.publish(encode_half_state(Half::Right, u64::from_le_bytes(bytes)));
+                if let Some(frame) = SplitStateFrame::decode(bytes)
+                    && let Some(source_micros) = right_to_left_micros(frame.source_micros)
+                {
+                    INPUT_STATE.publish_at(KeyUpdate {
+                        value: encode_half_state(Half::Right, frame.pressed),
+                        source_micros,
+                        sequence: frame.sequence,
+                        reconcile: frame.reconcile(),
+                    });
+                }
             }
             SplitClientEvent::BatteryNotification(level) => {
                 RIGHT_BATTERY.store(level, Ordering::Release);
@@ -817,7 +938,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             Either::Second(never) => match never {},
         }
         record_disconnect(&connection);
-        INPUT_STATE.publish(encode_half_state(Half::Right, 0));
+        INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
     }
 }
 

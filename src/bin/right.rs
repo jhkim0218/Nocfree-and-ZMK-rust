@@ -36,7 +36,7 @@ use nocfree_and_rust::split_diagnostics::{
 };
 use nocfree_and_rust::split_protocol::{
     AdvertisingStage, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, RIGHT_SPLIT_TX_POWER_DBM,
-    SERVICE_UUID_LE,
+    SERVICE_UUID_LE, STATE_FLAG_RECONCILE, SplitStateFrame, clock_response,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
 use nrf_softdevice::ble::advertisement_builder::{
@@ -234,9 +234,19 @@ async fn notify_split_state(
     KEY_STATE.replace(KEY_STATE.latest());
     loop {
         match select(KEY_STATE.wait_changed(), BATTERY_UPDATE.wait()).await {
-            Either::First(state) => {
-                let state = state.to_le_bytes();
-                while server.split.state_notify(connection, &state).is_err() {
+            Either::First(update) => {
+                let frame = SplitStateFrame {
+                    pressed: update.value,
+                    source_micros: update.source_micros,
+                    sequence: update.sequence,
+                    flags: if update.reconcile {
+                        STATE_FLAG_RECONCILE
+                    } else {
+                        0
+                    },
+                }
+                .encode();
+                while server.split.state_notify(connection, &frame).is_err() {
                     Timer::after(Duration::from_millis(20)).await;
                 }
             }
@@ -345,6 +355,10 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
                 if let Some(snapshot) = BacklightSnapshot::decode(bytes) {
                     BACKLIGHT_CONTROL.signal(snapshot);
                 }
+            }
+            SplitServerEvent::Split(SplitServiceEvent::ClockWrite(request)) => {
+                let response = clock_response(request, Instant::now().as_micros());
+                let _ = server.split.clock_set(&response);
             }
             SplitServerEvent::Split(SplitServiceEvent::StateCccdWrite {
                 notifications: true,

@@ -31,11 +31,12 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("rx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
         self.assertIn("tx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
 
-    def test_split_state_commands_battery_and_backlight_require_encryption(self) -> None:
+    def test_split_values_require_encryption(self) -> None:
         split = read("src/split_ble.rs")
         macro = read("vendor/nrf-softdevice-macro/src/lib.rs")
-        self.assertEqual(split.count('security = "justworks"'), 4)
+        self.assertEqual(split.count('security = "justworks"'), 5)
         self.assertIn("pub backlight: [u8; 4]", split)
+        self.assertIn("pub clock: [u8; CLOCK_BYTES]", split)
         self.assertIn("Metadata::new(props)", macro)
         self.assertIn(".security(#security_inner)", macro)
 
@@ -105,8 +106,23 @@ class RepositoryContractTests(unittest.TestCase):
         central = read("src/bin/central.rs")
         self.assertIn("static INPUT_STATE: KeyState<32>", central)
         self.assertIn("INPUT_STATE.wait_changed(),", central)
+        self.assertIn("SnapshotOrderer::<32>::new()", central)
+        self.assertIn("source_micros: update.source_micros", central)
         self.assertNotIn("LOCAL_STATE.wait_changed()", central)
         self.assertNotIn("REMOTE_STATE.wait_changed()", central)
+
+    def test_split_clock_is_synced_before_ready_and_refreshed(self) -> None:
+        central = read("src/bin/central.rs")
+        right = read("src/bin/right.rs")
+        protocol = read("src/split_protocol.rs")
+        ready = central.index("SplitDiagnosticEvent::SplitReady")
+        initial_sync = central.index("synchronize_split_clock(&client).await", ready - 1_000)
+        self.assertLess(initial_sync, ready)
+        self.assertIn("CLOCK_SYNC_SAMPLES: usize = 3", protocol)
+        self.assertIn("CLOCK_SYNC_REFRESH_SECS: u64 = 60", protocol)
+        self.assertIn("Timer::after(Duration::from_secs(CLOCK_SYNC_REFRESH_SECS))", central)
+        self.assertIn("SplitServiceEvent::ClockWrite(request)", right)
+        self.assertIn("right_to_left_micros(frame.source_micros)", central)
 
     def test_split_connection_uses_zmk_timing(self) -> None:
         central = read("src/bin/central.rs")

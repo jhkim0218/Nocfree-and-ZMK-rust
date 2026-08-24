@@ -17,8 +17,8 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock left ANSI | 295,936 | `0x27000..0x4B1FF` |
 | Stock right ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
-| Rust left ANSI | 150,528 | `0x27000..0x395FF` |
-| Rust right ANSI | 94,208 | `0x27000..0x327FF` |
+| Rust left ANSI | 162,304 | `0x27000..0x3ACFF` |
+| Rust right ANSI | 95,232 | `0x27000..0x329FF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -32,8 +32,8 @@ right Rust images.
 | P0 | Battery accuracy | Meaningful levels for both 1100 mAh batteries | Recovered stock V2.3.0 conversion and 75/25 filter; both fully charged halves reported 100% | DMM error and percentage error are recorded for both halves across a discharge cycle |
 | P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
-| P0 regression | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Arrival-ordered half snapshots can produce `jam -> ajm` during rapid alternating input | 10,000+ synthetic events plus USB/BLE hardware stress pass with acceptable added latency |
-| P0 regression / P3.3 configured | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | P3.2 restored two inputs in 6.1/17.2 seconds. Repository right now configures +8 dBm, but this setting is hardware/power-unverified and not deployed | Hardware-compare the +8 dBm artifact later; user requested proceeding to P4 now |
+| Done | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Source timestamps, sequence, clock conversion, and a 3 ms global queue replace arrival-only ordering | 10,000 synthetic events plus Wired/Windows 11 Bluetooth stress passed without observed reordering or stuck keys |
+| P0 regression / P3.3 deployed | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | P3.2 restored two inputs in 6.1/17.2 seconds. Current P4 right deploys +8 dBm | Hardware-compare +8 dBm range/security/current; P4 input success does not isolate its radio effect |
 | Done | Backlight synchronization | Both halves converge after commands, timeout, wake, reboot, and reconnect | Left-owned versioned absolute state replaces relative split toggles and is resent after GATT discovery | Deliberate right reboot while left stayed off converged once; 10 toggles, timeout, and right-key wake stayed aligned |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
 | Done | Backlight timeout | Backlight off after 30 seconds without a NocFree key press | Both halves now turn off independently of USB power and wake without losing the first key | A 10-second diagnostic image passed hardware testing; release images use the same path with a 30-second constant |

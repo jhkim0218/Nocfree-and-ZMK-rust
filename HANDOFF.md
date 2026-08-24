@@ -24,8 +24,8 @@ hotkey는 구현·실기 검증됐습니다.
 2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽 재연결 실패
 후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는 현상이
 재현됐습니다. 백라이트는 왼쪽 기준 절대 상태로 바꾼 뒤 실기 재검증을 통과했고,
-입력 순서와 split 재연결 tuning은 여전히 미해결 회귀입니다. P2에서 단계별
-진단은 완료됐고 첫 실제 실패가 MTU 교환 단계로 식별됐습니다. 진행 상태는
+입력 순서는 P4 timestamp/sequence와 3 ms 전역 대기열로 자동·실기 검증을
+통과했습니다. split 재연결의 +8 dBm 거리·전력 통제 비교는 남았습니다. 진행은
 `PROGRESS.md`를 따릅니다.
 
 ## 2. 저장소
@@ -74,8 +74,9 @@ hotkey는 구현·실기 검증됐습니다.
 - TWIM 생성 전 open-drain SCL 최대 9회와 STOP으로 I2C bus clear
 - 오른쪽 split은 별도 Just Works bond와 flash page 사용
 - 오래된 split 키로 보안 연결이 실패하면 그 키만 삭제하고 자동 재페어링
-- 좌우 변화는 하나의 FIFO로 합치지만 도착 순서만 보존하며, 2026-08-24 실기에서
-  무선 지연을 포함한 물리 입력 순서는 보장하지 못함을 확인
+- 양쪽 scanner는 원본 시각과 순번을 붙이고, 오른쪽은 20-byte 암호화 ATT
+  snapshot으로 전달. 왼쪽은 연결 전 3회·60초 주기 시계 보정 뒤 양쪽을 같은
+  3 ms 대기열에서 원본 시각순으로 처리
 - interval 7.5 ms, latency 30, supervision timeout 4초
 - vendor patch로 모든 BLE PHY를 1M에 고정
 - 백라이트는 왼쪽이 `enabled`/밝기/timeout/generation 절대 상태를 소유하고,
@@ -133,19 +134,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x395ff`, 오른쪽
-`0x27000..0x327ff`입니다.
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x3acff`, 오른쪽
+`0x27000..0x329ff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
-| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
+| `firmware/NocFree_Rust_Left.bin` | 80,964 | `22F38C6EA74CB155F19D3AA219CC5E3EF6239F73D9433C1750FBA3983AE436DD` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 162,304 | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 81,840 | `DF597EA1650313A2917B4E2956EDDF801B0D165C470D7B6C1B817D137F947FFB` |
+| `firmware/NocFree_Rust_Right.bin` | 47,508 | `1D6CDBB284AA9008AE0D89CFFB10EB979EC7017B0EEBFB76AE81848139D23BA4` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 95,232 | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,390 | `A181DCA39D8E6E7CCDFAAB3C3DB7DF72FF109A8FBB1E6FC091BC5D38BF34106F` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -171,8 +172,8 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 66/66
-- Python contract/artifact tests: 17/17
+- Rust host tests: 71/71
+- Python contract/artifact tests: 18/18
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
 - central/right release: 통과
@@ -225,12 +226,21 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
   복구 → RUST-RIGHT, 1.295초 연결과 60 ms 보안 확인
 - P3 다음 변수는 오른쪽 TX 출력 비교. latency와 connection timing은 유지
 
-### P3.3 +8 dBm 설정만 완료
+### P3.3 +8 dBm 설정 및 P4 배포
 
-- 저장소 오른쪽은 광고와 연결 TX 모두 +8 dBm으로 설정하고 자동 검증 통과
-- 사용자가 추가 실기를 생략하고 P4로 진행하도록 지시했으므로 거리·보안·전력은
-  실기 미검증이며, 실물 오른쪽은 아직 P3.2 이미지
-- 새 오른쪽 UF2를 별도 승인 없이 플래시하지 말 것
+- 현재 오른쪽은 광고와 연결 TX 모두 +8 dBm인 P4 이미지가 배포됨
+- P4 Wired/Windows 11 Bluetooth 입력은 통과했지만 +8 dBm 자체의 거리·보안·전력
+  효과는 통제 비교하지 않았으므로 그 효과를 검증됐다고 표현하지 말 것
+
+### P4 좌우 입력 순서 완료
+
+- 오른쪽 snapshot: state u64 + source timestamp u64 + sequence u16 + flags/reserved
+  2 bytes = 기본 MTU 값 한도 20 bytes
+- 왼쪽은 split-ready 전에 3회 왕복 중 최소 RTT로 시계 offset을 잡고 60초마다 갱신
+- 로컬 왼쪽도 즉시 출력하지 않고 오른쪽과 같은 3 ms `SnapshotOrderer<32>` 사용
+- 10,000개 합성 교차 입력에서 1/2 ms 실패, 3/4/5 ms 무오류라 3 ms 선택
+- 실기 Wired `jam` 10회와 긴 `ja`, Windows 11 Bluetooth `asdfjkljam…` 통과
+- 오른쪽 `Fn+0`, 왼쪽 `Fn+5` 순서로 역할 시리얼 확인 후 P4 배포·복귀
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나

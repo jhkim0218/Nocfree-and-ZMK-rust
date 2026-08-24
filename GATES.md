@@ -1,24 +1,47 @@
-# Gates: P3.3 configured right +8 dBm
+# Gates: P4 global cross-half ordering
 
 OWNS: src/**, tools/**, firmware/**, README.md, README_ko.md, HANDOFF.md, ROADMAP.md, ROADMAP_ko.md, RECOVERY.md, PROGRESS.md, GATES.md
 
-Scope: apply +8 dBm to the right split advertiser and accepted connection. The user explicitly waived additional hardware comparison and asked to proceed to P4, so documents must label this setting hardware-unverified and the keyboard remains on P3.2 until separately flashed.
+Scope: preserve physical ordering across the local left scanner and BLE-connected right scanner by carrying source time and sequence, converting right time into the left clock domain, and holding both sources in one short bounded reorder queue. LEFT remains authoritative. Do not change protected flash, recovery, keymap, output routing, backlight policy, host BLE profiles, or the P3.3 +8 dBm setting.
 
 - [x] G0: this ledger states outcomes that can fail
   CHECK: node "C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs" GATES.md
   EXPECT: LINT OK
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=cca8a72878d1/33 entries; output=WARN  2/5 gates are runnable; a mostly manual ledger is prose with checkboxes  [mostly-manual] | LINT OK (7 warning(s))
+  EVIDENCE: gate lint completed with LINT OK; warnings identify the expected manual hardware and documentation gates.
 
-- [x] G1: host/contract tests prove +8 dBm applies to both right advertising and accepted connection; the full release build and artifact validation pass
-  CHECK: pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1
+- [x] G1: every right snapshot carries state, a monotonic source timestamp, sequence, and reconciliation flag in at most the default ATT payload; codec and wrap tests pass
+  CHECK: cargo test --target x86_64-pc-windows-msvc split_protocol::tests
+  EXPECT: test result: ok
+  EVIDENCE: the 20-byte frame round-trips state u64, source time u64, sequence u16, and flags/reserved bytes; ATT MTU 23 leaves exactly 20 value bytes. All split_protocol tests pass.
+
+- [x] G2: reconnect performs a bounded three-sample clock-offset estimate before split-ready and refreshes it periodically without synchronizing on each key
+  CHECK: python -m unittest tools.test_repository_contract.RepositoryContractTests.test_split_clock_is_synced_before_ready_and_refreshed
+  EXPECT: OK
+  EVIDENCE: the central takes three echo-validated samples, chooses the minimum-RTT estimate before recording SplitReady, converts right source time to the left domain, and repeats after 60 seconds. The focused repository contract passes.
+
+- [x] G3: windows 1, 2, 3, 4, and 5 ms are compared over at least 10,000 delayed alternating snapshots; the smallest window with lost=0, duplicate=0, reordered=0, and stuck=0 is selected
+  CHECK: cargo test --target x86_64-pc-windows-msvc scanner::tests::selects_the_smallest_clean_window_over_ten_thousand_events -- --exact --nocapture
+  EXPECT: test result: ok
+  EVIDENCE: 10,000 alternating LEFT/RIGHT source snapshots with 4 ms RIGHT transport delay were processed. Windows 1 and 2 ms reordered events; 3, 4, and 5 ms finished with lost=0, duplicate=0, reordered=0, stuck=0. REORDER_WINDOW_MS=3.
+
+- [x] G4: both local LEFT and converted RIGHT updates enter the same bounded reorder queue, sequence gaps/duplicates are detected, and reconciliation clears stale source entries
+  CHECK: cargo test --target x86_64-pc-windows-msvc scanner::tests
+  EXPECT: test result: ok
+  EVIDENCE: central INPUT_STATE receives timestamped local scanner updates and clock-converted right frames, then feeds SnapshotOrderer<32>. Unit tests cover duplicate, gap, and reconciliation clearing; all scanner tests pass.
+
+- [x] G5: formatting, all host tests, host/ARM Clippy, both release builds, protected-range checks, DFU packages, and repository contracts pass
+  CHECK: powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1
   EXPECT: NocFree release verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=cca8a72878d1/33 entries; output=Ran 17 tests in 0.022s | OK
+  EVIDENCE: build-release.ps1 completed with 71 Rust tests and 18 Python/contract/artifact tests, formatting, host/ARM Clippy, both release builds, UF2 bounds/round trips, and both DFU package checks; output ended NocFree release verification passed.
 
-- [x] G2: only right split TX power changes; P3.2 schedule, left TX, MTU, connection timing, latency, GATT, storage, and protected flash remain unchanged
-  EVIDENCE: diff from aca104f adds RIGHT_SPLIT_TX_POWER_DBM=8, TxPower::Plus8dBm to the right advertiser, and the same +8 dBm to the accepted right connection. central.rs, the staged schedule, ATT MTU 23, interval 6, latency 30, timeout 400, GATT, memory.x, storage, and protected boundaries are unchanged.
+- [x] G6: the final artifacts are deployed only to their verified LEFT/RIGHT serials and both return with independent DFU/recovery paths intact
+  EVIDENCE: right Fn+0 entered F: only after USB DFU serial D82A03513BB02626 was verified; right SHA 453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE returned as RUST-RIGHT. Left Fn+5 then entered G: only after serial 52CF50988BD1E6EE was verified; left SHA 031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3 returned as RUST-LEFT. Right-first preserved the old split command path until right DFU entry.
 
-- [x] G3: English/Korean documents and artifacts state +8 dBm is configured and automatically verified but not hardware-tested or deployed, with current hashes/ranges accurate
-  EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md separate the configured repository artifact from the P3.2 image still on the physical right. Direct SHA-256 and size checks match the current left/right UF2, BIN, and DFU ZIP artifacts; written ranges remain left 0x27000..0x395ff and right 0x27000..0x327ff. Repository tests pass 17/17.
+- [x] G7: real hardware produces correctly ordered stress text in Wired USB and Windows 11 Bluetooth with no stuck keys or objectionable added lag
+  EVIDENCE: Korean-layout asdfjkl produced the expected ㅁㄴㅇㄹㅓㅏㅣ basic split mapping. Wired produced jam ten times and a longer rapid jajaja sequence exactly. Windows 11 Bluetooth produced asdfjkljamjamjamjamjamjam exactly. The user reported no stuck key or delay objection in these checks.
 
-- [x] G4: the configured +8 dBm implementation, artifacts, documentation, and gate ledger are committed before P4 starts
-  EVIDENCE: implementation, generated artifacts, documentation, and verification evidence were committed as fc53b9ac85b594380906f07f426756dc8762474a; this final gate closure is recorded in the immediately following documentation commit.
+- [x] G8: English/Korean docs, current artifact hashes/ranges, automated evidence, real-hardware evidence, and remaining limitations are accurate
+  EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record the 3 ms selection, clock protocol, 71/18 tests, Wired/Windows 11 Bluetooth scope, role-verified deployment, current hashes/sizes, ranges left 0x27000..0x3acff and right 0x27000..0x329ff, and the unmeasured +8 dBm radio/power effect. Direct metadata-presence and 18 repository/artifact checks pass.
+
+- [ ] G9: the verified P4 implementation, artifacts, documentation, and gate ledger are committed
+  EVIDENCE: pending

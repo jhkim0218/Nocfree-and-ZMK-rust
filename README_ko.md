@@ -25,8 +25,8 @@ ISO 배열은 지원하지 않습니다.
 > 공장 USB 동글/2.4G 기능도 구현·검증되지 않았습니다.
 >
 > 2026-08-24 실기에서 빠른 좌우 교차 입력, 책상 거리 split 재연결, 백라이트
-> 수렴 문제를 다시 열었습니다. 이후 절대 백라이트 상태 동기화와 재연결 진단은
-> 실기 검증을 통과했으며 입력 순서와 재연결 tuning은 미해결입니다.
+> 수렴 문제를 다시 열었습니다. 이후 절대 백라이트 상태 동기화와 P4 timestamp
+> 입력 순서는 실기 검증을 통과했습니다. +8 dBm 거리·전력 비교는 남았습니다.
 > [PROGRESS.md](PROGRESS.md)를 참고하십시오.
 
 ## 역할
@@ -70,8 +70,8 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 Rust 67개,
-Python/계약/아티팩트 17개 테스트 통과입니다.
+일치를 모두 검사합니다. 최신 결과는 Rust 71개,
+Python/계약/아티팩트 18개 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
 
@@ -89,14 +89,14 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
-| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
+| `firmware/NocFree_Rust_Left.bin` | 80,964 | `22F38C6EA74CB155F19D3AA219CC5E3EF6239F73D9433C1750FBA3983AE436DD` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 81,840 | `DF597EA1650313A2917B4E2956EDDF801B0D165C470D7B6C1B817D137F947FFB` |
+| `firmware/NocFree_Rust_Right.bin` | 47,508 | `1D6CDBB284AA9008AE0D89CFFB10EB979EC7017B0EEBFB76AE81848139D23BA4` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,390 | `A181DCA39D8E6E7CCDFAAB3C3DB7DF72FF109A8FBB1E6FC091BC5D38BF34106F` |
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x395ff`, 오른쪽 `0x327ff`까지만
+UF2는 앱 시작 `0x27000`부터 왼쪽 `0x3acff`, 오른쪽 `0x329ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
 
 ## Split 재연결 진단
@@ -149,11 +149,18 @@ MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 �
 
 ### P3.3 설정된 TX 출력
 
-저장소의 오른쪽 이미지는 미연결 split 광고와 연결된 split 모두 +8 dBm을
-사용하도록 설정했습니다. 자동 검증은 통과했지만 사용자가 P4 진행을 위해 추가
-실기 비교를 생략했습니다. 따라서 +8 dBm의 거리·보안 안정성·소비전류·배터리
-영향은 **실기 미검증**입니다. 실물 오른쪽 키보드는 새 UF2를 명시적으로 올리기
-전까지 실기 검증된 P3.2 이미지 상태입니다.
+현재 P4 오른쪽 이미지는 미연결 광고와 연결된 split 모두 +8 dBm이며 P4 입력
+시험 때 실물에 배포했습니다. Wired/Bluetooth 입력은 통과했지만 +8 dBm 자체의
+거리·보안·소비전류·배터리 효과를 통제 비교한 것은 아닙니다.
+
+### P4 전역 좌우 입력 순서
+
+오른쪽 snapshot은 하나의 20-byte ATT 값에 원본 시각·순번·재조정 표시를 담습니다.
+왼쪽은 split-ready 전에 3회 표본으로 시계 차이를 추정하고 60초마다 갱신하며,
+로컬/원격 입력을 같은 3 ms 대기열에서 정렬합니다. 1~5 ms를 10,000개 합성
+이벤트로 비교해 3 ms를 가장 작은 무오류 값으로 선택했고 누락·중복·재정렬·고착
+모두 0이었습니다. Wired USB와 Windows 11 Bluetooth의 실제 `jam`/`ja` 교차
+입력도 통과했습니다. P4의 다른 BLE 호스트 OS는 시험하지 않았습니다.
 
 ## NocFree Link 키 변경
 
@@ -176,7 +183,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| P3.3 설정 / 실기 미검증 | 양쪽 split | 표준 MTU와 단계별/키 입력 광고는 실기 통과. 저장소 오른쪽은 +8 dBm을 추가했지만 거리·보안·전력 비용은 미검증. 빠른 좌우 교차 입력 순서 문제도 남음 |
+| P4 완료 / P3 tuning 부분 | 양쪽 split과 입력 순서 | 원본 timestamp, 오른쪽 순번, 3회/주기 시계 동기화, 3 ms 전역 대기열이 10,000개 합성과 Wired/Windows 11 Bluetooth 실기를 통과. 배포된 오른쪽은 +8 dBm이지만 거리·보안·전력 비용의 통제 비교는 남음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 왼쪽 기준 version 포함 절대 상태가 enabled·밝기·timeout·generation을 모든 변경과 재연결 때 오른쪽에 동기화하며 30초 소등과 첫 키 wake도 유지 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
@@ -255,7 +262,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 
 | 요구사항 | 최신 이미지의 증거 |
 |---|---|
-| USB 양쪽 입력/순서 | 이전 테스트는 통과했지만 2026-08-24 `jam -> ajm`을 재현해 순서 문제를 다시 열었음 |
+| USB 양쪽 입력/순서 | P4 3 ms timestamp 정렬 뒤 `jam` 10회와 긴 `ja` 교차 입력이 정확한 순서로 통과 |
 | 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
 | 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
 | BLE | 새 페어링 `freshcapture` → Wired `freshwired2` → 장치 삭제·재페어링 없는 BLE `reconnectcapture` 통과 |
@@ -273,6 +280,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | Split 재연결 진단 | 약 30cm에서 `-75/-74 dBm`, 첫 MTU 교환 실패와 다음 연결·보안·GATT 성공, HCI 해제 사유 `0x08`, 미연결 오른쪽 키를 기록. 양쪽 1200-baud 복구 뒤 입력 복귀도 확인 |
 | P3.1 split 재연결 | ATT MTU 23으로 관측된 MTU 교환 단계 실패를 제거. 약 30cm 오른쪽 전원 재인가 2회가 거리 이동 없이 입력까지 복귀했지만 55,431/17,736 ms가 걸림. Wired USB와 Windows 11 Bluetooth 출력 통과. Wired 위치에서 왼쪽 1200-baud 복구로 같은 P3.1 복귀 뒤 4,358 ms에 split-ready 확인 |
 | P3.2 단계별 광고 | 짧은 진단 이미지로 250/500/1,000 ms 단계와 미연결 키의 250 ms 복귀를 확인. 최종 10/50초 설정은 책상 거리 입력 2회를 6.142/17.208초에 통과하고 Wired/Bluetooth 출력과 오른쪽 1200-baud 복구도 통과. -85 dBm 보안 timeout과 Bluetooth 체감 지연 때문에 TX 출력 비교가 남음 |
+| P4 좌우 입력 순서 | 1~5 ms를 10,000개 지연 교차 snapshot으로 비교해 1/2 ms 실패, 3/4/5 ms 무오류를 확인하고 3 ms 선택. Wired `jam` 10회·빠른 `ja`, Windows 11 Bluetooth `asdfjkljam…`이 재정렬·고착 없이 통과. 양쪽 역할별 Fn DFU 진입과 해당 이미지 복귀도 확인 |
 | System OFF와 split 복귀 | 10초 진단 이미지에서 USB 연결 중 System OFF 차단, 배터리 상태 왼쪽 central System OFF, sleep 전 양쪽 백라이트 소등, 왼쪽 USB 또는 왼쪽 키 홀드 wake, BLE 복귀와 오른쪽 split 입력을 확인. 배포 이미지는 같은 경로에서 timeout만 5분으로 변경. 짧은 wake 키 탭은 reset 부팅 중 소모될 수 있으므로 해당 문자도 입력하려면 재연결까지 왼쪽 키를 유지해야 함 |
 | 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
 | 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |

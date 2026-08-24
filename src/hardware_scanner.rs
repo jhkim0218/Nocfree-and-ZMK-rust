@@ -46,9 +46,18 @@ pub async fn recover_i2c_bus(sda: Peri<'_, impl Pin>, scl: Peri<'_, impl Pin>) {
     Timer::after(Duration::from_micros(5)).await;
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyUpdate {
+    pub value: u64,
+    pub source_micros: u64,
+    pub sequence: u16,
+    pub reconcile: bool,
+}
+
 pub struct KeyState<const N: usize> {
     latest: Mutex<CriticalSectionRawMutex, Cell<u64>>,
-    changed: Channel<CriticalSectionRawMutex, u64, N>,
+    next_sequence: Mutex<CriticalSectionRawMutex, Cell<u16>>,
+    changed: Channel<CriticalSectionRawMutex, KeyUpdate, N>,
     published: Signal<CriticalSectionRawMutex, u64>,
 }
 
@@ -62,20 +71,48 @@ impl<const N: usize> KeyState<N> {
     pub const fn new() -> Self {
         Self {
             latest: Mutex::new(Cell::new(0)),
+            next_sequence: Mutex::new(Cell::new(0)),
             changed: Channel::new(),
             published: Signal::new(),
         }
     }
 
     pub fn publish(&self, value: u64) {
+        self.publish_local(value, false);
+    }
+
+    pub fn publish_reconcile(&self, value: u64) {
+        self.publish_local(value, true);
+    }
+
+    pub fn publish_at(&self, update: KeyUpdate) {
+        self.enqueue(update);
+    }
+
+    fn publish_local(&self, value: u64, reconcile: bool) {
+        let sequence = self.next_sequence.lock(|next| {
+            let sequence = next.get();
+            next.set(sequence.wrapping_add(1));
+            sequence
+        });
+        self.enqueue(KeyUpdate {
+            value,
+            source_micros: Instant::now().as_micros(),
+            sequence,
+            reconcile,
+        });
+    }
+
+    fn enqueue(&self, update: KeyUpdate) {
+        let value = update.value;
         self.latest.lock(|latest| latest.set(value));
         self.published.signal(value);
-        let mut pending = value;
+        let mut pending = update;
         loop {
             match self.changed.try_send(pending) {
                 Ok(()) => break,
-                Err(TrySendError::Full(value)) => {
-                    pending = value;
+                Err(TrySendError::Full(update)) => {
+                    pending = update;
                     let _ = self.changed.try_receive();
                 }
             }
@@ -86,7 +123,7 @@ impl<const N: usize> KeyState<N> {
         self.latest.lock(Cell::get)
     }
 
-    pub async fn wait_changed(&self) -> u64 {
+    pub async fn wait_changed(&self) -> KeyUpdate {
         self.changed.receive().await
     }
 
@@ -100,7 +137,7 @@ impl<const N: usize> KeyState<N> {
 
     pub fn replace(&self, value: u64) {
         self.changed.clear();
-        self.publish(value);
+        self.publish_local(value, true);
     }
 }
 

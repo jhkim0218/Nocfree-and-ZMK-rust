@@ -6,11 +6,127 @@ pub const IDLE_SCAN_MS: u16 = 10;
 pub const IDLE_SAFETY_SCAN_MS: u16 = 250;
 pub const DEBOUNCE_PRESS_MS: u16 = 5;
 pub const DEBOUNCE_RELEASE_MS: u16 = 5;
+pub const REORDER_WINDOW_MS: u64 = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Half {
     Left,
     Right,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TimedSnapshot {
+    pub half: Half,
+    pub pressed: u64,
+    pub source_micros: u64,
+    pub sequence: u16,
+    pub reconcile: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SequenceStatus {
+    First,
+    Next,
+    Gap,
+    Duplicate,
+}
+
+pub struct SnapshotOrderer<const N: usize> {
+    pending: [Option<TimedSnapshot>; N],
+    len: usize,
+    last_sequence: [Option<u16>; 2],
+}
+
+impl<const N: usize> Default for SnapshotOrderer<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const N: usize> SnapshotOrderer<N> {
+    pub const fn new() -> Self {
+        assert!(N > 0);
+        Self {
+            pending: [None; N],
+            len: 0,
+            last_sequence: [None; 2],
+        }
+    }
+
+    pub fn push(&mut self, event: TimedSnapshot) -> Result<SequenceStatus, TimedSnapshot> {
+        let source = event.half as usize;
+        if event.reconcile {
+            self.remove_half(event.half);
+            self.last_sequence[source] = None;
+        }
+
+        let status = match self.last_sequence[source] {
+            None => SequenceStatus::First,
+            Some(previous) if event.sequence == previous => SequenceStatus::Duplicate,
+            Some(previous) if event.sequence == previous.wrapping_add(1) => SequenceStatus::Next,
+            Some(_) => SequenceStatus::Gap,
+        };
+        if status == SequenceStatus::Duplicate {
+            return Ok(status);
+        }
+        if self.len == N {
+            return Err(event);
+        }
+        self.last_sequence[source] = Some(event.sequence);
+
+        let mut position = self.len;
+        while position > 0 {
+            let previous = self.pending[position - 1].unwrap();
+            if previous.source_micros <= event.source_micros {
+                break;
+            }
+            self.pending[position] = Some(previous);
+            position -= 1;
+        }
+        self.pending[position] = Some(event);
+        self.len += 1;
+        Ok(status)
+    }
+
+    pub fn pop_ready(&mut self, now_micros: u64, window_micros: u64) -> Option<TimedSnapshot> {
+        let first = self.pending[0]?;
+        (first.source_micros.saturating_add(window_micros) <= now_micros)
+            .then(|| self.pop_oldest().unwrap())
+    }
+
+    pub fn pop_oldest(&mut self) -> Option<TimedSnapshot> {
+        let first = self.pending[0]?;
+        self.len -= 1;
+        for index in 0..self.len {
+            self.pending[index] = self.pending[index + 1];
+        }
+        self.pending[self.len] = None;
+        Some(first)
+    }
+
+    pub fn wait_micros(&self, now_micros: u64, window_micros: u64) -> Option<u64> {
+        self.pending[0].map(|first| {
+            first
+                .source_micros
+                .saturating_add(window_micros)
+                .saturating_sub(now_micros)
+        })
+    }
+
+    fn remove_half(&mut self, half: Half) {
+        let mut write = 0;
+        for read in 0..self.len {
+            let event = self.pending[read].unwrap();
+            if event.half != half {
+                self.pending[write] = Some(event);
+                write += 1;
+            }
+        }
+        for index in write..self.len {
+            self.pending[index] = None;
+        }
+        self.len = write;
+    }
 }
 
 const RIGHT_STATE_TAG: u64 = 1_u64 << 63;
@@ -160,6 +276,7 @@ impl<const N: usize> Debouncer<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::vec::Vec;
 
     #[test]
     fn released_and_pressed_levels_are_active_low() {
@@ -240,5 +357,92 @@ mod tests {
             let (half, pressed) = decode_half_state(encoded);
             assert_eq!(merger.update(half, pressed), expected);
         }
+    }
+
+    #[test]
+    fn detects_duplicate_gap_and_reconciliation() {
+        let event = |sequence, reconcile| TimedSnapshot {
+            half: Half::Right,
+            pressed: sequence as u64,
+            source_micros: sequence as u64,
+            sequence,
+            reconcile,
+        };
+        let mut orderer = SnapshotOrderer::<4>::new();
+        assert_eq!(orderer.push(event(10, false)), Ok(SequenceStatus::First));
+        assert_eq!(
+            orderer.push(event(10, false)),
+            Ok(SequenceStatus::Duplicate)
+        );
+        assert_eq!(orderer.push(event(12, false)), Ok(SequenceStatus::Gap));
+        assert_eq!(orderer.push(event(40, true)), Ok(SequenceStatus::First));
+        assert_eq!(orderer.pop_oldest(), Some(event(40, true)));
+        assert_eq!(orderer.pop_oldest(), None);
+    }
+
+    #[test]
+    fn selects_the_smallest_clean_window_over_ten_thousand_events() {
+        const EVENT_COUNT: usize = 10_000;
+        let mut clean = [false; 5];
+
+        for window_ms in 1..=5_u64 {
+            let mut arrivals = Vec::with_capacity(EVENT_COUNT);
+            let mut sequences = [0_u16; 2];
+            let mut states = [0_u64; 2];
+            for id in 0..EVENT_COUNT {
+                let half = if id & 1 == 0 { Half::Left } else { Half::Right };
+                let source = half as usize;
+                states[source] ^= 1;
+                let source_micros = id as u64 * 1_000;
+                let transport_delay = if half == Half::Right { 4_000 } else { 0 };
+                arrivals.push((
+                    source_micros + transport_delay,
+                    TimedSnapshot {
+                        half,
+                        pressed: states[source],
+                        source_micros,
+                        sequence: sequences[source],
+                        reconcile: false,
+                    },
+                ));
+                sequences[source] = sequences[source].wrapping_add(1);
+            }
+            arrivals.sort_by_key(|(arrival, event)| (*arrival, event.source_micros));
+
+            let mut orderer = SnapshotOrderer::<16>::new();
+            let mut merger = SnapshotMerger::default();
+            let mut output_count = 0;
+            let mut reordered = 0;
+            let mut previous_time = None;
+            let mut merged = 0;
+            for (arrival, event) in arrivals {
+                assert!(orderer.push(event).is_ok());
+                while let Some(ready) = orderer.pop_ready(arrival, window_ms * 1_000) {
+                    if previous_time.is_some_and(|previous| previous >= ready.source_micros) {
+                        reordered += 1;
+                    }
+                    previous_time = Some(ready.source_micros);
+                    merged = merger.update(ready.half, ready.pressed);
+                    output_count += 1;
+                }
+            }
+            while let Some(ready) = orderer.pop_oldest() {
+                if previous_time.is_some_and(|previous| previous >= ready.source_micros) {
+                    reordered += 1;
+                }
+                previous_time = Some(ready.source_micros);
+                merged = merger.update(ready.half, ready.pressed);
+                output_count += 1;
+            }
+
+            let lost = EVENT_COUNT - output_count;
+            let duplicate = output_count.saturating_sub(EVENT_COUNT);
+            let stuck = merged;
+            clean[window_ms as usize - 1] =
+                lost == 0 && duplicate == 0 && reordered == 0 && stuck == 0;
+        }
+
+        assert_eq!(clean, [false, false, true, true, true]);
+        assert_eq!(REORDER_WINDOW_MS, 3);
     }
 }
