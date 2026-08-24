@@ -70,7 +70,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 Rust 64개,
+일치를 모두 검사합니다. 최신 결과는 Rust 65개,
 Python/계약/아티팩트 17개 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
@@ -89,14 +89,14 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,004 | `C84F695683E581981EA6406C20064791B24702825941BFC064D05E8AFA104EFB` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,016 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,880 | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
-| `firmware/NocFree_Rust_Right.bin` | 46,836 | `0E748A2F21B9F74FF5D72D052225A7F5E6423C23D9E687F72C1C2BA69B63630E` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,718 | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
+| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
+| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x394ff`, 오른쪽 `0x326ff`까지만
+UF2는 앱 시작 `0x27000`부터 왼쪽 `0x395ff`, 오른쪽 `0x326ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
 
 ## Split 재연결 진단
@@ -113,6 +113,24 @@ UF2는 앱 시작 `0x27000`부터 왼쪽 `0x394ff`, 오른쪽 `0x326ff`까지만
 해제 사유, 시도 횟수와 실제 연결 파라미터를 구분합니다. 오른쪽 로그는 광고
 모드/간격, 연결/보안, 해제 사유와 미연결 상태 키 입력을 포함합니다. 진단은
 115200 baud를 사용하며 기존 1200-baud DFU는 복구 전용으로 그대로 유지됩니다.
+
+### P3.1 재연결 결과
+
+P2에서 포착한 실패는 불필요한 ATT MTU 교환 단계에서 발생했습니다. P3.1은
+split 연결에 표준 ATT MTU 23을 요청합니다. 이때 값 용량 20바이트는 가장 큰
+split 값 8바이트보다 충분히 큽니다. 광고, TX 출력, 7.5 ms 연결 주기,
+latency 30, 4초 supervision timeout은 바꾸지 않았습니다.
+
+약 30cm에서 사용자가 승인한 오른쪽 전원 재인가 2회가 반쪽을 가까이 옮기거나
+복구하지 않고 모두 성공했습니다. 측정된 split-ready 시간은 RSSI -85/-79 dBm에서
+55,431/17,736 ms였고 MTU 실패는 반복되지 않았습니다. 오른쪽 입력은 Wired USB와
+기존 Windows 11 Bluetooth 출력에서 통과했습니다. 왼쪽 1200-baud 복구 뒤 첫
+시도도 ATT MTU 23으로 4,358 ms에 split-ready가 됐습니다. 따라서 P3.1은 관측된
+MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 있어 P3 전체는 진행
+중입니다. 여기서 광고(advertising)는 상업 광고가 아니라, 끊어진 오른쪽이
+왼쪽에 "연결 가능"을 알리려고 주기적으로 보내는 작은 BLE 패킷입니다. 다음
+실험은 이 패킷의 단계별 주기와 미연결 키 입력 시 즉시 빠른 주기로 복귀하는
+동작이며, 그 결과를 측정하기 전에는 TX 출력과 latency를 바꾸지 않습니다.
 
 ## NocFree Link 키 변경
 
@@ -135,7 +153,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| 회귀 / 진단 완료 | 양쪽 split | 암호화 BLE 전달과 P2 단계별 진단은 동작하지만 책상 거리 재연결이 간헐적으로 민감하고 빠른 좌우 교차 입력 순서가 바뀔 수 있음 |
+| P3.1 완료 / tuning 계속 | 양쪽 split | 불필요한 MTU 교환을 제거해 책상 거리 재연결 2회는 성공했지만 발견/재연결이 최대 55초로 느렸음. 빠른 좌우 교차 입력 순서 문제도 남음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 왼쪽 기준 version 포함 절대 상태가 enabled·밝기·timeout·generation을 모든 변경과 재연결 때 오른쪽에 동기화하며 30초 소등과 첫 키 wake도 유지 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
@@ -230,6 +248,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | interrupt 기반 idle 스캔 | 3초 idle 뒤 양쪽 모두 첫 키를 즉시 감지하고, 길게 누르기 반복과 release가 정상이며 좌우 혼합 입력 순서를 보존함. interrupt 유실 대비 250 ms 안전 스캔 유지 |
 | 백라이트 동기화/자동 소등 | 왼쪽을 수동 OFF로 둔 채 오른쪽을 재부팅해 상태를 어긋내도 자동 수렴, 토글 10회 동기 유지, 30초 양쪽 자동 소등과 오른쪽 첫 키의 양쪽 wake 확인 |
 | Split 재연결 진단 | 약 30cm에서 `-75/-74 dBm`, 첫 MTU 교환 실패와 다음 연결·보안·GATT 성공, HCI 해제 사유 `0x08`, 미연결 오른쪽 키를 기록. 양쪽 1200-baud 복구 뒤 입력 복귀도 확인 |
+| P3.1 split 재연결 | ATT MTU 23으로 관측된 MTU 교환 단계 실패를 제거. 약 30cm 오른쪽 전원 재인가 2회가 거리 이동 없이 입력까지 복귀했지만 55,431/17,736 ms가 걸림. Wired USB와 Windows 11 Bluetooth 출력 통과. Wired 위치에서 왼쪽 1200-baud 복구로 같은 P3.1 복귀 뒤 4,358 ms에 split-ready 확인 |
 | System OFF와 split 복귀 | 10초 진단 이미지에서 USB 연결 중 System OFF 차단, 배터리 상태 왼쪽 central System OFF, sleep 전 양쪽 백라이트 소등, 왼쪽 USB 또는 왼쪽 키 홀드 wake, BLE 복귀와 오른쪽 split 입력을 확인. 배포 이미지는 같은 경로에서 timeout만 5분으로 변경. 짧은 wake 키 탭은 reset 부팅 중 소모될 수 있으므로 해당 문자도 입력하려면 재연결까지 왼쪽 키를 유지해야 함 |
 | 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
 | 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |
@@ -240,6 +259,12 @@ iOS, Linux 및 세 번째 호스트는 확인하지 않았습니다. `NocFree 1`
 아닙니다. 따라서 같은 Windows 11 PC에서는 기존 장치 이름이 선택 슬롯에 따라
 바뀌어 보일 수 있고, 빈 슬롯의 새 페어링은 Android 같은 다른 호스트에서
 확인해야 합니다.
+
+다른 호스트에 bond된 슬롯을 선택하면 Windows는 같은 장치 항목의 이름을 바꾸고
+그 슬롯이 활성인 동안 `페어링됨`과 `연결됨`을 반복해 보일 수 있습니다. 이는
+하나의 BLE identity에 bond 슬롯 3개를 둔 현재 제한이며, 서로 따로 검색되는
+키보드 3개가 아닙니다. 현재 호스트에 bond된 슬롯으로 돌아가야 하며 프로필을
+바꿀 때 Windows 장치를 삭제하고 다시 페어링하는 것이 정상 절차는 아닙니다.
 
 최신 이미지 검증에서는 슬롯 1의 기존 bond와 Windows 장치를 각각 한 번
 삭제하고 새로 페어링했습니다. 이후 같은 bond로 Bluetooth→Wired→Bluetooth를

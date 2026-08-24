@@ -48,7 +48,7 @@ use nocfree_and_rust::split_diagnostics::{
 };
 use nocfree_and_rust::split_protocol::{
     COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
-    CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
+    CONNECTION_TIMEOUT_UNITS, SPLIT_ATT_MTU, advertisement_has_split_service,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on, pairing_led_on};
 use nocfree_and_rust::usb_descriptor::{
@@ -117,7 +117,7 @@ fn record_connection_parameters(connection: &nrf_softdevice::ble::Connection) {
     SPLIT_DIAGNOSTICS.record(
         SplitDiagnosticEvent::ConnectionParameters,
         0,
-        0,
+        connection.att_mtu(),
         pack_connection_parameters(
             params.min_conn_interval,
             params.max_conn_interval,
@@ -671,7 +671,10 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
         };
 
         let addresses = [&address];
-        let mut connect_config = central::ConnectConfig::default();
+        let mut connect_config = central::ConnectConfig {
+            att_mtu: Some(SPLIT_ATT_MTU),
+            ..Default::default()
+        };
         connect_config.scan_config.whitelist = Some(&addresses);
         connect_config.conn_params.min_conn_interval = CONNECTION_INTERVAL_UNITS;
         connect_config.conn_params.max_conn_interval = CONNECTION_INTERVAL_UNITS;

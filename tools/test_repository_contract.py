@@ -122,6 +122,7 @@ class RepositoryContractTests(unittest.TestCase):
             "connect_config.conn_params.max_conn_interval = CONNECTION_INTERVAL_UNITS",
             central,
         )
+        self.assertIn("att_mtu: Some(SPLIT_ATT_MTU)", central)
 
     def test_firmware_uses_published_gpio_pins(self) -> None:
         central = read("src/bin/central.rs")

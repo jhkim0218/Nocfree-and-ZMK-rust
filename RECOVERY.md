@@ -15,8 +15,8 @@ NocFree &에는 외부 리셋 버튼이 없습니다. 현재 Rust 키맵에는 �
 - `0x6d000..0x73fff`: 공장 파일시스템 — 보존
 - `0x74000..0x7ffff`: Adafruit UF2 부트로더/메타데이터 — 보존
 
-최신 Rust UF2 실제 범위는 왼쪽 `0x27000..0x35aff`, 오른쪽
-`0x27000..0x300ff`입니다. 빌드 테스트가 보호 영역 침범 여부를 검사합니다.
+최신 Rust UF2 실제 범위는 왼쪽 `0x27000..0x395ff`, 오른쪽
+`0x27000..0x326ff`입니다. 빌드 테스트가 보호 영역 침범 여부를 검사합니다.
 
 ## 역할 식별자
 
@@ -29,8 +29,10 @@ COM 번호는 바뀌므로 고정값으로 사용하지 마십시오. 포트의
 | Rust 오른쪽 | `USB\VID_1D50&PID_615E\RUST-RIGHT` |
 | 순정 왼쪽 | `USB\VID_2886&PID_8029\52CF50988BD1E6EE` |
 | 순정 오른쪽 | `USB\VID_239A&PID_80D8\D82A03513BB02626` |
-| bootloader CDC 왼쪽 | `USB\VID_239A&PID_002A\52CF50988BD1E6EE` |
-| bootloader CDC 오른쪽 | `USB\VID_239A&PID_002A\D82A03513BB02626` |
+| Rust UF2 bootloader CDC 왼쪽 | `USB\VID_239A&PID_0029\52CF50988BD1E6EE` |
+| Rust UF2 bootloader CDC 오른쪽 | `USB\VID_239A&PID_0029\D82A03513BB02626` |
+| 순정 serial-DFU CDC 왼쪽 | `USB\VID_239A&PID_002A\52CF50988BD1E6EE` |
+| 순정 serial-DFU CDC 오른쪽 | `USB\VID_239A&PID_002A\D82A03513BB02626` |
 
 ## DFU 진입 경로
 
@@ -44,13 +46,16 @@ COM 번호는 바뀌므로 고정값으로 사용하지 마십시오. 포트의
 1200-baud touch 직후 포트가 사라져 `.NET SerialPort.Open()`이나 `Close()`가
 `없는 장치` 예외를 내는 것은 실제 reset이 먼저 완료된 경우가 있습니다. 예외만
 보고 재시도하지 말고 현재 부모 ID, UF2 볼륨, bootloader CDC를 먼저 확인합니다.
+왼쪽 1200-baud 복구를 검증할 때는 물리 스위치를 가운데 **Wired**에 둡니다.
+P3.1 실기에서는 Bluetooth 위치의 두 시도가 앱으로 돌아왔고, Wired 위치에서
+`PID_0029` CDC와 UF2 볼륨이 확인된 뒤 같은 이미지를 복구했습니다.
 
 ## 최신 Rust UF2/DFU
 
 | 역할 | UF2 SHA-256 | DFU ZIP SHA-256 |
 |---|---|---|
-| 왼쪽 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
-| 오른쪽 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
+| 왼쪽 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
+| 오른쪽 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
 
 UF2 볼륨에서는 `INFO_UF2.TXT`가 다음을 포함하는지 확인합니다.
 

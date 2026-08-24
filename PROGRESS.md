@@ -31,7 +31,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 - At roughly 30 cm, the right half sometimes does not reconnect.
 - Bringing the halves very close allows reconnection.
 - After connection, returning to the original distance continues to work.
-- The failure stage is not observable yet; advertising, scanning, security, GATT readiness, and connection parameters remain under investigation.
+- P2 identified an ATT MTU-exchange failure; P3.1 removed that unnecessary exchange. Two desk-distance cycles then succeeded, but 17.7-55.4 second split-ready times leave advertising/discovery speed under investigation.
 
 ### R3: backlight divergence — resolved in P1
 
@@ -47,7 +47,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P0 Baseline and regression capture | Complete | Full build/test/artifact validation passed and regressions are documented |
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
-| P3 BLE reconnect tuning | Pending | Repeated normal desk-distance reconnect succeeds without moving the halves closer |
+| P3 BLE reconnect tuning | In progress (P3.1 complete) | The observed MTU-stage failure is removed and a two-cycle desk-distance sample passed; staged advertising/key-triggered fast advertising remains because reconnect was still slow |
 | P4 Cross-half ordering | Pending | 10,000+ automated events and USB/BLE hardware stress pass without loss, duplication, reordering, or stuck keys |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
@@ -101,6 +101,41 @@ Last updated: 2026-08-24 (Asia/Seoul)
 |---|---|---|---|
 | Right | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` | `0x27000..0x326ff` |
 | Left | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` | `0x27000..0x394ff` |
+
+## P3.1 standard split ATT MTU — complete
+
+- P2 showed that the failing stage was `ConnectError::MtuExchange`. The largest
+  split GATT value is 8 bytes, so P3.1 requests standard ATT MTU 23 with a
+  20-byte value capacity and skips the unnecessary larger-MTU exchange.
+- This experiment did not change advertising, TX power, connection interval
+  7.5 ms, latency 30, supervision timeout 4 seconds, or protected flash.
+- Automated validation passed: 65 Rust tests, 17 Python/contract/artifact
+  tests, formatting, host/ARM Clippy, both release builds, and artifact checks.
+- The P3.1 left image was installed while the P2 right remained deployed and
+  compatible. Initial diagnostics reached split-ready on attempt 1 with ATT MTU
+  23 and no MTU error.
+- At roughly 30 cm, the user reduced the requested sample to two right power
+  cycles. Both restored right input without moving the halves closer or taking
+  a recovery action. Diagnostics measured RSSI `-85/-79 dBm` and split-ready
+  times `55,431/17,736 ms`; reliability passed this limited sample, but speed
+  did not.
+- Right input passed through Wired USB and the existing Windows 11 Bluetooth
+  output. A separate Windows profile-name/connect-loop limitation was observed
+  when selecting a slot bonded to another host; it is not a split-link failure.
+- Left 1200-baud recovery passed with the physical switch in Wired: verified
+  `RUST-LEFT` COM19 entered `VID_239A&PID_0029` COM9/G: with serial
+  `52CF50988BD1E6EE`, restored the same P3.1 UF2, and returned as `RUST-LEFT`.
+  Post-recovery diagnostics reached split-ready on attempt 1 in 4,358 ms with
+  ATT MTU 23. Two earlier touches while the switch remained in Bluetooth reset
+  back to the app without an observed UF2 volume.
+- Next P3 experiment: staged right BLE availability packets (advertising) and
+  disconnected-key return to a frequent/fast packet interval. Keep TX power
+  and peripheral latency unchanged until this discovery-delay result is measured.
+
+| Role | Repository artifact | Hardware during P3.1 | SHA-256 | Written range |
+|---|---|---|---|---|
+| Left | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | P3.1 deployed and recovery-tested | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
+| Right | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | P2 remained deployed; current artifact only improves actual-MTU logging | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` | `0x27000..0x326ff` |
 
 ## Protected facts
 

@@ -77,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 64 Rust tests and 17 Python/contract/artifact tests.
+passed 65 Rust tests and 17 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -95,15 +95,15 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,004 | `C84F695683E581981EA6406C20064791B24702825941BFC064D05E8AFA104EFB` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,016 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,880 | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
-| `firmware/NocFree_Rust_Right.bin` | 46,836 | `0E748A2F21B9F74FF5D72D052225A7F5E6423C23D9E687F72C1C2BA69B63630E` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,718 | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
+| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
+| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
 
 The UF2 files write only from the application start at `0x27000` through
-`0x394ff` on the left and `0x326ff` on the right. They preserve the SoftDevice,
+`0x395ff` on the left and `0x326ff` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
 
 ## Split reconnect diagnostics
@@ -122,6 +122,27 @@ connection parameters. The right log includes advertising mode/interval,
 connection/security, disconnect reason, and keys pressed while disconnected.
 Opening the diagnostic port uses 115200 baud; the existing 1200-baud DFU path
 remains reserved for recovery.
+
+### P3.1 reconnect result
+
+The P2 failure occurred in an unnecessary ATT MTU exchange. P3.1 requests the
+standard ATT MTU 23 for the split connection; its 20-byte value capacity is
+already larger than the largest split value, which is 8 bytes. Advertising,
+TX power, the 7.5 ms connection interval, latency 30, and the 4-second
+supervision timeout were not changed.
+
+At roughly 30 cm, two user-approved right power cycles both reconnected without
+moving the halves closer or requiring recovery. Their measured split-ready
+times were 55,431 and 17,736 ms at -85/-79 dBm, and neither repeated the MTU
+failure. Right-side input passed through Wired USB and the existing Windows 11
+Bluetooth output. After left 1200-baud recovery, the first attempt reached
+split-ready in 4,358 ms with ATT MTU 23. P3.1 therefore resolves the observed
+MTU stage failure, but P3 remains in progress because discovery/reconnect can
+still be slow. Here, advertising means the small BLE "I am available" packets
+the disconnected right half broadcasts for the left to scan. The next
+experiment is staged right advertising with a key press returning immediately
+to frequent/fast advertising; TX power and latency stay unchanged
+until that result is measured.
 
 ## Changing keys with NocFree Link
 
@@ -146,7 +167,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| Regression / instrumented | Split connection | Encrypted BLE transport works and P2 diagnostics identify scan/connect/security/GATT failures, but normal desk-distance reconnect is intermittently sensitive and rapid cross-half events can be reordered |
+| P3.1 complete / tuning continues | Split connection | The unnecessary MTU exchange was removed and two desk-distance reconnects succeeded, but measured discovery/reconnect remained as slow as 55 seconds. Rapid cross-half events can also still be reordered |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
@@ -245,6 +266,7 @@ is expected hardware behavior.
 | Interrupt-driven idle scan | After three seconds idle, both halves immediately detected the first key, repeated held keys, stopped on release, and preserved mixed left/right input order. A 250 ms safety scan remains as a missed-interrupt fallback |
 | Backlight synchronization and auto-off | Absolute state converged after a deliberate right reboot while left remained manually off; 10 toggles stayed aligned, 30-second auto-off affected both halves, and a right key woke both |
 | Split reconnect diagnostics | At roughly 30 cm, logs captured `-75/-74 dBm`, one MTU-exchange failure, the next successful connection/security/GATT path, HCI disconnect reason `0x08`, and a right key pressed while disconnected. Both halves also passed 1200-baud recovery and returned to working input |
+| P3.1 split reconnect | ATT MTU 23 removed the observed MTU-exchange stage failure. Two user-approved right power cycles at roughly 30 cm both recovered input without moving the halves, but took 55,431/17,736 ms; Wired USB and Windows 11 Bluetooth output passed. Left 1200-baud recovery in Wired mode restored the same P3.1 image and reached split-ready in 4,358 ms |
 | System OFF and split recovery | A 10-second diagnostic image blocked System OFF while USB was present, entered left-central System OFF on battery, shut off both backlights before sleeping, woke from left USB or a held left key, restored BLE, and accepted right-side input after split reconnect. Release images change only the System OFF timeout to five minutes. A short wake-key tap can be consumed by reset boot; hold the left key until reconnect if its character is required |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
@@ -255,6 +277,13 @@ are advertising names for the selected pairing slot, not separate Bluetooth
 identities. On the same Windows 11 PC, the existing device name can therefore
 appear to change with the selected slot. New pairing in an empty slot was
 verified with another host, Android.
+
+Selecting a slot bonded to another host can make Windows rename the same device
+entry and repeatedly alternate between Paired and Connected while that other
+host's slot is active. This is a limitation of using one BLE identity for three
+bond slots, not three separately discoverable keyboards. Return to the slot
+bonded to the current host; deleting and re-pairing is not the intended profile
+switch procedure.
 
 For the latest image verification, the existing slot 1 bond and Windows device
 were each deleted once before fresh pairing. The same bond was then switched

@@ -5,6 +5,7 @@ pub const COMMAND_BATTERY_REQUEST: u8 = 5;
 pub const CONNECTION_INTERVAL_UNITS: u16 = 6;
 pub const CONNECTION_LATENCY: u16 = 30;
 pub const CONNECTION_TIMEOUT_UNITS: u16 = 400;
+pub const SPLIT_ATT_MTU: u16 = 23;
 pub const FAST_ADVERTISING_INTERVAL_UNITS: u32 = 400;
 pub const IDLE_ADVERTISING_INTERVAL_UNITS: u32 = 1_600;
 
@@ -56,5 +57,17 @@ mod tests {
         assert_eq!(CONNECTION_TIMEOUT_UNITS, 400);
         assert_eq!(FAST_ADVERTISING_INTERVAL_UNITS, 400);
         assert_eq!(IDLE_ADVERTISING_INTERVAL_UNITS, 1_600);
+    }
+
+    #[test]
+    fn default_att_mtu_fits_every_split_value() {
+        const ATT_HEADER_BYTES: usize = 3;
+        const BACKLIGHT_BYTES: usize = 4;
+        let value_capacity = SPLIT_ATT_MTU as usize - ATT_HEADER_BYTES;
+
+        assert_eq!(SPLIT_ATT_MTU, 23);
+        assert!(STATE_BYTES <= value_capacity);
+        assert!(BACKLIGHT_BYTES <= value_capacity);
+        assert!(core::mem::size_of::<u8>() <= value_capacity);
     }
 }

@@ -72,7 +72,7 @@ fn record_connection_parameters(connection: &nrf_softdevice::ble::Connection) {
     SPLIT_DIAGNOSTICS.record(
         SplitDiagnosticEvent::ConnectionParameters,
         0,
-        0,
+        connection.att_mtu(),
         pack_connection_parameters(
             params.min_conn_interval,
             params.max_conn_interval,

@@ -111,7 +111,7 @@ function Format-DiagnosticRecord {
         4 { 'attempt={0}, requested {1}' -f $value, (Convert-ConnectionParameters $data) }
         5 { 'elapsed={0} ms, {1}' -f $value, (Convert-Address $data) }
         6 { '{0}, elapsed={1} ms' -f $connectErrors[$arg], $value }
-        7 { Convert-ConnectionParameters $data }
+        7 { 'ATT MTU={0}, {1}' -f $value, (Convert-ConnectionParameters $data) }
         8 { 'attempt={0}' -f $value }
         9 { 'elapsed={0} ms' -f $value }
         10 { '{0}, elapsed={1} ms' -f $securityErrors[$arg], $value }

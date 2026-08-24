@@ -133,19 +133,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x394ff`, 오른쪽
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x395ff`, 오른쪽
 `0x27000..0x326ff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 75,004 | `C84F695683E581981EA6406C20064791B24702825941BFC064D05E8AFA104EFB` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,016 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,880 | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
-| `firmware/NocFree_Rust_Right.bin` | 46,836 | `0E748A2F21B9F74FF5D72D052225A7F5E6423C23D9E687F72C1C2BA69B63630E` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 93,696 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,718 | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
+| `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
+| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -171,7 +171,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 64/64
+- Rust host tests: 65/65
 - Python contract/artifact tests: 17/17
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
@@ -193,6 +193,24 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
   왼쪽 `qwer`/오른쪽 `jkl` 입력을 재검증
 - 이 단계는 관측성만 추가했습니다. radio parameter와 reconnect policy tuning은
   P3에서 한 변수씩 변경해야 합니다.
+
+### P3.1 표준 ATT MTU
+
+- P2의 `ConnectError::MtuExchange`를 근거로 split central만 ATT MTU 23을
+  요청하도록 변경. 최대 split 값 8바이트는 MTU 23의 값 용량 20바이트에 들어감
+- 광고, TX 출력, 7.5 ms 연결 주기, latency 30, supervision timeout 4초는 유지
+- 약 30cm 오른쪽 전원 재인가 2회가 거리 이동과 복구 없이 입력까지 성공;
+  RSSI `-85/-79 dBm`, split-ready `55,431/17,736 ms`로 속도 문제는 남음
+- Wired USB와 기존 Windows 11 Bluetooth 출력에서 오른쪽 입력 통과
+- 왼쪽 물리 스위치를 Wired로 둔 1200-baud 복구에서 `RUST-LEFT` COM19 →
+  `VID_239A&PID_0029` COM9/G:, serial `52CF50988BD1E6EE`를 확인하고 같은
+  P3.1 UF2 복귀. 이후 ATT MTU 23, 첫 시도 4,358 ms split-ready 확인
+- P3 다음 단계는 오른쪽의 BLE 연결 가능 알림 패킷(advertising) 주기를 단계화하고
+  미연결 키 입력 때 빠른 주기로 복귀시키는 것. 이 결과를 측정하기 전에는 TX
+  출력과 latency를 동시에 바꾸지 말 것
+- `NocFree 1/2/3`은 하나의 BLE identity를 공유함. 다른 PC에 bond된 슬롯을
+  현재 Windows에서 선택하면 같은 항목 이름이 바뀌고 페어링됨/연결됨이 반복될
+  수 있으므로, 현재 PC의 슬롯으로 돌아가야 함
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나
