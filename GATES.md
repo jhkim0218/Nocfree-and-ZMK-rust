@@ -35,5 +35,5 @@ Scope: remove the unnecessary split ATT MTU exchange identified by P2, then prov
 - [x] G8: English and Korean documents, artifacts, hashes, ranges, measured P3.1 evidence, and the remaining P3 experiments are accurate
   EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record 65 Rust/17 Python tests, measured P3.1 timings/RSSI, the two-cycle sample limit, the single-identity Windows profile limitation, Wired-position left recovery, current UF2 ranges 0x27000..0x395ff/0x27000..0x326ff, and current hashes. A direct metadata check found every current artifact hash in the required documents; the next experiment is staged advertising/key-triggered fast advertising with TX power and latency unchanged.
 
-- [ ] G9: the verified P3.1 implementation, artifacts, documentation, and gate ledger are committed
-  EVIDENCE: pending
+- [x] G9: the verified P3.1 implementation, artifacts, documentation, and gate ledger are committed
+  EVIDENCE: implementation, generated artifacts, documentation, and measured gate evidence were committed as 7228d0fd732d6657098eaeaff4fc8cc11a0e8fa6; this gate closure is recorded in the immediately following documentation commit.
