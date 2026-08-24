@@ -24,7 +24,8 @@ hotkey는 구현·실기 검증됐습니다.
 2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽 재연결 실패
 후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는 현상이
 재현됐습니다. 백라이트는 왼쪽 기준 절대 상태로 바꾼 뒤 실기 재검증을 통과했고,
-입력 순서와 split 재연결은 여전히 미해결 회귀입니다. 진행 상태는
+입력 순서와 split 재연결 tuning은 여전히 미해결 회귀입니다. P2에서 단계별
+진단은 완료됐고 첫 실제 실패가 MTU 교환 단계로 식별됐습니다. 진행 상태는
 `PROGRESS.md`를 따릅니다.
 
 ## 2. 저장소
@@ -132,19 +133,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x37fff`, 오른쪽
-`0x27000..0x30cff`입니다.
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x394ff`, 오른쪽
+`0x27000..0x326ff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 69,524 | `1CEA938980999AB9E556EDBB1DB4CFA908F890F89E905A3545A93DE843614DA7` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 139,264 | `4BBEB3B1DCC9C8D615E0CB2F6555F9882FBDBE1BE76A3CF61BDDB8B419468A1A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 70,400 | `B25A03423B860D63D763D0F8F9729019B9737CD52E7FFEEBF4F3D5BDCA4B17CB` |
-| `firmware/NocFree_Rust_Right.bin` | 40,108 | `3FD6D8FF8ACD5100692E483E92250C69486B823BE223133D6EB192DC38C61437` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 80,384 | `B916485001857FD5C18157C4747054F1C2F4831BEC30D3EFA560E5794B340F34` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 40,990 | `5439049FF5929EE841A64E4243489FF0A69700B27B66D89E38EC83FB2212E513` |
+| `firmware/NocFree_Rust_Left.bin` | 75,004 | `C84F695683E581981EA6406C20064791B24702825941BFC064D05E8AFA104EFB` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,016 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,880 | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
+| `firmware/NocFree_Rust_Right.bin` | 46,836 | `0E748A2F21B9F74FF5D72D052225A7F5E6423C23D9E687F72C1C2BA69B63630E` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 93,696 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,718 | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -170,13 +171,28 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 52/52
+- Rust host tests: 64/64
 - Python contract/artifact tests: 17/17
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
 - central/right release: 통과
 - BIN/UF2 주소·family·vector·round-trip: 통과
 - DFU ZIP manifest와 내부 BIN: 통과
+
+### P2 split 재연결 진단
+
+- `tools/read-split-diagnostics.ps1 -Role Left|Right`는 각 반쪽 USB CDC를
+  115200 baud로 열어 최근 32개 RAM 이벤트를 읽음
+- 왼쪽: scan, 광고 identity/RSSI, connect, 실제 파라미터, security, GATT,
+  split-ready, disconnect reason, attempt 기록
+- 오른쪽: advertising mode/interval, connect/security, disconnect reason,
+  미연결 상태 key press 기록
+- 약 30cm 실기에서 RSSI `-75/-74 dBm`, 첫 reconnect의 MTU exchange 실패,
+  다음 attempt의 성공을 구분했고 HCI disconnect `0x08`도 확인
+- 진단 출력 추가 뒤 양쪽 독립 1200-baud CDC DFU와 같은 P2 이미지 복귀,
+  왼쪽 `qwer`/오른쪽 `jkl` 입력을 재검증
+- 이 단계는 관측성만 추가했습니다. radio parameter와 reconnect policy tuning은
+  P3에서 한 변수씩 변경해야 합니다.
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나

@@ -6,6 +6,7 @@ use embassy_nrf::gpio::{Flex, Input, OutputDrive, Pin, Pull};
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Channel, TrySendError};
+use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_hal_async::i2c::I2c;
 
@@ -48,6 +49,7 @@ pub async fn recover_i2c_bus(sda: Peri<'_, impl Pin>, scl: Peri<'_, impl Pin>) {
 pub struct KeyState<const N: usize> {
     latest: Mutex<CriticalSectionRawMutex, Cell<u64>>,
     changed: Channel<CriticalSectionRawMutex, u64, N>,
+    published: Signal<CriticalSectionRawMutex, u64>,
 }
 
 impl<const N: usize> Default for KeyState<N> {
@@ -61,11 +63,13 @@ impl<const N: usize> KeyState<N> {
         Self {
             latest: Mutex::new(Cell::new(0)),
             changed: Channel::new(),
+            published: Signal::new(),
         }
     }
 
     pub fn publish(&self, value: u64) {
         self.latest.lock(|latest| latest.set(value));
+        self.published.signal(value);
         let mut pending = value;
         loop {
             match self.changed.try_send(pending) {
@@ -84,6 +88,10 @@ impl<const N: usize> KeyState<N> {
 
     pub async fn wait_changed(&self) -> u64 {
         self.changed.receive().await
+    }
+
+    pub async fn wait_published(&self) -> u64 {
+        self.published.wait().await
     }
 
     pub fn republish(&self) {

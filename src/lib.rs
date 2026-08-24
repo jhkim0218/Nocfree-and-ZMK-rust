@@ -26,6 +26,7 @@ pub mod report;
 pub mod scanner;
 #[cfg(target_arch = "arm")]
 pub mod split_ble;
+pub mod split_diagnostics;
 pub mod split_protocol;
 pub mod status_led;
 pub mod usb_descriptor;

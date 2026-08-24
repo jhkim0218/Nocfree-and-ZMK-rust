@@ -1,13 +1,19 @@
+use core::fmt::{self, Write};
 use core::mem;
 use core::panic::PanicInfo;
 
+use embassy_futures::join::join;
 use embassy_nrf::pac;
 use embassy_nrf::pac::gpio::vals::Sense;
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_time::{Duration, Timer};
-use embassy_usb::class::cdc_acm::CdcAcmClass;
+use embassy_usb::class::cdc_acm::{
+    CdcAcmClass, ControlChanged, Receiver as CdcReceiver, Sender as CdcSender,
+};
 use embassy_usb::driver::Driver as UsbDriver;
 use nrf_softdevice::{SocEvent, raw};
+
+use crate::split_diagnostics::{SplitDiagnosticLog, SplitDiagnosticRole, SplitDiagnostics};
 
 #[panic_handler]
 fn panic_to_bootloader(_info: &PanicInfo) -> ! {
@@ -118,15 +124,116 @@ pub fn reboot_application() -> ! {
     cortex_m::peripheral::SCB::sys_reset()
 }
 
-pub async fn cdc_recovery<'d, D: UsbDriver<'d>>(mut cdc: CdcAcmClass<'d, D>) -> ! {
-    cdc.wait_connection().await;
+struct CdcPacket {
+    bytes: [u8; 64],
+    len: usize,
+}
+
+impl CdcPacket {
+    fn new() -> Self {
+        Self {
+            bytes: [0; 64],
+            len: 0,
+        }
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl Write for CdcPacket {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let end = self.len.checked_add(text.len()).ok_or(fmt::Error)?;
+        if end > self.bytes.len() {
+            return Err(fmt::Error);
+        }
+        self.bytes[self.len..end].copy_from_slice(text.as_bytes());
+        self.len = end;
+        Ok(())
+    }
+}
+
+async fn cdc_recovery_monitor<'d, D: UsbDriver<'d>>(receiver: CdcReceiver<'d, D>) -> ! {
     loop {
-        if cdc.line_coding().data_rate() == 1200 {
+        if receiver.line_coding().data_rate() == 1200 {
             Timer::after(Duration::from_millis(100)).await;
-            if cdc.line_coding().data_rate() == 1200 {
+            if receiver.line_coding().data_rate() == 1200 {
                 reboot_to_bootloader();
             }
         }
         Timer::after(Duration::from_millis(20)).await;
+    }
+}
+
+async fn write_diagnostics<'d, D: UsbDriver<'d>, const N: usize>(
+    sender: &mut CdcSender<'d, D>,
+    role: SplitDiagnosticRole,
+    log: &SplitDiagnosticLog<N>,
+) -> bool {
+    let mut packet = CdcPacket::new();
+    if writeln!(
+        packet,
+        "NFDIAG1,{},{},{}",
+        role as u8 as char,
+        log.len(),
+        log.dropped()
+    )
+    .is_err()
+        || sender.write_packet(packet.as_bytes()).await.is_err()
+    {
+        return false;
+    }
+
+    for record in log.iter() {
+        let mut packet = CdcPacket::new();
+        if writeln!(
+            packet,
+            "{},{},{},{},{:016X}",
+            record.timestamp_ms, record.event as u8, record.arg, record.value, record.data
+        )
+        .is_err()
+            || sender.write_packet(packet.as_bytes()).await.is_err()
+        {
+            return false;
+        }
+    }
+    true
+}
+
+async fn cdc_diagnostic_output<'d, D: UsbDriver<'d>, const N: usize>(
+    mut sender: CdcSender<'d, D>,
+    control: ControlChanged<'d>,
+    diagnostics: &'static SplitDiagnostics<N>,
+    role: SplitDiagnosticRole,
+) -> ! {
+    let mut sent_for_open = false;
+    loop {
+        control.control_changed().await;
+        if !sender.dtr() {
+            sent_for_open = false;
+            continue;
+        }
+        if sender.line_coding().data_rate() == 115_200 && !sent_for_open {
+            let snapshot = diagnostics.snapshot();
+            sent_for_open = write_diagnostics(&mut sender, role, &snapshot).await;
+        }
+    }
+}
+
+pub async fn cdc_recovery<'d, D: UsbDriver<'d>, const N: usize>(
+    mut cdc: CdcAcmClass<'d, D>,
+    diagnostics: &'static SplitDiagnostics<N>,
+    role: SplitDiagnosticRole,
+) -> ! {
+    cdc.wait_connection().await;
+    let (sender, receiver, control) = cdc.split_with_control();
+    join(
+        cdc_recovery_monitor(receiver),
+        cdc_diagnostic_output(sender, control, diagnostics, role),
+    )
+    .await;
+    loop {
+        cortex_m::asm::wfe();
     }
 }

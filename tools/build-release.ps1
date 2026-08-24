@@ -109,6 +109,8 @@ try {
             $_.Name -like 'NocFree_And_Rust_ZMK_Based_ANSI_*'
         } |
         Select-Object Name, Length, FullName
+
+    Write-Output 'NocFree release verification passed'
 }
 finally {
     Pop-Location

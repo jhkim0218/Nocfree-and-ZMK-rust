@@ -28,8 +28,9 @@ calibration procedure, see [ROADMAP.md](ROADMAP.md).
 >
 > Real-hardware testing on 2026-08-24 reopened rapid cross-half ordering,
 > desk-distance split reconnect, and backlight convergence. Absolute backlight
-> state synchronization has since passed hardware testing; ordering and
-> reconnect remain open. See [PROGRESS.md](PROGRESS.md).
+> state synchronization and reconnect observability have since passed hardware
+> testing; ordering and reconnect tuning remain open. See
+> [PROGRESS.md](PROGRESS.md).
 
 ## Roles
 
@@ -76,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 62 Rust tests and 17 Python/contract/artifact tests.
+passed 64 Rust tests and 17 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -94,16 +95,33 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 69,524 | `1CEA938980999AB9E556EDBB1DB4CFA908F890F89E905A3545A93DE843614DA7` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 139,264 | `4BBEB3B1DCC9C8D615E0CB2F6555F9882FBDBE1BE76A3CF61BDDB8B419468A1A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 70,400 | `B25A03423B860D63D763D0F8F9729019B9737CD52E7FFEEBF4F3D5BDCA4B17CB` |
-| `firmware/NocFree_Rust_Right.bin` | 40,108 | `3FD6D8FF8ACD5100692E483E92250C69486B823BE223133D6EB192DC38C61437` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 80,384 | `B916485001857FD5C18157C4747054F1C2F4831BEC30D3EFA560E5794B340F34` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 40,990 | `5439049FF5929EE841A64E4243489FF0A69700B27B66D89E38EC83FB2212E513` |
+| `firmware/NocFree_Rust_Left.bin` | 75,004 | `C84F695683E581981EA6406C20064791B24702825941BFC064D05E8AFA104EFB` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,016 | `5113421A1BAF1E9C5EE461F41506F5CAED4F3A561CD39E2F7D62C4FF9C8FF875` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,880 | `366CF388A9F419E65AAAE7BAB14E9150A91605E25B27AEB89E1AD963EA74112B` |
+| `firmware/NocFree_Rust_Right.bin` | 46,836 | `0E748A2F21B9F74FF5D72D052225A7F5E6423C23D9E687F72C1C2BA69B63630E` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `AA21211CE20625ED80EE3307DC2EF147D1EEAF373BE94AECEA24A75BCEEAEDA5` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,718 | `B9EC950D2BBD6465582BB20499E86D90E2CDBC319AD4CF5AC904FFBFEF8BCE84` |
 
 The UF2 files write only from the application start at `0x27000` through
-`0x37fff` on the left and `0x30cff` on the right. They preserve the SoftDevice,
+`0x394ff` on the left and `0x326ff` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
+
+## Split reconnect diagnostics
+
+Each half keeps its 32 most recent split events in RAM. Connect the matching
+USB cable and read them from Windows PowerShell without changing keyboard state:
+
+```powershell
+& '.\tools\read-split-diagnostics.ps1' -Role Left
+& '.\tools\read-split-diagnostics.ps1' -Role Right
+```
+
+The left log distinguishes scan, advertisement identity/RSSI, connection,
+security, GATT discovery, split-ready, disconnect reason, attempts, and active
+connection parameters. The right log includes advertising mode/interval,
+connection/security, disconnect reason, and keys pressed while disconnected.
+Opening the diagnostic port uses 115200 baud; the existing 1200-baud DFU path
+remains reserved for recovery.
 
 ## Changing keys with NocFree Link
 
@@ -128,7 +146,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| Regression | Split connection | Encrypted BLE transport works, but normal desk-distance reconnect is intermittently sensitive and rapid cross-half events can be reordered |
+| Regression / instrumented | Split connection | Encrypted BLE transport works and P2 diagnostics identify scan/connect/security/GATT failures, but normal desk-distance reconnect is intermittently sensitive and rapid cross-half events can be reordered |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
@@ -226,6 +244,7 @@ is expected hardware behavior.
 | Status LEDs | Left blue LED continued flashing after releasing a held `Fn+3`, then stopped when a short `Fn+1` restored the bonded Windows slot. Red low-battery flashing was not physically observable because both halves were above 10% |
 | Interrupt-driven idle scan | After three seconds idle, both halves immediately detected the first key, repeated held keys, stopped on release, and preserved mixed left/right input order. A 250 ms safety scan remains as a missed-interrupt fallback |
 | Backlight synchronization and auto-off | Absolute state converged after a deliberate right reboot while left remained manually off; 10 toggles stayed aligned, 30-second auto-off affected both halves, and a right key woke both |
+| Split reconnect diagnostics | At roughly 30 cm, logs captured `-75/-74 dBm`, one MTU-exchange failure, the next successful connection/security/GATT path, HCI disconnect reason `0x08`, and a right key pressed while disconnected. Both halves also passed 1200-baud recovery and returned to working input |
 | System OFF and split recovery | A 10-second diagnostic image blocked System OFF while USB was present, entered left-central System OFF on battery, shut off both backlights before sleeping, woke from left USB or a held left key, restored BLE, and accepted right-side input after split reconnect. Release images change only the System OFF timeout to five minutes. A short wake-key tap can be consumed by reset boot; hold the left key until reconnect if its character is required |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |

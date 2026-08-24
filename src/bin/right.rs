@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use embassy_futures::join::{join, join4};
 use embassy_futures::select::{Either, Either3, select, select3};
@@ -16,7 +16,7 @@ use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_nrf::usb::{self, Driver};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::{Builder, Config};
 use nocfree_and_rust::backlight::BacklightSnapshot;
@@ -30,6 +30,10 @@ use nocfree_and_rust::platform::{
 };
 use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
+use nocfree_and_rust::split_diagnostics::{
+    DIAGNOSTIC_CAPACITY, SplitDiagnosticEvent, SplitDiagnosticRole, SplitDiagnostics,
+    duration_millis, pack_address, pack_connection_parameters,
+};
 use nocfree_and_rust::split_protocol::{
     COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, FAST_ADVERTISING_INTERVAL_UNITS,
     IDLE_ADVERTISING_INTERVAL_UNITS, SERVICE_UUID_LE,
@@ -39,7 +43,7 @@ use nrf_softdevice::Softdevice;
 use nrf_softdevice::ble::advertisement_builder::{
     Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload, ServiceList,
 };
-use nrf_softdevice::ble::{gatt_server, peripheral};
+use nrf_softdevice::ble::{SecurityMode, gatt_server, peripheral};
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
@@ -55,6 +59,86 @@ static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightSnapshot> = S
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BATTERY_LEVEL: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
+static SPLIT_CONNECTED: AtomicBool = AtomicBool::new(false);
+static SECURITY_RECORDED: AtomicBool = AtomicBool::new(false);
+static SPLIT_DIAGNOSTICS: SplitDiagnostics<DIAGNOSTIC_CAPACITY> = SplitDiagnostics::new();
+
+fn elapsed_millis(start: Instant) -> u16 {
+    duration_millis(start.as_millis(), Instant::now().as_millis())
+}
+
+fn record_connection_parameters(connection: &nrf_softdevice::ble::Connection) {
+    let params = connection.conn_params();
+    SPLIT_DIAGNOSTICS.record(
+        SplitDiagnosticEvent::ConnectionParameters,
+        0,
+        0,
+        pack_connection_parameters(
+            params.min_conn_interval,
+            params.max_conn_interval,
+            params.slave_latency,
+            params.conn_sup_timeout,
+        ),
+    );
+}
+
+fn record_security_ok(start: Instant) {
+    if !SECURITY_RECORDED.swap(true, Ordering::AcqRel) {
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::SecurityOk,
+            0,
+            elapsed_millis(start),
+            0,
+        );
+    }
+}
+
+fn secure(connection: &nrf_softdevice::ble::Connection) -> bool {
+    matches!(
+        connection.security_mode(),
+        SecurityMode::JustWorks
+            | SecurityMode::Mitm
+            | SecurityMode::LescMitm
+            | SecurityMode::Signed
+            | SecurityMode::SignedMitm
+    )
+}
+
+async fn observe_security(connection: &nrf_softdevice::ble::Connection, started: Instant) -> ! {
+    for _ in 0..250 {
+        if secure(connection) {
+            record_security_ok(started);
+            break;
+        }
+        Timer::after(Duration::from_millis(20)).await;
+    }
+    if !SECURITY_RECORDED.load(Ordering::Acquire) {
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::SecurityError,
+            1,
+            elapsed_millis(started),
+            0,
+        );
+        SECURITY_RECORDED.store(true, Ordering::Release);
+    }
+    loop {
+        Timer::after(Duration::from_secs(3_600)).await;
+    }
+}
+
+async fn log_disconnected_keys() -> ! {
+    loop {
+        let state = KEY_STATE.wait_published().await;
+        if state != 0 && !SPLIT_CONNECTED.load(Ordering::Acquire) {
+            SPLIT_DIAGNOSTICS.record(
+                SplitDiagnosticEvent::DisconnectedKey,
+                0,
+                state.count_ones() as u16,
+                state,
+            );
+        }
+    }
+}
 
 async fn sample_battery(
     saadc: &mut Saadc<'_, 1>,
@@ -160,7 +244,10 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         .build();
 
     let mut has_connected = false;
+    let mut attempt = 0_u16;
     loop {
+        attempt = attempt.wrapping_add(1).max(1);
+        SPLIT_CONNECTED.store(false, Ordering::Release);
         let advertising_config = peripheral::Config {
             interval: if has_connected {
                 IDLE_ADVERTISING_INTERVAL_UNITS
@@ -169,6 +256,13 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             },
             ..Default::default()
         };
+        let advertising_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::Advertising,
+            if has_connected { 1 } else { 0 },
+            advertising_config.interval.min(u16::MAX as u32) as u16,
+            attempt as u64,
+        );
         let connection = match peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
@@ -181,9 +275,36 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         .await
         {
             Ok(connection) => connection,
-            Err(_) => continue,
+            Err(error) => {
+                let code = match error {
+                    peripheral::AdvertiseError::Timeout => 1,
+                    peripheral::AdvertiseError::NoFreeConn => 2,
+                    peripheral::AdvertiseError::Raw(_) => 3,
+                };
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::AdvertisingError,
+                    code,
+                    elapsed_millis(advertising_started),
+                    0,
+                );
+                continue;
+            }
         };
         has_connected = true;
+        SPLIT_CONNECTED.store(true, Ordering::Release);
+        SECURITY_RECORDED.store(false, Ordering::Release);
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::Connected,
+            0,
+            elapsed_millis(advertising_started),
+            pack_address(
+                connection.peer_address().flags,
+                connection.peer_address().bytes(),
+            ),
+        );
+        record_connection_parameters(&connection);
+        let security_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::SecurityStart, 0, attempt, 0);
         BATTERY_REQUEST.signal(());
 
         let server_run = gatt_server::run(&connection, server, |event| match event {
@@ -204,13 +325,35 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             }
             SplitServerEvent::Split(SplitServiceEvent::StateCccdWrite {
                 notifications: true,
-            }) => KEY_STATE.replace(KEY_STATE.latest()),
+            }) => {
+                record_security_ok(security_started);
+                KEY_STATE.replace(KEY_STATE.latest());
+            }
             _ => {}
         });
-        match select(server_run, notify_split_state(&connection, server)).await {
+        match select(
+            server_run,
+            join(
+                notify_split_state(&connection, server),
+                observe_security(&connection, security_started),
+            ),
+        )
+        .await
+        {
             Either::First(_) => {}
             Either::Second(never) => match never {},
         }
+        SPLIT_CONNECTED.store(false, Ordering::Release);
+        if !SECURITY_RECORDED.load(Ordering::Acquire) {
+            SPLIT_DIAGNOSTICS.record(
+                SplitDiagnosticEvent::SecurityError,
+                2,
+                elapsed_millis(security_started),
+                0,
+            );
+        }
+        let reason = connection.disconnect_reason().map(u8::from).unwrap_or(0);
+        SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::Disconnected, reason as i8, 0, 0);
     }
 }
 
@@ -281,8 +424,11 @@ async fn main(_spawner: embassy_executor::Spawner) {
         join(
             join4(
                 usb_device.run(),
-                cdc_recovery(cdc),
-                hardware_scanner::run(Half::Right, expanders, key_interrupt, &KEY_STATE),
+                cdc_recovery(cdc, &SPLIT_DIAGNOSTICS, SplitDiagnosticRole::Right),
+                join(
+                    hardware_scanner::run(Half::Right, expanders, key_interrupt, &KEY_STATE),
+                    log_disconnected_keys(),
+                ),
                 run_split_peripheral(softdevice, &split_server),
             ),
             join(

@@ -42,6 +42,10 @@ use nocfree_and_rust::power_policy::{DEEP_SLEEP_PREP_MS, DEEP_SLEEP_SECS, should
 use nocfree_and_rust::report::{Command, ReportEngine};
 use nocfree_and_rust::scanner::{Half, SnapshotMerger, decode_half_state, encode_half_state};
 use nocfree_and_rust::split_ble::{SplitClient, SplitClientEvent};
+use nocfree_and_rust::split_diagnostics::{
+    DIAGNOSTIC_CAPACITY, SplitDiagnosticEvent, SplitDiagnosticRole, SplitDiagnostics,
+    duration_millis, pack_address, pack_connection_parameters,
+};
 use nocfree_and_rust::split_protocol::{
     COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
     CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
@@ -98,6 +102,35 @@ static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
 static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
+static SPLIT_DIAGNOSTICS: SplitDiagnostics<DIAGNOSTIC_CAPACITY> = SplitDiagnostics::new();
+
+fn elapsed_millis(start: Instant) -> u16 {
+    duration_millis(start.as_millis(), Instant::now().as_millis())
+}
+
+fn address_data(address: Address) -> u64 {
+    pack_address(address.flags, address.bytes())
+}
+
+fn record_connection_parameters(connection: &nrf_softdevice::ble::Connection) {
+    let params = connection.conn_params();
+    SPLIT_DIAGNOSTICS.record(
+        SplitDiagnosticEvent::ConnectionParameters,
+        0,
+        0,
+        pack_connection_parameters(
+            params.min_conn_interval,
+            params.max_conn_interval,
+            params.slave_latency,
+            params.conn_sup_timeout,
+        ),
+    );
+}
+
+fn record_disconnect(connection: &nrf_softdevice::ble::Connection) {
+    let reason = connection.disconnect_reason().map(u8::from).unwrap_or(0);
+    SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::Disconnected, reason as i8, 0, 0);
+}
 
 struct UsbStatus;
 
@@ -597,19 +630,44 @@ async fn send_split_commands(client: &SplitClient) -> ! {
 
 async fn run_split_central(softdevice: &Softdevice) -> ! {
     BONDS.wait_ready().await;
+    let mut attempt = 0_u16;
     loop {
+        attempt = attempt.wrapping_add(1).max(1);
+        let attempt_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::ScanStart, 0, attempt, 0);
         let address = match central::scan(softdevice, &central::ScanConfig::default(), |report| {
             if report.type_.connectable() == 0 || report.data.len == 0 {
                 return None;
             }
             let data =
                 unsafe { slice::from_raw_parts(report.data.p_data, report.data.len as usize) };
-            advertisement_has_split_service(data).then(|| Address::from_raw(report.peer_addr))
+            advertisement_has_split_service(data).then(|| {
+                let address = Address::from_raw(report.peer_addr);
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::AdvertisementFound,
+                    report.rssi,
+                    attempt,
+                    address_data(address),
+                );
+                address
+            })
         })
         .await
         {
             Ok(address) => address,
-            Err(_) => continue,
+            Err(error) => {
+                let code = match error {
+                    central::ScanError::Timeout => 1,
+                    central::ScanError::Raw(_) => 2,
+                };
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::ScanError,
+                    code,
+                    elapsed_millis(attempt_started),
+                    0,
+                );
+                continue;
+            }
         };
 
         let addresses = [&address];
@@ -619,6 +677,18 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
         connect_config.conn_params.max_conn_interval = CONNECTION_INTERVAL_UNITS;
         connect_config.conn_params.slave_latency = CONNECTION_LATENCY;
         connect_config.conn_params.conn_sup_timeout = CONNECTION_TIMEOUT_UNITS;
+        let connect_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::ConnectStart,
+            0,
+            attempt,
+            pack_connection_parameters(
+                connect_config.conn_params.min_conn_interval,
+                connect_config.conn_params.max_conn_interval,
+                connect_config.conn_params.slave_latency,
+                connect_config.conn_params.conn_sup_timeout,
+            ),
+        );
         let connection = match central::connect_with_security(
             softdevice,
             &connect_config,
@@ -626,32 +696,109 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
         )
         .await
         {
-            Ok(connection) => connection,
-            Err(_) => continue,
+            Ok(connection) => {
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::Connected,
+                    0,
+                    elapsed_millis(connect_started),
+                    address_data(connection.peer_address()),
+                );
+                record_connection_parameters(&connection);
+                connection
+            }
+            Err(error) => {
+                let code = match error {
+                    central::ConnectError::Timeout => 1,
+                    central::ConnectError::NoAddresses => 2,
+                    central::ConnectError::NoFreeConn => 3,
+                    central::ConnectError::MtuExchange(_) => 4,
+                    central::ConnectError::Raw(_) => 5,
+                };
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::ConnectError,
+                    code,
+                    elapsed_millis(connect_started),
+                    0,
+                );
+                continue;
+            }
         };
         let had_split_peer = BONDS.has_split_peer();
-        if !secure_split_connection(&connection).await {
+        let security_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::SecurityStart, 0, attempt, 0);
+        if let Err(code) = secure_split_connection(&connection).await {
+            SPLIT_DIAGNOSTICS.record(
+                SplitDiagnosticEvent::SecurityError,
+                code,
+                elapsed_millis(security_started),
+                0,
+            );
             if had_split_peer {
                 BONDS.clear_split_peer();
             }
             INPUT_STATE.publish(encode_half_state(Half::Right, 0));
             continue;
         }
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::SecurityOk,
+            0,
+            elapsed_millis(security_started),
+            0,
+        );
+        let gatt_started = Instant::now();
+        SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::GattStart, 0, attempt, 0);
         let client: SplitClient = match gatt_client::discover(&connection).await {
             Ok(client) => client,
-            Err(_) => {
+            Err(error) => {
+                let code = match error {
+                    gatt_client::DiscoverError::Disconnected => 1,
+                    gatt_client::DiscoverError::ServiceNotFound => 2,
+                    gatt_client::DiscoverError::ServiceIncomplete => 3,
+                    gatt_client::DiscoverError::Gatt(_) => 4,
+                    gatt_client::DiscoverError::Raw(_) => 5,
+                };
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::GattError,
+                    code,
+                    elapsed_millis(gatt_started),
+                    0,
+                );
                 INPUT_STATE.publish(encode_half_state(Half::Right, 0));
                 continue;
             }
         };
         if client.state_cccd_write(true).await.is_err() {
+            SPLIT_DIAGNOSTICS.record(
+                SplitDiagnosticEvent::GattError,
+                6,
+                elapsed_millis(gatt_started),
+                0,
+            );
             INPUT_STATE.publish(encode_half_state(Half::Right, 0));
             continue;
         }
         if client.battery_cccd_write(true).await.is_err() {
+            SPLIT_DIAGNOSTICS.record(
+                SplitDiagnosticEvent::GattError,
+                7,
+                elapsed_millis(gatt_started),
+                0,
+            );
             INPUT_STATE.publish(encode_half_state(Half::Right, 0));
             continue;
         }
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::GattOk,
+            0,
+            elapsed_millis(gatt_started),
+            0,
+        );
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::SplitReady,
+            0,
+            elapsed_millis(attempt_started),
+            attempt as u64,
+        );
 
         let notifications = gatt_client::run(&connection, &client, |event| match event {
             SplitClientEvent::StateNotification(bytes) => {
@@ -666,21 +813,21 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             Either::First(_) => {}
             Either::Second(never) => match never {},
         }
+        record_disconnect(&connection);
         INPUT_STATE.publish(encode_half_state(Half::Right, 0));
     }
 }
 
-async fn secure_split_connection(connection: &nrf_softdevice::ble::Connection) -> bool {
-    let started = match connection.encrypt() {
-        Ok(()) => true,
-        Err(EncryptError::PeerKeysNotFound) => connection.request_pairing().is_ok(),
-        Err(_) => false,
-    };
-    if !started {
-        return false;
+async fn secure_split_connection(connection: &nrf_softdevice::ble::Connection) -> Result<(), i8> {
+    match connection.encrypt() {
+        Ok(()) => {}
+        Err(EncryptError::PeerKeysNotFound) => {
+            connection.request_pairing().map_err(|_| 2)?;
+        }
+        Err(_) => return Err(1),
     }
 
-    wait_for_security(connection).await
+    wait_for_security(connection).await.then_some(()).ok_or(3)
 }
 
 #[embassy_executor::main]
@@ -783,7 +930,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
         join(
             join5(
                 usb_device.run(),
-                cdc_recovery(cdc),
+                cdc_recovery(cdc, &SPLIT_DIAGNOSTICS, SplitDiagnosticRole::Left),
                 run_usb_reports(keyboard, consumer),
                 hardware_scanner::run(Half::Left, expanders, key_interrupt, &INPUT_STATE),
                 link.run(&BONDS),
