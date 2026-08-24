@@ -31,10 +31,11 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("rx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
         self.assertIn("tx_phys: raw::BLE_GAP_PHY_1MBPS as u8", gap)
 
-    def test_split_state_commands_and_battery_require_encryption(self) -> None:
+    def test_split_state_commands_battery_and_backlight_require_encryption(self) -> None:
         split = read("src/split_ble.rs")
         macro = read("vendor/nrf-softdevice-macro/src/lib.rs")
-        self.assertEqual(split.count('security = "justworks"'), 3)
+        self.assertEqual(split.count('security = "justworks"'), 4)
+        self.assertIn("pub backlight: [u8; 4]", split)
         self.assertIn("Metadata::new(props)", macro)
         self.assertIn(".security(#security_inner)", macro)
 

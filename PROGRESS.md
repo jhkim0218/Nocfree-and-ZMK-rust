@@ -33,18 +33,19 @@ Last updated: 2026-08-24 (Asia/Seoul)
 - After connection, returning to the original distance continues to work.
 - The failure stage is not observable yet; advertising, scanning, security, GATT readiness, and connection parameters remain under investigation.
 
-### R3: backlight divergence
+### R3: backlight divergence — resolved in P1
 
 - Observed state: left backlight ON, right backlight OFF, while right-side input still works.
 - Repeated `Fn+Tab` swaps the two states instead of converging them.
 - Relative toggle commands can preserve a permanent inversion.
+- P1 replaced relative split commands with left-owned absolute state and passed the hardware checks below.
 
 ## Phase status
 
 | Phase | Status | Exit condition |
 |---|---|---|
 | P0 Baseline and regression capture | Complete | Full build/test/artifact validation passed and regressions are documented |
-| P1 Absolute backlight state | Pending | Deliberately divergent halves converge after one synchronization or reconnect |
+| P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Pending | Scan, connect, security, GATT, and disconnect stages are distinguishable |
 | P3 BLE reconnect tuning | Pending | Repeated normal desk-distance reconnect succeeds without moving the halves closer |
 | P4 Cross-half ordering | Pending | 10,000+ automated events and USB/BLE hardware stress pass without loss, duplication, reordering, or stuck keys |
@@ -52,6 +53,27 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
 | D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
 | Layout variants | Deferred | ANSI remains stable; non-ANSI mappings come from verified sources and remain hardware-unverified until tested |
+
+## P1 absolute backlight — complete
+
+- Left owns `enabled`, `percent`, `timed_out`, and wrapping `generation`.
+- Split backlight synchronization uses a versioned four-byte absolute state and encrypted GATT write-with-response.
+- Relative split toggle/brightness/idle/wake commands were removed.
+- The current complete state is sent after every split GATT discovery, so a rebooted or reconnected right half can converge.
+- Host tests: 62 passed; Python/contract/artifact tests: 17 passed.
+- Formatting, host/ARM Clippy, and left/right release builds passed.
+- Both P1 images were flashed right first and then left. `RUST-RIGHT` and `RUST-LEFT` re-enumerated normally.
+- New right with the previous left preserved right-side input before the left upgrade.
+- Left `asdf` plus right `jkl` input passed after both upgrades.
+- With left canonical state manually off, power-cycling the right created a reboot/default mismatch that converged back to off after reconnect.
+- Right input worked after that reconnect while manual off remained off.
+- Ten `Fn+Tab` toggles stayed aligned.
+- The 30-second timeout turned off both halves; the next right key woke both.
+
+| Role | UF2 | SHA-256 | Written range |
+|---|---|---|---|
+| Right first | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `B916485001857FD5C18157C4747054F1C2F4831BEC30D3EFA560E5794B340F34` | `0x27000..0x30cff` |
+| Left second | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `4BBEB3B1DCC9C8D615E0CB2F6555F9882FBDBE1BE76A3CF61BDDB8B419468A1A` | `0x27000..0x37fff` |
 
 ## Protected facts
 

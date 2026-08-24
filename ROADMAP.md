@@ -17,7 +17,7 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock left ANSI | 295,936 | `0x27000..0x4B1FF` |
 | Stock right ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
-| Rust left ANSI | 138,240 | `0x27000..0x37DFF` |
+| Rust left ANSI | 139,264 | `0x27000..0x37FFF` |
 | Rust right ANSI | 80,384 | `0x27000..0x30CFF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
@@ -34,7 +34,7 @@ right Rust images.
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
 | P0 regression | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Arrival-ordered half snapshots can produce `jam -> ajm` during rapid alternating input | 10,000+ synthetic events plus USB/BLE hardware stress pass with acceptable added latency |
 | P0 regression | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | At roughly 30 cm, reconnection can fail until the halves are brought close | Instrumented reconnect tests identify the stage and repeated desk-distance cycles pass |
-| P0 regression | Backlight synchronization | Both halves converge after commands, timeout, wake, reboot, and reconnect | Relative toggle commands can preserve inverted left/right states | Left-owned absolute state converges a deliberately divergent right half in one synchronization |
+| Done | Backlight synchronization | Both halves converge after commands, timeout, wake, reboot, and reconnect | Left-owned versioned absolute state replaces relative split toggles and is resent after GATT discovery | Deliberate right reboot while left stayed off converged once; 10 toggles, timeout, and right-key wake stayed aligned |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
 | Done | Backlight timeout | Backlight off after 30 seconds without a NocFree key press | Both halves now turn off independently of USB power and wake without losing the first key | A 10-second diagnostic image passed hardware testing; release images use the same path with a 30-second constant |
 | Done | Left-central System OFF | Sleep after five minutes on battery; wake from a left key or left USB | A 10-second diagnostic passed USB blocking, battery System OFF, both-backlight preparation, USB/key wake, BLE restore, and right split reconnect; release timeout is five minutes | Measure sleep current and repeat long-duration wake cycles. A quick wake-key tap is not guaranteed to survive reset boot |

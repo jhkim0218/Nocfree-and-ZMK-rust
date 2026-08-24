@@ -21,10 +21,11 @@ NocFree Link를 선택했으며 ZMK Studio는 구현하지 않았습니다. Link
 빈 조회 응답만 제공하고 저장/실행은 구현하지 않았습니다. 일반 키 변경과
 hotkey는 구현·실기 검증됐습니다.
 
-다만 2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽
-재연결 실패 후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는
-현상이 재현됐습니다. 아래의 과거 통과 기록은 보존하되 입력 순서, split 재연결,
-백라이트 동기화는 현재 미해결 회귀입니다. 진행 상태는 `PROGRESS.md`를 따릅니다.
+2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽 재연결 실패
+후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는 현상이
+재현됐습니다. 백라이트는 왼쪽 기준 절대 상태로 바꾼 뒤 실기 재검증을 통과했고,
+입력 순서와 split 재연결은 여전히 미해결 회귀입니다. 진행 상태는
+`PROGRESS.md`를 따릅니다.
 
 ## 2. 저장소
 
@@ -76,6 +77,8 @@ hotkey는 구현·실기 검증됐습니다.
   무선 지연을 포함한 물리 입력 순서는 보장하지 못함을 확인
 - interval 7.5 ms, latency 30, supervision timeout 4초
 - vendor patch로 모든 BLE PHY를 1M에 고정
+- 백라이트는 왼쪽이 `enabled`/밝기/timeout/generation 절대 상태를 소유하고,
+  암호화 GATT write-with-response로 변경과 split 재연결 때 오른쪽에 전체 동기화
 - USB/BLE 전환 때 이전 출력에 release 전송
 
 ### 물리 스위치
@@ -129,19 +132,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x37dff`, 오른쪽
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x37fff`, 오른쪽
 `0x27000..0x30cff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 69,012 | `7CA9454578C3C5CA72AD290D6A47F3607293292230C4C28071774D2A5AF699AE` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 138,240 | `535D0A8C3896762F6F0CD760EAACFA7238BF9DA066EFCA1D81EA35ED56625974` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 69,888 | `ECA8709347275199E07825B5623F2EA421ECEE0AA0B7273DE15DD0A04C6545DF` |
-| `firmware/NocFree_Rust_Right.bin` | 40,068 | `7F7A3C12F0A15881E88AD591764DF5F8DC49D77E84F1D3E73E32CAA2AD16F5E8` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 80,384 | `F61393E2672DC5DEFAAF29968D401C3433F27118E3CB299A18F8D83D55EF7110` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 40,950 | `927873BC6D52243E034A34C828460B42D1FF8D72979549DE4398B87C7DE56922` |
+| `firmware/NocFree_Rust_Left.bin` | 69,524 | `1CEA938980999AB9E556EDBB1DB4CFA908F890F89E905A3545A93DE843614DA7` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 139,264 | `4BBEB3B1DCC9C8D615E0CB2F6555F9882FBDBE1BE76A3CF61BDDB8B419468A1A` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 70,400 | `B25A03423B860D63D763D0F8F9729019B9737CD52E7FFEEBF4F3D5BDCA4B17CB` |
+| `firmware/NocFree_Rust_Right.bin` | 40,108 | `3FD6D8FF8ACD5100692E483E92250C69486B823BE223133D6EB192DC38C61437` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 80,384 | `B916485001857FD5C18157C4747054F1C2F4831BEC30D3EFA560E5794B340F34` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 40,990 | `5439049FF5929EE841A64E4243489FF0A69700B27B66D89E38EC83FB2212E513` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -222,6 +225,9 @@ zxcvbnm,./
   10초 자동 소등, 첫 키 입력과 동시 wake를 실기 확인. 저장소와 배포 artifact는
   같은 경로에서 상수만 30초로 변경했고 이후 deep-sleep 진단 이미지부터 실물에도
   30초 백라이트 timeout이 설치됨
+- 절대 상태 P1 이미지에서 왼쪽 수동 OFF 중 오른쪽 전원 재부팅으로 의도적으로
+  상태를 어긋낸 뒤 재연결 한 번으로 OFF에 수렴. `Fn+Tab` 10회 동안 반전 없음,
+  30초 양쪽 자동 소등과 오른쪽 첫 키의 양쪽 wake, 재연결 오른쪽 입력을 확인
 - 왼쪽 central은 배터리 상태에서 NocFree 키 무입력 5분 뒤 System OFF. USB 전원,
   BLE pairing, low 상태의 왼쪽 PCA9555 INT에서는 진입하지 않음. 진입 전 양쪽
   백라이트 Idle 명령을 보내고 split 최대 latency 232.5 ms보다 긴 300 ms를 기다림

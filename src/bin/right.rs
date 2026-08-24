@@ -19,7 +19,7 @@ use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::{Builder, Config};
-use nocfree_and_rust::backlight::{BacklightCommand, BacklightState};
+use nocfree_and_rust::backlight::BacklightSnapshot;
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
@@ -31,9 +31,8 @@ use nocfree_and_rust::platform::{
 use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_IDLE, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
-    COMMAND_BACKLIGHT_WAKE, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER,
-    FAST_ADVERTISING_INTERVAL_UNITS, IDLE_ADVERTISING_INTERVAL_UNITS, SERVICE_UUID_LE,
+    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, FAST_ADVERTISING_INTERVAL_UNITS,
+    IDLE_ADVERTISING_INTERVAL_UNITS, SERVICE_UUID_LE,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
 use nrf_softdevice::Softdevice;
@@ -52,7 +51,7 @@ bind_interrupts!(struct Irqs {
 static KEY_STATE: KeyState<32> = KeyState::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
-static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Signal::new();
+static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightSnapshot> = Signal::new();
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BATTERY_LEVEL: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
@@ -81,15 +80,15 @@ async fn run_hardware(
     mut saadc: Saadc<'_, 1>,
 ) -> ! {
     pwm.set_period(10_000);
-    let mut state = BacklightState::default();
-    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    let mut backlight = BacklightSnapshot::new();
+    pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     saadc.calibrate().await;
     let mut filter = VoltageFilter::new();
     pwm.set_duty(0, pwm.max_duty());
     let initial = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
     BATTERY_LEVEL.store(initial, Ordering::Release);
     BATTERY_UPDATE.signal(initial);
-    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     loop {
         match select3(
             BACKLIGHT_CONTROL.wait(),
@@ -98,16 +97,16 @@ async fn run_hardware(
         )
         .await
         {
-            Either3::First(command) => {
-                state.apply(command);
-                pwm.set_duty(0, state.duty(pwm.max_duty()));
+            Either3::First(snapshot) => {
+                backlight = snapshot;
+                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
             Either3::Second(()) | Either3::Third(()) => {
                 pwm.set_duty(0, pwm.max_duty());
                 let level = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
                 BATTERY_LEVEL.store(level, Ordering::Release);
                 BATTERY_UPDATE.signal(level);
-                pwm.set_duty(0, state.duty(pwm.max_duty()));
+                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
         }
     }
@@ -194,18 +193,13 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
                 reboot_to_bootloader()
             }
             SplitServerEvent::Split(SplitServiceEvent::CommandWrite(command)) => {
-                let control = match command {
-                    COMMAND_BACKLIGHT_TOGGLE => Some(BacklightCommand::Toggle),
-                    COMMAND_BACKLIGHT_DOWN => Some(BacklightCommand::Down),
-                    COMMAND_BACKLIGHT_UP => Some(BacklightCommand::Up),
-                    COMMAND_BACKLIGHT_IDLE => Some(BacklightCommand::Idle),
-                    COMMAND_BACKLIGHT_WAKE => Some(BacklightCommand::Wake),
-                    _ => None,
-                };
-                if let Some(control) = control {
-                    BACKLIGHT_CONTROL.signal(control);
-                } else if command == COMMAND_BATTERY_REQUEST {
+                if command == COMMAND_BATTERY_REQUEST {
                     BATTERY_REQUEST.signal(());
+                }
+            }
+            SplitServerEvent::Split(SplitServiceEvent::BacklightWrite(bytes)) => {
+                if let Some(snapshot) = BacklightSnapshot::decode(bytes) {
+                    BACKLIGHT_CONTROL.signal(snapshot);
                 }
             }
             SplitServerEvent::Split(SplitServiceEvent::StateCccdWrite {

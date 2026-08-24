@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use core::cell::RefCell;
 use core::slice;
 use core::sync::atomic::{AtomicU8, Ordering};
 
@@ -15,6 +16,7 @@ use embassy_nrf::saadc::{self, Saadc};
 use embassy_nrf::twim::{self, Twim};
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_nrf::usb::{self, Driver};
+use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer, with_timeout};
@@ -22,7 +24,7 @@ use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::class::hid::{Config as HidConfig, HidWriter, State as HidState};
 use embassy_usb::driver::Driver as UsbDriver;
 use embassy_usb::{Builder, Config, Handler};
-use nocfree_and_rust::backlight::{AUTO_OFF_SECS, BacklightCommand, BacklightState};
+use nocfree_and_rust::backlight::{AUTO_OFF_SECS, BacklightCommand, BacklightSnapshot};
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
 use nocfree_and_rust::ble_hid::BleHidServer;
@@ -41,9 +43,8 @@ use nocfree_and_rust::report::{Command, ReportEngine};
 use nocfree_and_rust::scanner::{Half, SnapshotMerger, decode_half_state, encode_half_state};
 use nocfree_and_rust::split_ble::{SplitClient, SplitClientEvent};
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BACKLIGHT_DOWN, COMMAND_BACKLIGHT_IDLE, COMMAND_BACKLIGHT_TOGGLE, COMMAND_BACKLIGHT_UP,
-    COMMAND_BACKLIGHT_WAKE, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS,
-    CONNECTION_LATENCY, CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
+    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY,
+    CONNECTION_TIMEOUT_UNITS, advertisement_has_split_service,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on, pairing_led_on};
 use nocfree_and_rust::usb_descriptor::{
@@ -83,7 +84,10 @@ static INPUT_STATE: KeyState<32> = KeyState::new();
 static OUTPUT: OutputRouter = OutputRouter::new();
 static SPLIT_COMMAND: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BLE_CONTROL: Signal<CriticalSectionRawMutex, BleControl> = Signal::new();
-static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightCommand> = Signal::new();
+static BACKLIGHT_STATE: Mutex<CriticalSectionRawMutex, RefCell<BacklightSnapshot>> =
+    Mutex::new(RefCell::new(BacklightSnapshot::new()));
+static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightSnapshot> = Signal::new();
+static SPLIT_BACKLIGHT: Signal<CriticalSectionRawMutex, BacklightSnapshot> = Signal::new();
 static BACKLIGHT_ACTIVITY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static POWER_ACTIVITY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
@@ -172,13 +176,9 @@ async fn process_key_states() -> ! {
                 Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
                 Command::OutputUsb => set_output_mode(OutputMode::Usb),
                 Command::OutputBle => set_output_mode(OutputMode::Ble),
-                Command::BacklightToggle => {
-                    set_backlight(BacklightCommand::Toggle, COMMAND_BACKLIGHT_TOGGLE)
-                }
-                Command::BacklightDown => {
-                    set_backlight(BacklightCommand::Down, COMMAND_BACKLIGHT_DOWN)
-                }
-                Command::BacklightUp => set_backlight(BacklightCommand::Up, COMMAND_BACKLIGHT_UP),
+                Command::BacklightToggle => set_backlight(BacklightCommand::Toggle),
+                Command::BacklightDown => set_backlight(BacklightCommand::Down),
+                Command::BacklightUp => set_backlight(BacklightCommand::Up),
                 Command::BatteryStatus => BATTERY_REQUEST.signal(()),
                 Command::SystemSelect(system) => BONDS.set_system(system),
                 Command::KeyTap(key) => KEY_TAP.signal(key),
@@ -194,9 +194,18 @@ async fn process_key_states() -> ! {
     }
 }
 
-fn set_backlight(command: BacklightCommand, split_command: u8) {
-    BACKLIGHT_CONTROL.signal(command);
-    SPLIT_COMMAND.signal(split_command);
+fn current_backlight() -> BacklightSnapshot {
+    BACKLIGHT_STATE.lock(|snapshot| *snapshot.borrow())
+}
+
+fn set_backlight(command: BacklightCommand) {
+    let snapshot = BACKLIGHT_STATE.lock(|state| {
+        let mut state = state.borrow_mut();
+        state.apply(command);
+        *state
+    });
+    BACKLIGHT_CONTROL.signal(snapshot);
+    SPLIT_BACKLIGHT.signal(snapshot);
 }
 
 async fn run_backlight_timeout() -> ! {
@@ -208,9 +217,9 @@ async fn run_backlight_timeout() -> ! {
         .await
         .is_ok()
         {}
-        set_backlight(BacklightCommand::Idle, COMMAND_BACKLIGHT_IDLE);
+        set_backlight(BacklightCommand::Idle);
         BACKLIGHT_ACTIVITY.wait().await;
-        set_backlight(BacklightCommand::Wake, COMMAND_BACKLIGHT_WAKE);
+        set_backlight(BacklightCommand::Wake);
     }
 }
 
@@ -222,7 +231,7 @@ async fn run_deep_sleep() -> ! {
         {}
         loop {
             if should_system_off(usb_power_detected(), BONDS.is_pairing(), key_wake_ready(31)) {
-                set_backlight(BacklightCommand::Idle, COMMAND_BACKLIGHT_IDLE);
+                set_backlight(BacklightCommand::Idle);
                 Timer::after(Duration::from_millis(DEEP_SLEEP_PREP_MS)).await;
                 if POWER_ACTIVITY.try_take().is_some() {
                     break;
@@ -265,14 +274,14 @@ async fn run_hardware(
     mut saadc: Saadc<'_, 1>,
 ) -> ! {
     pwm.set_period(10_000);
-    let mut state = BacklightState::default();
-    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    let mut backlight = current_backlight();
+    pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     saadc.calibrate().await;
     let mut filter = VoltageFilter::new();
     pwm.set_duty(0, pwm.max_duty());
     let initial = sample_battery(&mut saadc, &mut enable, &mut filter).await;
     LEFT_BATTERY.store(initial, Ordering::Release);
-    pwm.set_duty(0, state.duty(pwm.max_duty()));
+    pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     loop {
         match select3(
             BACKLIGHT_CONTROL.wait(),
@@ -281,9 +290,9 @@ async fn run_hardware(
         )
         .await
         {
-            Either3::First(command) => {
-                state.apply(command);
-                pwm.set_duty(0, state.duty(pwm.max_duty()));
+            Either3::First(snapshot) => {
+                backlight = snapshot;
+                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
             Either3::Second(()) => {
                 RIGHT_BATTERY_UPDATE.reset();
@@ -291,7 +300,7 @@ async fn run_hardware(
                 pwm.set_duty(0, pwm.max_duty());
                 let left = sample_battery(&mut saadc, &mut enable, &mut filter).await;
                 LEFT_BATTERY.store(left, Ordering::Release);
-                pwm.set_duty(0, state.duty(pwm.max_duty()));
+                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
                 let right = with_timeout(Duration::from_millis(500), RIGHT_BATTERY_UPDATE.wait())
                     .await
                     .unwrap_or_else(|_| RIGHT_BATTERY.load(Ordering::Acquire));
@@ -301,7 +310,7 @@ async fn run_hardware(
                 pwm.set_duty(0, pwm.max_duty());
                 let level = sample_battery(&mut saadc, &mut enable, &mut filter).await;
                 LEFT_BATTERY.store(level, Ordering::Release);
-                pwm.set_duty(0, state.duty(pwm.max_duty()));
+                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
         }
     }
@@ -573,9 +582,16 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
 }
 
 async fn send_split_commands(client: &SplitClient) -> ! {
+    let _ = client.backlight_write(&current_backlight().encode()).await;
     loop {
-        let command = SPLIT_COMMAND.wait().await;
-        let _ = client.command_write_without_response(&command).await;
+        match select(SPLIT_COMMAND.wait(), SPLIT_BACKLIGHT.wait()).await {
+            Either::First(command) => {
+                let _ = client.command_write_without_response(&command).await;
+            }
+            Either::Second(snapshot) => {
+                let _ = client.backlight_write(&snapshot.encode()).await;
+            }
+        }
     }
 }
 
