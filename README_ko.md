@@ -23,6 +23,11 @@ ISO 배열은 지원하지 않습니다.
 > 소비전력 측정은 아직 남아 있습니다. 파란 페어링 LED와 빨간 저전압 LED
 > 점멸은 구현했으나 충전/완충을 비롯한 나머지 순정 LED 상태는 미완성입니다.
 > 공장 USB 동글/2.4G 기능도 구현·검증되지 않았습니다.
+>
+> 2026-08-24 실기에서 빠른 좌우 교차 입력의 `jam -> ajm`, 책상 거리에서
+> 오른쪽 재연결 실패, 상대 백라이트 명령에 의한 좌우 반전 유지가 재현됐습니다.
+> [PROGRESS.md](PROGRESS.md)를 참고하십시오. 해당 항목은 다시 통과할 때까지
+> 완료로 보지 않습니다.
 
 ## 역할
 
@@ -65,7 +70,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 마지막 결과는 Rust 52개, Python/계약/아티팩트 17개
+일치를 모두 검사합니다. 마지막 결과는 Rust 59개, Python/계약/아티팩트 17개
 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
@@ -84,14 +89,14 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
-| `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
+| `firmware/NocFree_Rust_Left.bin` | 69,012 | `7CA9454578C3C5CA72AD290D6A47F3607293292230C4C28071774D2A5AF699AE` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 138,240 | `535D0A8C3896762F6F0CD760EAACFA7238BF9DA066EFCA1D81EA35ED56625974` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 69,888 | `ECA8709347275199E07825B5623F2EA421ECEE0AA0B7273DE15DD0A04C6545DF` |
+| `firmware/NocFree_Rust_Right.bin` | 40,068 | `7F7A3C12F0A15881E88AD591764DF5F8DC49D77E84F1D3E73E32CAA2AD16F5E8` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 80,384 | `F61393E2672DC5DEFAAF29968D401C3433F27118E3CB299A18F8D83D55EF7110` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 40,950 | `927873BC6D52243E034A34C828460B42D1FF8D72979549DE4398B87C7DE56922` |
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x375ff`, 오른쪽 `0x308ff`까지만
+UF2는 앱 시작 `0x27000`부터 왼쪽 `0x37dff`, 오른쪽 `0x30cff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
 
 ## NocFree Link 키 변경
@@ -115,9 +120,9 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| 완료 | 양쪽 split | 오른쪽 입력과 배터리 값을 암호화 BLE split으로 왼쪽에 전달하고, 링크 단절 뒤 자동 복구 |
+| 회귀 | 양쪽 split | 암호화 BLE 전달은 동작하지만 책상 거리 재연결이 간헐적으로 민감하고 빠른 좌우 교차 입력 순서가 바뀔 수 있음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
-| 완료 | 백라이트 | active-high PWM 극성을 바로잡고 양쪽 동기 토글·20% 단위 밝기 조절과 NocFree 키 무입력 30초 후 자동 소등을 구현. 첫 키를 버리지 않고 양쪽을 깨우며 USB 전원 연결 중에도 동일하게 동작 |
+| 회귀 | 백라이트 | PWM·20% 밝기·timeout·wake는 동작하지만 상태가 어긋난 뒤 상대 명령이 좌우 반전을 계속 유지할 수 있음 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
 | 완료 | NocFree Link 키맵 | 8×84 키, hotkey 16개, 실행·삭제·기본값 복구와 CRC 포함 flash 저장 |
 | 완료 | 복구 | 양쪽 독립 CDC 1200-baud DFU, Fn DFU 단축키, Rust↔순정 V2.3.0 왕복 |
@@ -194,7 +199,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 
 | 요구사항 | 최신 이미지의 증거 |
 |---|---|
-| USB 양쪽 입력/순서 | `asdfjkljamjamjam`, 전체 문자 배열, 교차 `jam` 반복 통과 |
+| USB 양쪽 입력/순서 | 이전 테스트는 통과했지만 2026-08-24 `jam -> ajm`을 재현해 순서 문제를 다시 열었음 |
 | 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
 | 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
 | BLE | 새 페어링 `freshcapture` → Wired `freshwired2` → 장치 삭제·재페어링 없는 BLE `reconnectcapture` 통과 |
@@ -208,7 +213,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | 배터리 | 순정 V2.3.0 환산식과 필터 복구 후 완충된 양쪽에서 `Fn+I` 3초 홀드로 `L 100 R 100` 출력; 방전 동작은 장기 실기 확인이 남음 |
 | 상태 LED | `Fn+3` 홀드 후 손을 떼도 왼쪽 파란 LED가 계속 점멸하고, `Fn+1` 짧게 눌러 Windows bond 슬롯으로 복귀하면 소등됨을 확인. 빨간 저전압 점멸은 양쪽 모두 10% 초과라 실물 확인하지 못함 |
 | interrupt 기반 idle 스캔 | 3초 idle 뒤 양쪽 모두 첫 키를 즉시 감지하고, 길게 누르기 반복과 release가 정상이며 좌우 혼합 입력 순서를 보존함. interrupt 유실 대비 250 ms 안전 스캔 유지 |
-| 백라이트 자동 소등 | 10초 진단 이미지로 USB 연결 상태의 `Fn+Tab` 소등/점등, 양쪽 자동 소등, 첫 키 입력과 동시 wake를 확인. 배포 이미지와 이후 deep-sleep 진단 이미지는 같은 경로에서 백라이트 timeout 값만 30초로 변경 |
+| 백라이트 자동 소등 | timeout과 wake는 이전에 통과했지만 2026-08-24 좌우 반전 유지가 재현돼 절대 상태 동기화가 필요함 |
 | System OFF와 split 복귀 | 10초 진단 이미지에서 USB 연결 중 System OFF 차단, 배터리 상태 왼쪽 central System OFF, sleep 전 양쪽 백라이트 소등, 왼쪽 USB 또는 왼쪽 키 홀드 wake, BLE 복귀와 오른쪽 split 입력을 확인. 배포 이미지는 같은 경로에서 timeout만 5분으로 변경. 짧은 wake 키 탭은 reset 부팅 중 소모될 수 있으므로 해당 문자도 입력하려면 재연결까지 왼쪽 키를 유지해야 함 |
 | 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
 | 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |

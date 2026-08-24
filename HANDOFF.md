@@ -1,6 +1,6 @@
 # NocFree Rust 펌웨어 작업 인계서
 
-마지막 갱신: 2026-08-23 (Asia/Seoul)
+마지막 갱신: 2026-08-24 (Asia/Seoul)
 
 이 문서는 다른 AI나 작업자가 대화 기록 없이 현재 상태를 이어가기 위한 기준
 문서입니다. 먼저 `git status`, 양쪽 USB 부모 ID, 산출물 해시를 확인하십시오.
@@ -20,6 +20,11 @@
 NocFree Link를 선택했으며 ZMK Studio는 구현하지 않았습니다. Link quick text는
 빈 조회 응답만 제공하고 저장/실행은 구현하지 않았습니다. 일반 키 변경과
 hotkey는 구현·실기 검증됐습니다.
+
+다만 2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽
+재연결 실패 후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는
+현상이 재현됐습니다. 아래의 과거 통과 기록은 보존하되 입력 순서, split 재연결,
+백라이트 동기화는 현재 미해결 회귀입니다. 진행 상태는 `PROGRESS.md`를 따릅니다.
 
 ## 2. 저장소
 
@@ -67,7 +72,8 @@ hotkey는 구현·실기 검증됐습니다.
 - TWIM 생성 전 open-drain SCL 최대 9회와 STOP으로 I2C bus clear
 - 오른쪽 split은 별도 Just Works bond와 flash page 사용
 - 오래된 split 키로 보안 연결이 실패하면 그 키만 삭제하고 자동 재페어링
-- 좌우 변화는 하나의 FIFO로 합쳐 교차 입력 순서 보존
+- 좌우 변화는 하나의 FIFO로 합치지만 도착 순서만 보존하며, 2026-08-24 실기에서
+  무선 지연을 포함한 물리 입력 순서는 보장하지 못함을 확인
 - interval 7.5 ms, latency 30, supervision timeout 4초
 - vendor patch로 모든 BLE PHY를 1M에 고정
 - USB/BLE 전환 때 이전 출력에 release 전송
@@ -123,19 +129,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x371ff`, 오른쪽
-`0x27000..0x308ff`입니다.
+최신 UF2 실제 범위는 왼쪽 `0x27000..0x37dff`, 오른쪽
+`0x27000..0x30cff`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
-| `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
+| `firmware/NocFree_Rust_Left.bin` | 69,012 | `7CA9454578C3C5CA72AD290D6A47F3607293292230C4C28071774D2A5AF699AE` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 138,240 | `535D0A8C3896762F6F0CD760EAACFA7238BF9DA066EFCA1D81EA35ED56625974` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 69,888 | `ECA8709347275199E07825B5623F2EA421ECEE0AA0B7273DE15DD0A04C6545DF` |
+| `firmware/NocFree_Rust_Right.bin` | 40,068 | `7F7A3C12F0A15881E88AD591764DF5F8DC49D77E84F1D3E73E32CAA2AD16F5E8` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 80,384 | `F61393E2672DC5DEFAAF29968D401C3433F27118E3CB299A18F8D83D55EF7110` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 40,950 | `927873BC6D52243E034A34C828460B42D1FF8D72979549DE4398B87C7DE56922` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은

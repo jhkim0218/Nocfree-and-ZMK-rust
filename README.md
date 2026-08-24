@@ -25,6 +25,12 @@ calibration procedure, see [ROADMAP.md](ROADMAP.md).
 > Blue pairing and red low-battery LED patterns are implemented; charging/full
 > and other stock LED states remain incomplete. The factory USB dongle/2.4G
 > function is not implemented or verified.
+>
+> Real-hardware testing on 2026-08-24 reopened three regressions: rapid
+> cross-half input can produce `jam -> ajm`, the right half can require close
+> proximity to reconnect, and relative backlight toggles can preserve inverted
+> left/right states. See [PROGRESS.md](PROGRESS.md); affected features are not
+> considered complete until those tests pass again.
 
 ## Roles
 
@@ -71,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 52 Rust tests and 17 Python/contract/artifact tests.
+passed 59 Rust tests and 17 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -89,15 +95,15 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 66,884 | `7EDCCD0259F2040DA9CF04DAA1B95C6945B7882414BA37AC680C3C8004443F22` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 134,144 | `F4583B2532FF5CA75B3EC57BDCADCC43418787335FF8CA4840C23614BCF54144` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 67,760 | `BD990075FA73D94A2CF7A5BC064972AB42425602C1559A5D731EA72983C8FEC5` |
-| `firmware/NocFree_Rust_Right.bin` | 39,076 | `A20B48DD7782319C6006B8590E473936D2FB6EA95B504CF053194836762F591E` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 78,336 | `094C7BEB0722C34F97C9C2E4247C6B4CD73C3D81BF944C052A6CEB97D105909D` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 39,958 | `4E15CF2A159B267F537A28769A8C010FDFCFE164002116852576A73DA947993C` |
+| `firmware/NocFree_Rust_Left.bin` | 69,012 | `7CA9454578C3C5CA72AD290D6A47F3607293292230C4C28071774D2A5AF699AE` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 138,240 | `535D0A8C3896762F6F0CD760EAACFA7238BF9DA066EFCA1D81EA35ED56625974` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 69,888 | `ECA8709347275199E07825B5623F2EA421ECEE0AA0B7273DE15DD0A04C6545DF` |
+| `firmware/NocFree_Rust_Right.bin` | 40,068 | `7F7A3C12F0A15881E88AD591764DF5F8DC49D77E84F1D3E73E32CAA2AD16F5E8` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 80,384 | `F61393E2672DC5DEFAAF29968D401C3433F27118E3CB299A18F8D83D55EF7110` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 40,950 | `927873BC6D52243E034A34C828460B42D1FF8D72979549DE4398B87C7DE56922` |
 
 The UF2 files write only from the application start at `0x27000` through
-`0x375ff` on the left and `0x308ff` on the right. They preserve the SoftDevice,
+`0x37dff` on the left and `0x30cff` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
 
 ## Changing keys with NocFree Link
@@ -123,9 +129,9 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| Complete | Split connection | Encrypted BLE transport of right-side input and battery data to the left, with automatic recovery after link loss |
+| Regression | Split connection | Encrypted BLE transport works, but normal desk-distance reconnect is intermittently sensitive and rapid cross-half events can be reordered |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
-| Complete | Backlight | Corrected active-high PWM polarity, synchronized toggle and 20% brightness steps, plus automatic shutoff on both halves after 30 seconds without a NocFree key press. The first key wakes both halves without being discarded, including while USB power is connected |
+| Regression | Backlight | PWM, brightness steps, timeout, and wake work, but relative split commands can leave the halves permanently inverted after state divergence |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
 | Complete | NocFree Link keymap | 8×84 keys, 16 hotkeys, execution/deletion/default restoration, and flash storage with CRCs |
 | Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |
@@ -206,7 +212,7 @@ is expected hardware behavior.
 
 | Requirement | Evidence from the latest images |
 |---|---|
-| USB input and ordering from both halves | Passed `asdfjkljamjamjam`, the full character layout, and alternating `jam` repetitions |
+| USB input and ordering from both halves | Historical tests passed, but `jam -> ajm` was reproduced on 2026-08-24; ordering is reopened |
 | All 84 physical keys | Automated sweep of 50 character keys and 33 non-text keys, plus manual Print Screen verification |
 | Korean Windows special keys | Verified the Right Alt `KanaMode` mapping and OS handling of Print Screen |
 | BLE | Passed fresh pairing `freshcapture` → Wired `freshwired2` → BLE `reconnectcapture` without deleting or re-pairing the device |
@@ -220,7 +226,7 @@ is expected hardware behavior.
 | Battery | After restoring the stock V2.3.0 conversion and filter, `Fn+I` held for three seconds typed `L 100 R 100` on two fully charged halves; discharge behavior remains a long-running hardware test |
 | Status LEDs | Left blue LED continued flashing after releasing a held `Fn+3`, then stopped when a short `Fn+1` restored the bonded Windows slot. Red low-battery flashing was not physically observable because both halves were above 10% |
 | Interrupt-driven idle scan | After three seconds idle, both halves immediately detected the first key, repeated held keys, stopped on release, and preserved mixed left/right input order. A 250 ms safety scan remains as a missed-interrupt fallback |
-| Backlight auto-off | A 10-second diagnostic image passed `Fn+Tab` off/on, automatic shutoff of both halves with USB connected, and first-key input plus wake. Release and later deep-sleep diagnostic images use the same path with only the backlight timeout changed to 30 seconds |
+| Backlight auto-off | Timeout and wake previously passed, but left/right inversion was reproduced on 2026-08-24; absolute-state synchronization is required |
 | System OFF and split recovery | A 10-second diagnostic image blocked System OFF while USB was present, entered left-central System OFF on battery, shut off both backlights before sleeping, woke from left USB or a held left key, restored BLE, and accepted right-side input after split reconnect. Release images change only the System OFF timeout to five minutes. A short wake-key tap can be consumed by reset boot; hold the left key until reconnect if its character is required |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |
