@@ -43,5 +43,5 @@ Scope: preserve physical ordering across the local left scanner and BLE-connecte
 - [x] G8: English/Korean docs, current artifact hashes/ranges, automated evidence, real-hardware evidence, and remaining limitations are accurate
   EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record the 3 ms selection, clock protocol, 71/18 tests, Wired/Windows 11 Bluetooth scope, role-verified deployment, current hashes/sizes, ranges left 0x27000..0x3acff and right 0x27000..0x329ff, and the unmeasured +8 dBm radio/power effect. Direct metadata-presence and 18 repository/artifact checks pass.
 
-- [ ] G9: the verified P4 implementation, artifacts, documentation, and gate ledger are committed
-  EVIDENCE: pending
+- [x] G9: the verified P4 implementation, artifacts, documentation, and gate ledger are committed
+  EVIDENCE: P4 implementation, generated artifacts, automated and hardware evidence, and all required documents were committed as 556cbaf07280b9daca028ea8c52b158f2dd7f030; this gate closure is recorded in the immediately following documentation commit.
