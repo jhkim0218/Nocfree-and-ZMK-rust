@@ -29,5 +29,5 @@ Scope: distinguish every split reconnect stage on both halves, preserve recovery
 - [x] G6: English and Korean project documents describe the diagnostic command, measured P2 evidence, remaining reconnect regression, current artifacts, and protected ranges accurately
   EVIDENCE: 2026-08-24 P2_DOCUMENTATION_VERIFIED independently compared all six current artifact sizes/hashes with README.md, README_ko.md, and HANDOFF.md; checked four recovery hashes, diagnostic script syntax, P2 MTU evidence, current UF2 ranges, and git diff whitespace.
 
-- [ ] G7: the verified P2 implementation, artifacts, documentation, and gate ledger are committed together
-  EVIDENCE: pending
+- [x] G7: the verified P2 implementation, artifacts, documentation, and gate ledger are committed together
+  EVIDENCE: commit 3535f0340e02d984cee3f2df12eb7930d225c2e5 contains the P2 firmware, diagnostics tool, current artifacts, English/Korean documentation, and this gate ledger.
