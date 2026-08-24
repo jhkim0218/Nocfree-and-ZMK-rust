@@ -20,5 +20,5 @@ Scope: apply +8 dBm to the right split advertiser and accepted connection. The u
 - [x] G3: English/Korean documents and artifacts state +8 dBm is configured and automatically verified but not hardware-tested or deployed, with current hashes/ranges accurate
   EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md separate the configured repository artifact from the P3.2 image still on the physical right. Direct SHA-256 and size checks match the current left/right UF2, BIN, and DFU ZIP artifacts; written ranges remain left 0x27000..0x395ff and right 0x27000..0x327ff. Repository tests pass 17/17.
 
-- [ ] G4: the configured +8 dBm implementation, artifacts, documentation, and gate ledger are committed before P4 starts
-  EVIDENCE: pending
+- [x] G4: the configured +8 dBm implementation, artifacts, documentation, and gate ledger are committed before P4 starts
+  EVIDENCE: implementation, generated artifacts, documentation, and verification evidence were committed as fc53b9ac85b594380906f07f426756dc8762474a; this final gate closure is recorded in the immediately following documentation commit.
