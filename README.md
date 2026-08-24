@@ -77,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 66 Rust tests and 17 Python/contract/artifact tests.
+passed 67 Rust tests and 17 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -97,10 +97,10 @@ verify artifacts; they are not installed on the keyboard.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
-| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
+| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
 
 The UF2 files write only from the application start at `0x27000` through
 `0x395ff` on the left and `0x327ff` on the right. They preserve the SoftDevice,
@@ -161,6 +161,15 @@ reconnected in 1.295 seconds. P3.2 is complete, but P3 remains open: the next
 controlled comparison is right TX power because weak-signal security still
 failed once. Connection latency remains unchanged.
 
+### P3.3 configured TX power
+
+The repository's right image now configures +8 dBm for both disconnected split
+advertising and the accepted split connection. Automated validation passed,
+but the user explicitly waived another hardware comparison to proceed to P4.
+Therefore +8 dBm range, security reliability, current consumption, and battery
+impact are **hardware-unverified**. The physical right keyboard remains on the
+hardware-tested P3.2 image until the new right UF2 is deliberately flashed.
+
 ## Changing keys with NocFree Link
 
 The left half provides VID/PID `2886:8029`, product name `NocFree & ANSI`, and
@@ -184,7 +193,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P3.2 complete / tuning continues | Split connection | Standard MTU and staged/key-triggered advertising improved recovery, but a -85 dBm security timeout and 6-17 second desk-distance results remain. Rapid cross-half events can also still be reordered |
+| P3.3 configured / hardware-unverified | Split connection | Standard MTU and staged/key-triggered advertising passed hardware checks. The repository right image adds +8 dBm, but its range, security, and power cost are not hardware-tested. Rapid cross-half events can still be reordered |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |

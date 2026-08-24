@@ -11,6 +11,7 @@ pub const MEDIUM_ADVERTISING_INTERVAL_UNITS: u32 = 800;
 pub const IDLE_ADVERTISING_INTERVAL_UNITS: u32 = 1_600;
 pub const FAST_ADVERTISING_DURATION_UNITS: u16 = 1_000;
 pub const MEDIUM_ADVERTISING_DURATION_UNITS: u16 = 5_000;
+pub const RIGHT_SPLIT_TX_POWER_DBM: i8 = 8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i8)]
@@ -107,6 +108,11 @@ mod tests {
         assert_eq!(AdvertisingStage::Idle.interval(), 1_600);
         assert_eq!(AdvertisingStage::Idle.timeout(), None);
         assert_eq!(AdvertisingStage::Idle.next(), AdvertisingStage::Idle);
+    }
+
+    #[test]
+    fn right_split_uses_the_nrf52833_max_tx_power() {
+        assert_eq!(RIGHT_SPLIT_TX_POWER_DBM, 8);
     }
 
     #[test]

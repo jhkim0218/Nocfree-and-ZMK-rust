@@ -47,7 +47,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P0 Baseline and regression capture | Complete | Full build/test/artifact validation passed and regressions are documented |
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
-| P3 BLE reconnect tuning | In progress (P3.2 complete) | Standard MTU and staged/key-triggered advertising pass, but one weak-signal security timeout and 6-17 second desk-distance results require TX-power comparison |
+| P3 BLE reconnect tuning | P3.3 configured, hardware-unverified | P3.2 hardware checks pass with a remaining weak-signal timeout; repository right adds +8 dBm, but the user waived its hardware/power comparison to proceed to P4 |
 | P4 Cross-half ordering | Pending | 10,000+ automated events and USB/BLE hardware stress pass without loss, duplication, reordering, or stuck keys |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
@@ -163,6 +163,22 @@ Last updated: 2026-08-24 (Asia/Seoul)
 |---|---|---|---|
 | Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
 | Right P3.2 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` | `0x27000..0x327ff` |
+
+## P3.3 configured right +8 dBm — hardware-unverified
+
+- The repository right image sets +8 dBm for both disconnected advertising
+  and the accepted split connection; 67 Rust and 17 Python tests plus the full
+  release/artifact pipeline pass.
+- The user explicitly waived another hardware comparison and requested P4.
+  Range, security improvement, current, and battery cost are therefore not
+  hardware-verified.
+- The physical right remains on the hardware-tested P3.2 image. Do not describe
+  the +8 dBm artifact as deployed until its role-specific flash is authorized.
+
+| Role | UF2 | SHA-256 | Written range |
+|---|---|---|---|
+| Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
+| Right P3.3 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` | `0x27000..0x327ff` |
 
 ## Protected facts
 

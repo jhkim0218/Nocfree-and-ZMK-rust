@@ -126,6 +126,8 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("att_mtu: Some(SPLIT_ATT_MTU)", central)
         self.assertIn("AdvertisingStage::Fast", right)
         self.assertIn("DISCONNECTED_KEY.wait()", right)
+        self.assertIn("tx_power: TxPower::Plus8dBm", right)
+        self.assertIn("set_connection_tx_power(&connection)", right)
 
     def test_firmware_uses_published_gpio_pins(self) -> None:
         central = read("src/bin/central.rs")

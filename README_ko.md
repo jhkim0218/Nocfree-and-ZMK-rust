@@ -70,7 +70,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 Rust 66개,
+일치를 모두 검사합니다. 최신 결과는 Rust 67개,
 Python/계약/아티팩트 17개 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
@@ -91,10 +91,10 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
-| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
+| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
 
 UF2는 앱 시작 `0x27000`부터 왼쪽 `0x395ff`, 오른쪽 `0x327ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
@@ -147,6 +147,14 @@ MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 �
 보안 실패가 남아 P3 전체는 계속 진행합니다. 다음 비교 변수는 오른쪽 TX 출력이며
 연결 latency는 유지합니다.
 
+### P3.3 설정된 TX 출력
+
+저장소의 오른쪽 이미지는 미연결 split 광고와 연결된 split 모두 +8 dBm을
+사용하도록 설정했습니다. 자동 검증은 통과했지만 사용자가 P4 진행을 위해 추가
+실기 비교를 생략했습니다. 따라서 +8 dBm의 거리·보안 안정성·소비전류·배터리
+영향은 **실기 미검증**입니다. 실물 오른쪽 키보드는 새 UF2를 명시적으로 올리기
+전까지 실기 검증된 P3.2 이미지 상태입니다.
+
 ## NocFree Link 키 변경
 
 왼쪽은 `link.nocfree.com`이 인식하는 VID/PID `2886:8029`, 제품명
@@ -168,7 +176,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| P3.2 완료 / tuning 계속 | 양쪽 split | 표준 MTU와 단계별/키 입력 광고로 회복이 개선됐지만 -85 dBm 보안 timeout과 책상 거리 6-17초 결과가 남음. 빠른 좌우 교차 입력 순서 문제도 남음 |
+| P3.3 설정 / 실기 미검증 | 양쪽 split | 표준 MTU와 단계별/키 입력 광고는 실기 통과. 저장소 오른쪽은 +8 dBm을 추가했지만 거리·보안·전력 비용은 미검증. 빠른 좌우 교차 입력 순서 문제도 남음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 왼쪽 기준 version 포함 절대 상태가 enabled·밝기·timeout·generation을 모든 변경과 재연결 때 오른쪽에 동기화하며 30초 소등과 첫 키 wake도 유지 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |

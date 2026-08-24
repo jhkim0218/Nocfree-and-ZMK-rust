@@ -35,14 +35,15 @@ use nocfree_and_rust::split_diagnostics::{
     duration_millis, pack_address, pack_connection_parameters,
 };
 use nocfree_and_rust::split_protocol::{
-    AdvertisingStage, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
+    AdvertisingStage, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, RIGHT_SPLIT_TX_POWER_DBM,
+    SERVICE_UUID_LE,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
-use nrf_softdevice::Softdevice;
 use nrf_softdevice::ble::advertisement_builder::{
     Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload, ServiceList,
 };
-use nrf_softdevice::ble::{SecurityMode, gatt_server, peripheral};
+use nrf_softdevice::ble::{SecurityMode, TxPower, gatt_server, peripheral};
+use nrf_softdevice::{Softdevice, raw};
 use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
@@ -79,6 +80,20 @@ fn record_connection_parameters(connection: &nrf_softdevice::ble::Connection) {
             params.slave_latency,
             params.conn_sup_timeout,
         ),
+    );
+}
+
+fn set_connection_tx_power(connection: &nrf_softdevice::ble::Connection) {
+    let handle = connection.handle().expect("connected handle");
+    assert_eq!(
+        unsafe {
+            raw::sd_ble_gap_tx_power_set(
+                raw::BLE_GAP_TX_POWER_ROLES_BLE_GAP_TX_POWER_ROLE_CONN as u8,
+                handle,
+                RIGHT_SPLIT_TX_POWER_DBM,
+            )
+        },
+        raw::NRF_SUCCESS
     );
 }
 
@@ -252,6 +267,7 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         let advertising_config = peripheral::Config {
             interval: stage.interval(),
             timeout: stage.timeout(),
+            tx_power: TxPower::Plus8dBm,
             ..Default::default()
         };
         let advertising_started = Instant::now();
@@ -297,6 +313,7 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         };
         stage = AdvertisingStage::Fast;
         DISCONNECTED_KEY.reset();
+        set_connection_tx_power(&connection);
         SPLIT_CONNECTED.store(true, Ordering::Release);
         SECURITY_RECORDED.store(false, Ordering::Release);
         SPLIT_DIAGNOSTICS.record(

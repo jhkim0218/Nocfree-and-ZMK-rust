@@ -142,10 +142,10 @@ hotkey는 구현·실기 검증됐습니다.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
-| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `CF85D6E1504EEEB2C8B2FFFF5BC2D511A16401B2775B88722644C87900D864DA` |
+| `firmware/NocFree_Rust_Right.bin` | 46,980 | `409682E7DB49F45C515551E80071FBD8916C3A676C8A090BB6BBC744FF61D506` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 94,208 | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,862 | `48663DC6DD03EB96839C5DD44216A94C16200F61F4AEEDBEFB6080F237BE691A` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -224,6 +224,13 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 - 오른쪽 COM18 1200-baud → serial `D82A03513BB02626` F: → 같은 최종 이미지
   복구 → RUST-RIGHT, 1.295초 연결과 60 ms 보안 확인
 - P3 다음 변수는 오른쪽 TX 출력 비교. latency와 connection timing은 유지
+
+### P3.3 +8 dBm 설정만 완료
+
+- 저장소 오른쪽은 광고와 연결 TX 모두 +8 dBm으로 설정하고 자동 검증 통과
+- 사용자가 추가 실기를 생략하고 P4로 진행하도록 지시했으므로 거리·보안·전력은
+  실기 미검증이며, 실물 오른쪽은 아직 P3.2 이미지
+- 새 오른쪽 UF2를 별도 승인 없이 플래시하지 말 것
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나
