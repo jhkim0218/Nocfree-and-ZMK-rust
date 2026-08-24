@@ -4,6 +4,11 @@ OWNS: src/**, tools/**, firmware/**, README.md, README_ko.md, HANDOFF.md, ROADMA
 
 Scope: preserve physical ordering across the local left scanner and BLE-connected right scanner by carrying source time and sequence, converting right time into the left clock domain, and holding both sources in one short bounded reorder queue. LEFT remains authoritative. Do not change protected flash, recovery, keymap, output routing, backlight policy, host BLE profiles, or the P3.3 +8 dBm setting.
 
+Post-closure qualification note: these gates establish a hardware-tested
+candidate, not stable end-to-end completion. The 10,000-event gate exercises
+the reorder model rather than every runtime queue and transport; follow the
+P4.1–P4.3 plan in `PROGRESS.md`/`ROADMAP.md` before promoting it to stable.
+
 - [x] G0: this ledger states outcomes that can fail
   CHECK: node "C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs" GATES.md
   EXPECT: LINT OK

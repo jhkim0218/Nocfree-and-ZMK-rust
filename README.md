@@ -28,8 +28,10 @@ calibration procedure, see [ROADMAP.md](ROADMAP.md).
 >
 > Real-hardware testing on 2026-08-24 reopened rapid cross-half ordering,
 > desk-distance split reconnect, and backlight convergence. Absolute backlight
-> synchronization and P4 timestamp ordering have since passed hardware testing.
-> Controlled +8 dBm range/power comparison remains open. See
+> synchronization has passed hardware testing. P4 timestamp ordering is a
+> hardware-tested candidate after limited Wired/Windows 11 checks, not yet an
+> end-to-end long-run qualification. Controlled +8 dBm range/power comparison
+> remains open. See
 > [PROGRESS.md](PROGRESS.md).
 
 ## Roles
@@ -168,15 +170,17 @@ advertising and the accepted split connection and was deployed during P4 input
 testing. Wired and Bluetooth input passed, but controlled +8 dBm range,
 security, current-consumption, and battery comparisons remain unverified.
 
-### P4 global cross-half ordering
+### P4 global cross-half ordering candidate
 
 RIGHT snapshots now carry source time, sequence, and reconciliation metadata in
 one 20-byte ATT value. LEFT estimates the clock offset with three samples before
 split-ready, refreshes it every 60 seconds, and holds both local and remote
 updates in one 3 ms reorder queue. Synthetic comparison of 1–5 ms over 10,000
 events selected 3 ms as the smallest clean window: lost=0, duplicate=0,
-reordered=0, stuck=0. Real `jam`/`ja` stress passed through Wired USB and Windows
-11 Bluetooth; other BLE host operating systems were not tested for P4.
+reordered=0, stuck=0 inside the reorder model. Real `jam`/`ja` stress passed
+through Wired USB and Windows 11 Bluetooth. Runtime queues, long-run drift,
+reconnect-edge stress, Android P4, and measured BLE arrival jitter remain before
+stable status.
 
 ## Changing keys with NocFree Link
 
@@ -201,7 +205,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P4 complete / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and a 3 ms global queue passed 10,000 synthetic events plus Wired/Windows 11 Bluetooth stress. The deployed right uses +8 dBm, but controlled range, security, and power cost remain unmeasured |
+| P4 hardware-tested candidate / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and a 3 ms global queue passed the reorder-model test plus limited Wired/Windows 11 Bluetooth stress. End-to-end queue loss, real BLE jitter/drift, reconnect-edge stress, and controlled +8 dBm power/range remain unverified |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |

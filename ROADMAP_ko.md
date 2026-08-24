@@ -30,7 +30,7 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P0 | 배터리 정확도 | 양쪽 1100 mAh 배터리의 의미 있는 잔량 | 순정 V2.3.0 환산과 75/25 필터 복구; 완충된 양쪽에서 100% 확인 | 방전 구간별 DMM 전압 오차와 퍼센트 오차 기록 |
 | P0 | 상태 LED | 페어링/연결/Wired, 저전압, 충전, 완충 표시 | 파란 페어링과 open-drain 빨간 저전압 점멸 구현. 충전/완충 등은 남음 | 파란 페어링 실기 통과, 10% 이하 빨간 점멸 실물 확인, 나머지 순정 truth table을 전기적 충돌 없이 재현 |
 | P0 | 소비전류 기준 | 공식 사용 시간은 충전당 약 2주 | idle 전류와 배터리 사용 시간 미측정 | 같은 반쪽·같은 조건에서 순정/Rust 전류 비교 완료 |
-| 완료 | 좌우 입력 순서 | 누락·중복·고착 없이 물리적인 좌우 이벤트 순서 보존 | 원본 timestamp·순번·시계 변환·3 ms 전역 대기열로 도착 순서 의존 제거 | 10,000개 합성과 Wired/Windows 11 Bluetooth 실기에서 재정렬·고착 없이 통과 |
+| 후보 | 좌우 입력 순서 | 누락·중복·고착 없이 물리적인 좌우 이벤트 순서 보존 | 원본 timestamp·순번·시계 변환·3 ms 전역 대기열로 도착 순서 의존 제거 | 실제 jitter 측정과 runtime queue 전체 10,000회 검증, Wired/Windows 11/Android 및 재연결 직후 스트레스 통과 |
 | P0 회귀 / P3.3 배포 | split 재연결 | 반쪽을 가까이 옮기지 않고 일반 책상 거리에서 오른쪽 재연결 | P3.2에서 6.1/17.2초 입력 복귀. 현재 P4 오른쪽은 +8 dBm 배포 | +8 dBm 거리·보안·전류를 통제 비교; P4 입력 성공만으로 무선 효과를 단정하지 않음 |
 | 완료 | 백라이트 동기화 | 명령·timeout·wake·재부팅·재연결 뒤 양쪽 상태 일치 | 왼쪽 기준 version 포함 절대 상태가 상대 split toggle을 대체하고 GATT 탐색 뒤 재전송됨 | 왼쪽 OFF 중 오른쪽 재부팅 뒤 1회 수렴, 토글 10회·timeout·오른쪽 키 wake까지 동기 유지 |
 | 완료 | idle 스캔 | PCA9555 `INT` wake와 안전용 주기 스캔 | 왼쪽 `P0.31`과 오른쪽 `P0.05`로 즉시 wake, active debounce는 3 ms 유지, interrupt 유실은 250 ms 전체 스캔으로 복구 | 양쪽 idle 첫 키·hold·release·혼합 순서 실기 통과, idle 스캔 약 100회/s에서 4회/s로 감소 |
@@ -43,6 +43,22 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P2 | 공장 2.4 GHz 동글 | 왼쪽·오른쪽·선택적 numpad가 USB receiver와 통신 | 2.4G 스위치 위치에서 안전하게 출력 차단 | 동글 pairing/reconnect/입력 순서/latency/recovery/coexistence 통과 |
 | P2 | NocFree Link 완성도 | 배터리, 조명, 전원 설정, macro/Quick Text, updater 관련 경로 | keymap/hotkey 외에는 부분 또는 미구현 | 노출된 각 Link 화면이 timeout 없이 동작하고 재부팅 후 보존 |
 | ANSI 범위 밖 | Numpad | 순정의 별도 지원 장치 | 이 84키 ANSI 프로젝트에서는 미지원 | 범위를 넓힐 때 별도 추적 |
+
+## 다음 진행 순서
+
+1. **P4.1 측정:** sequence gap, queue overflow, clock drift와 실제 BLE
+   source-to-arrival jitter를 진단으로 노출하고 책상 거리·재연결 뒤 값을 기록합니다.
+2. **P4.2 end-to-end:** scanner, split, 정렬, report, USB/BLE queue 전체에
+   10,000회 이상 press/release를 통과시키고 조용한 유실을 없애거나 복구를 증명합니다.
+3. **P4.3 실기:** Wired, Windows 11 Bluetooth, Android, 재연결 직후와 양쪽
+   1200-baud 복구를 반복합니다. 측정이 뒷받침할 때만 3 ms를 유지합니다.
+4. **P3.3 비교:** 같은 거리·간섭에서 오른쪽 0/+4/+8 dBm의 재연결 시간, RSSI,
+   보안 실패, 해제, 전류를 비교해 가장 낮은 안정 출력을 선택합니다.
+5. **P5:** 그 뒤 장시간 sleep/wake, 재연결, 백라이트 수렴과 좌우 개별 전류를
+   측정하고 나서 동글로 넘어갑니다.
+
+개별 키 event 전송은 같은 scan 내부 snapshot 한계가 실제 측정에서 재현될 때만
+도입합니다. 지금 미리 구조를 키우지 않습니다.
 
 ## 물리 스위치 옆 LED
 

@@ -19,14 +19,15 @@ Last updated: 2026-08-24 (Asia/Seoul)
 
 ## Open real-hardware regressions reported 2026-08-24
 
-### R1: cross-half ordering — resolved in P4
+### R1: cross-half ordering — mitigated in P4 candidate
 
 - Intended rapid input: `jam`
 - Observed output: `ajm`
 - Fast alternating input between the right and left halves can be reordered.
 - P4 adds source timestamps, right sequence, clock-domain conversion, and a 3 ms
   global reorder queue. The automated 10,000-event comparison and Wired/Windows
-  11 Bluetooth hardware stress passed.
+  11 Bluetooth hardware stress passed. The 10,000-event check covers the pure
+  reorder model, not every runtime queue and transport, so stable status is held.
 
 ### R2: split reconnect sensitivity
 
@@ -50,7 +51,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
 | P3 BLE reconnect tuning | Partial | Current P4 right deploys +8 dBm; P3.2 reconnect checks pass, but +8 dBm range/security/power benefit is not controlled or measured |
-| P4 Cross-half ordering | Complete | 10,000 automated events and Wired/Windows 11 Bluetooth hardware stress passed without loss, duplication, reordering, or stuck keys |
+| P4 Cross-half ordering | Hardware-tested candidate | Reorder-model and limited Wired/Windows 11 Bluetooth stress pass; end-to-end queues, real BLE jitter/drift, reconnect-edge load, and Android remain |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
 | D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
@@ -182,7 +183,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
 | Right P3.3 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` | `0x27000..0x327ff` |
 
-## P4 global cross-half ordering — complete
+## P4 global cross-half ordering — hardware-tested candidate
 
 - Each right snapshot carries pressed state, a monotonic source timestamp,
   sequence, and reconciliation metadata in one 20-byte ATT value.
@@ -204,6 +205,26 @@ Last updated: 2026-08-24 (Asia/Seoul)
 |---|---|---|---|
 | Left P4 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` | `0x27000..0x3acff` |
 | Right P4 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` | `0x27000..0x329ff` |
+
+## Next execution plan
+
+1. **P4.1 measure first:** expose sequence gaps, duplicates, queue overflow, and
+   source-to-arrival delay; capture real BLE jitter at desk distance and after
+   reconnect instead of assuming the synthetic 4 ms delay.
+2. **P4.2 qualify end to end:** drive at least 10,000 press/release transitions
+   through scanner channels, split transport, reorder queue, report engine, and
+   USB/BLE output; remove silent drop-oldest behavior or prove reconciliation.
+3. **P4.3 hardware regression:** repeat long rapid alternation in Wired,
+   Windows 11 Bluetooth, and Android, including immediately after reconnect;
+   verify both 1200-baud P4 recovery paths. Keep 3 ms only if measured results pass.
+4. **P3.3 radio/power A/B:** compare 0/+4/+8 dBm at the same distance and
+   interference, recording reconnect time, RSSI, security failures, disconnects,
+   and current. Choose the lowest reliable power.
+5. **P5 stability/power:** only after P4/P3 qualification, run long sleep/wake,
+   reconnect, backlight convergence, and separate LEFT/RIGHT current tests.
+
+Per-key event transport is deferred unless measurements reproduce a same-scan
+snapshot ordering failure; do not add that complexity speculatively.
 
 ## Protected facts
 

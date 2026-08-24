@@ -24,8 +24,9 @@ hotkey는 구현·실기 검증됐습니다.
 2026-08-24에 빠른 좌우 입력의 `jam -> ajm`, 약 30 cm에서 오른쪽 재연결 실패
 후 가까이 가져가야 연결되는 현상, 좌우 백라이트가 반대로 유지되는 현상이
 재현됐습니다. 백라이트는 왼쪽 기준 절대 상태로 바꾼 뒤 실기 재검증을 통과했고,
-입력 순서는 P4 timestamp/sequence와 3 ms 전역 대기열로 자동·실기 검증을
-통과했습니다. split 재연결의 +8 dBm 거리·전력 통제 비교는 남았습니다. 진행은
+입력 순서는 P4 timestamp/sequence와 3 ms 전역 대기열로 제한된 자동·실기
+검증을 통과한 후보입니다. 실제 queue 전체 경로와 BLE jitter/drift를 검증하기
+전에는 안정판으로 표현하지 않습니다. +8 dBm 거리·전력 통제 비교도 남았습니다. 진행은
 `PROGRESS.md`를 따릅니다.
 
 ## 2. 저장소
@@ -232,7 +233,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 - P4 Wired/Windows 11 Bluetooth 입력은 통과했지만 +8 dBm 자체의 거리·보안·전력
   효과는 통제 비교하지 않았으므로 그 효과를 검증됐다고 표현하지 말 것
 
-### P4 좌우 입력 순서 완료
+### P4 좌우 입력 순서 — 실기 검증 후보
 
 - 오른쪽 snapshot: state u64 + source timestamp u64 + sequence u16 + flags/reserved
   2 bytes = 기본 MTU 값 한도 20 bytes
@@ -241,6 +242,10 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 - 10,000개 합성 교차 입력에서 1/2 ms 실패, 3/4/5 ms 무오류라 3 ms 선택
 - 실기 Wired `jam` 10회와 긴 `ja`, Windows 11 Bluetooth `asdfjkljam…` 통과
 - 오른쪽 `Fn+0`, 왼쪽 `Fn+5` 순서로 역할 시리얼 확인 후 P4 배포·복귀
+- 10,000개 시험은 `SnapshotOrderer` 모델 기준이며 scanner channel, GATT, HID
+  output queue를 모두 통과한 end-to-end 부하 시험은 아님
+- 안정판 전 실제 BLE 도착 jitter와 장시간 clock drift, queue gap/overflow,
+  재연결 직후, Android P4, 1200-baud P4 복구를 확인할 것
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나
