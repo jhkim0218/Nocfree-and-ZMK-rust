@@ -77,7 +77,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 65 Rust tests and 17 Python/contract/artifact tests.
+passed 66 Rust tests and 17 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -97,13 +97,13 @@ verify artifacts; they are not installed on the keyboard.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
-| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
+| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
 
 The UF2 files write only from the application start at `0x27000` through
-`0x395ff` on the left and `0x326ff` on the right. They preserve the SoftDevice,
+`0x395ff` on the left and `0x327ff` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
 
 ## Split reconnect diagnostics
@@ -144,6 +144,23 @@ experiment is staged right advertising with a key press returning immediately
 to frequent/fast advertising; TX power and latency stay unchanged
 until that result is measured.
 
+### P3.2 advertising result
+
+The disconnected right now advertises every 250 ms for 10 seconds, every
+500 ms for the next 50 seconds, and every 1 second afterward. A right key press
+while disconnected immediately restarts the 250 ms stage. A shortened
+2-second/3-second diagnostic image recorded all three stages and the key reset
+before the final durations were built.
+
+At roughly 30 cm, two right power cycles both restored input in 6.142 and
+17.208 seconds. The second cycle connected at -85 dBm but timed out during
+security, then recovered automatically at -79 dBm. Wired USB and the existing
+Windows 11 Bluetooth output both passed, although the user still noticed a
+Bluetooth delay. Right 1200-baud recovery restored the same final image and
+reconnected in 1.295 seconds. P3.2 is complete, but P3 remains open: the next
+controlled comparison is right TX power because weak-signal security still
+failed once. Connection latency remains unchanged.
+
 ## Changing keys with NocFree Link
 
 The left half provides VID/PID `2886:8029`, product name `NocFree & ANSI`, and
@@ -167,7 +184,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P3.1 complete / tuning continues | Split connection | The unnecessary MTU exchange was removed and two desk-distance reconnects succeeded, but measured discovery/reconnect remained as slow as 55 seconds. Rapid cross-half events can also still be reordered |
+| P3.2 complete / tuning continues | Split connection | Standard MTU and staged/key-triggered advertising improved recovery, but a -85 dBm security timeout and 6-17 second desk-distance results remain. Rapid cross-half events can also still be reordered |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
@@ -267,6 +284,7 @@ is expected hardware behavior.
 | Backlight synchronization and auto-off | Absolute state converged after a deliberate right reboot while left remained manually off; 10 toggles stayed aligned, 30-second auto-off affected both halves, and a right key woke both |
 | Split reconnect diagnostics | At roughly 30 cm, logs captured `-75/-74 dBm`, one MTU-exchange failure, the next successful connection/security/GATT path, HCI disconnect reason `0x08`, and a right key pressed while disconnected. Both halves also passed 1200-baud recovery and returned to working input |
 | P3.1 split reconnect | ATT MTU 23 removed the observed MTU-exchange stage failure. Two user-approved right power cycles at roughly 30 cm both recovered input without moving the halves, but took 55,431/17,736 ms; Wired USB and Windows 11 Bluetooth output passed. Left 1200-baud recovery in Wired mode restored the same P3.1 image and reached split-ready in 4,358 ms |
+| P3.2 staged advertising | A short diagnostic proved 250/500/1,000 ms stages and disconnected-key return to 250 ms. Final 10/50-second durations passed two desk-distance input cycles in 6.142/17.208 seconds, Wired/Bluetooth output, and right 1200-baud recovery. One -85 dBm security timeout and noticeable Bluetooth delay keep P3 open for TX-power comparison |
 | System OFF and split recovery | A 10-second diagnostic image blocked System OFF while USB was present, entered left-central System OFF on battery, shut off both backlights before sleeping, woke from left USB or a held left key, restored BLE, and accepted right-side input after split reconnect. Release images change only the System OFF timeout to five minutes. A short wake-key tap can be consumed by reset boot; hold the left key until reconnect if its character is required |
 | New DFU shortcuts | Verified left DFU with `Fn+5`, no action on short `Fn+5`, right DFU after holding `Fn+0` for three seconds, and restoration to the latest images |
 | Physical-switch-only output selection | Pressing `Fn+U` and `Fn+B` typed `ub` without changing the output |

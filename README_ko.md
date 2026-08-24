@@ -70,7 +70,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 Rust 65개,
+일치를 모두 검사합니다. 최신 결과는 Rust 66개,
 Python/계약/아티팩트 17개 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
@@ -91,12 +91,12 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
-| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
+| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x395ff`, 오른쪽 `0x326ff`까지만
+UF2는 앱 시작 `0x27000`부터 왼쪽 `0x395ff`, 오른쪽 `0x327ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
 
 ## Split 재연결 진단
@@ -132,6 +132,21 @@ MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 �
 실험은 이 패킷의 단계별 주기와 미연결 키 입력 시 즉시 빠른 주기로 복귀하는
 동작이며, 그 결과를 측정하기 전에는 TX 출력과 latency를 바꾸지 않습니다.
 
+### P3.2 연결 알림 패킷 결과
+
+끊어진 오른쪽은 처음 10초 동안 250 ms, 다음 50초 동안 500 ms, 이후 1초
+간격으로 BLE 연결 가능 패킷을 보냅니다. 끊어진 상태에서 오른쪽 키를 누르면
+즉시 250 ms 단계부터 다시 시작합니다. 최종 시간값을 빌드하기 전에 2초/3초로
+줄인 진단 이미지로 세 단계와 키 입력 복귀를 모두 기록했습니다.
+
+약 30cm에서 오른쪽 전원 재인가 2회가 각각 6.142초와 17.208초에 입력까지
+복귀했습니다. 두 번째는 -85 dBm에서 연결된 뒤 보안 timeout이 났지만 -79 dBm
+자동 재시도로 회복했습니다. Wired USB와 기존 Windows 11 Bluetooth 출력은
+통과했지만 사용자는 Bluetooth 지연을 느꼈습니다. 오른쪽 1200-baud 복구도 같은
+최종 이미지로 돌아와 1.295초에 연결됐습니다. P3.2는 완료지만 약한 신호에서
+보안 실패가 남아 P3 전체는 계속 진행합니다. 다음 비교 변수는 오른쪽 TX 출력이며
+연결 latency는 유지합니다.
+
 ## NocFree Link 키 변경
 
 왼쪽은 `link.nocfree.com`이 인식하는 VID/PID `2886:8029`, 제품명
@@ -153,7 +168,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| P3.1 완료 / tuning 계속 | 양쪽 split | 불필요한 MTU 교환을 제거해 책상 거리 재연결 2회는 성공했지만 발견/재연결이 최대 55초로 느렸음. 빠른 좌우 교차 입력 순서 문제도 남음 |
+| P3.2 완료 / tuning 계속 | 양쪽 split | 표준 MTU와 단계별/키 입력 광고로 회복이 개선됐지만 -85 dBm 보안 timeout과 책상 거리 6-17초 결과가 남음. 빠른 좌우 교차 입력 순서 문제도 남음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 왼쪽 기준 version 포함 절대 상태가 enabled·밝기·timeout·generation을 모든 변경과 재연결 때 오른쪽에 동기화하며 30초 소등과 첫 키 wake도 유지 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
@@ -249,6 +264,7 @@ OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
 | 백라이트 동기화/자동 소등 | 왼쪽을 수동 OFF로 둔 채 오른쪽을 재부팅해 상태를 어긋내도 자동 수렴, 토글 10회 동기 유지, 30초 양쪽 자동 소등과 오른쪽 첫 키의 양쪽 wake 확인 |
 | Split 재연결 진단 | 약 30cm에서 `-75/-74 dBm`, 첫 MTU 교환 실패와 다음 연결·보안·GATT 성공, HCI 해제 사유 `0x08`, 미연결 오른쪽 키를 기록. 양쪽 1200-baud 복구 뒤 입력 복귀도 확인 |
 | P3.1 split 재연결 | ATT MTU 23으로 관측된 MTU 교환 단계 실패를 제거. 약 30cm 오른쪽 전원 재인가 2회가 거리 이동 없이 입력까지 복귀했지만 55,431/17,736 ms가 걸림. Wired USB와 Windows 11 Bluetooth 출력 통과. Wired 위치에서 왼쪽 1200-baud 복구로 같은 P3.1 복귀 뒤 4,358 ms에 split-ready 확인 |
+| P3.2 단계별 광고 | 짧은 진단 이미지로 250/500/1,000 ms 단계와 미연결 키의 250 ms 복귀를 확인. 최종 10/50초 설정은 책상 거리 입력 2회를 6.142/17.208초에 통과하고 Wired/Bluetooth 출력과 오른쪽 1200-baud 복구도 통과. -85 dBm 보안 timeout과 Bluetooth 체감 지연 때문에 TX 출력 비교가 남음 |
 | System OFF와 split 복귀 | 10초 진단 이미지에서 USB 연결 중 System OFF 차단, 배터리 상태 왼쪽 central System OFF, sleep 전 양쪽 백라이트 소등, 왼쪽 USB 또는 왼쪽 키 홀드 wake, BLE 복귀와 오른쪽 split 입력을 확인. 배포 이미지는 같은 경로에서 timeout만 5분으로 변경. 짧은 wake 키 탭은 reset 부팅 중 소모될 수 있으므로 해당 문자도 입력하려면 재연결까지 왼쪽 키를 유지해야 함 |
 | 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
 | 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |

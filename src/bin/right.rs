@@ -35,8 +35,7 @@ use nocfree_and_rust::split_diagnostics::{
     duration_millis, pack_address, pack_connection_parameters,
 };
 use nocfree_and_rust::split_protocol::{
-    COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, FAST_ADVERTISING_INTERVAL_UNITS,
-    IDLE_ADVERTISING_INTERVAL_UNITS, SERVICE_UUID_LE,
+    AdvertisingStage, COMMAND_BATTERY_REQUEST, COMMAND_BOOTLOADER, SERVICE_UUID_LE,
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on};
 use nrf_softdevice::Softdevice;
@@ -58,6 +57,7 @@ static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
 static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightSnapshot> = Signal::new();
 static BATTERY_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
+static DISCONNECTED_KEY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BATTERY_LEVEL: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
 static SPLIT_CONNECTED: AtomicBool = AtomicBool::new(false);
 static SECURITY_RECORDED: AtomicBool = AtomicBool::new(false);
@@ -136,6 +136,7 @@ async fn log_disconnected_keys() -> ! {
                 state.count_ones() as u16,
                 state,
             );
+            DISCONNECTED_KEY.signal(());
         }
     }
 }
@@ -243,27 +244,24 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
         .full_name("NocFree Rust Right")
         .build();
 
-    let mut has_connected = false;
+    let mut stage = AdvertisingStage::Fast;
     let mut attempt = 0_u16;
     loop {
         attempt = attempt.wrapping_add(1).max(1);
         SPLIT_CONNECTED.store(false, Ordering::Release);
         let advertising_config = peripheral::Config {
-            interval: if has_connected {
-                IDLE_ADVERTISING_INTERVAL_UNITS
-            } else {
-                FAST_ADVERTISING_INTERVAL_UNITS
-            },
+            interval: stage.interval(),
+            timeout: stage.timeout(),
             ..Default::default()
         };
         let advertising_started = Instant::now();
         SPLIT_DIAGNOSTICS.record(
             SplitDiagnosticEvent::Advertising,
-            if has_connected { 1 } else { 0 },
+            stage as i8,
             advertising_config.interval.min(u16::MAX as u32) as u16,
             attempt as u64,
         );
-        let connection = match peripheral::advertise_pairable(
+        let advertising = peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
                 adv_data: &ADVERTISEMENT,
@@ -271,15 +269,18 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
             },
             &advertising_config,
             &SPLIT_SECURITY,
-        )
-        .await
-        {
-            Ok(connection) => connection,
-            Err(error) => {
+        );
+        let connection = match select(advertising, DISCONNECTED_KEY.wait()).await {
+            Either::First(Ok(connection)) => connection,
+            Either::First(Err(peripheral::AdvertiseError::Timeout)) => {
+                stage = stage.next();
+                continue;
+            }
+            Either::First(Err(error)) => {
                 let code = match error {
-                    peripheral::AdvertiseError::Timeout => 1,
                     peripheral::AdvertiseError::NoFreeConn => 2,
                     peripheral::AdvertiseError::Raw(_) => 3,
+                    peripheral::AdvertiseError::Timeout => unreachable!(),
                 };
                 SPLIT_DIAGNOSTICS.record(
                     SplitDiagnosticEvent::AdvertisingError,
@@ -289,8 +290,13 @@ async fn run_split_peripheral(softdevice: &Softdevice, server: &SplitServer) -> 
                 );
                 continue;
             }
+            Either::Second(()) => {
+                stage = AdvertisingStage::Fast;
+                continue;
+            }
         };
-        has_connected = true;
+        stage = AdvertisingStage::Fast;
+        DISCONNECTED_KEY.reset();
         SPLIT_CONNECTED.store(true, Ordering::Release);
         SECURITY_RECORDED.store(false, Ordering::Release);
         SPLIT_DIAGNOSTICS.record(

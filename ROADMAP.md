@@ -18,7 +18,7 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock right ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
 | Rust left ANSI | 150,528 | `0x27000..0x395FF` |
-| Rust right ANSI | 93,696 | `0x27000..0x326FF` |
+| Rust right ANSI | 94,208 | `0x27000..0x327FF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -33,7 +33,7 @@ right Rust images.
 | P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
 | P0 regression | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Arrival-ordered half snapshots can produce `jam -> ajm` during rapid alternating input | 10,000+ synthetic events plus USB/BLE hardware stress pass with acceptable added latency |
-| P0 regression / P3.1 done | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | Standard ATT MTU 23 removed the observed MTU-exchange failure; two user-approved desk-distance cycles restored input, but split-ready still took 17.7-55.4 seconds | Next test staged advertising and disconnected-key fast advertising while TX power/latency remain unchanged; then repeat desk-distance cycles |
+| P0 regression / P3.2 done | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | Standard MTU plus 250/500/1,000 ms staged and key-triggered advertising restored two desk-distance inputs in 6.1/17.2 seconds; one -85 dBm security timeout remains | Compare right TX power at the same distance while latency remains unchanged, then repeat desk-distance cycles |
 | Done | Backlight synchronization | Both halves converge after commands, timeout, wake, reboot, and reconnect | Left-owned versioned absolute state replaces relative split toggles and is resent after GATT discovery | Deliberate right reboot while left stayed off converged once; 10 toggles, timeout, and right-key wake stayed aligned |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
 | Done | Backlight timeout | Backlight off after 30 seconds without a NocFree key press | Both halves now turn off independently of USB power and wake without losing the first key | A 10-second diagnostic image passed hardware testing; release images use the same path with a 30-second constant |

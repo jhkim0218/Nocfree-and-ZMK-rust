@@ -1,39 +1,39 @@
-# Gates: P3.1 split reconnect without ATT MTU exchange
+# Gates: P3.2 staged split advertising
 
 OWNS: src/**, tools/**, firmware/**, README.md, README_ko.md, HANDOFF.md, ROADMAP.md, ROADMAP_ko.md, RECOVERY.md, PROGRESS.md, GATES.md
 
-Scope: remove the unnecessary split ATT MTU exchange identified by P2, then prove reliable desk-distance reconnect without changing advertising, TX power, or latency.
+Scope: make a disconnected right half easy to rediscover without keeping its BLE availability packets at the fastest interval forever. Do not change ATT MTU, TX power, connection interval, latency, supervision timeout, or protected flash.
 
 - [x] G0: this ledger states outcomes that can fail
   CHECK: node "C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs" GATES.md
   EXPECT: LINT OK
   EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=cca8a72878d1/33 entries; output=WARN  2/10 gates are runnable; a mostly manual ledger is prose with checkboxes  [mostly-manual] | LINT OK (16 warning(s))
 
-- [x] G1: the complete release build and artifact validation prove the default ATT MTU fits every split value and both firmware images remain valid
+- [x] G1: host tests prove fast -> medium -> idle stage order, exact release intervals/durations, and key-triggered fast reset; the full release build and artifact validation pass
   CHECK: pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1
   EXPECT: NocFree release verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=cca8a72878d1/33 entries; output=Ran 17 tests in 0.022s | OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=cca8a72878d1/33 entries; output=Ran 17 tests in 0.033s | OK
 
-- [x] G2: only the split ATT MTU request changes; advertising intervals, TX power, connection interval, latency, supervision timeout, and protected flash boundaries remain unchanged
-  EVIDENCE: diff from d665c48 sets only the central split ConnectConfig ATT MTU to 23; CONNECTION_INTERVAL_UNITS=6, CONNECTION_LATENCY=30, CONNECTION_TIMEOUT_UNITS=400, FAST_ADVERTISING_INTERVAL_UNITS=400, IDLE_ADVERTISING_INTERVAL_UNITS=1600, TX-power setup, memory.x, and protected boundaries are unchanged. The right-side edit only records the negotiated MTU in the existing RAM diagnostic ring.
+- [x] G2: only right disconnected advertising policy and its diagnostics change; ATT MTU, TX power, connection interval, latency, supervision timeout, GATT schema, storage, and protected flash remain unchanged
+  EVIDENCE: diff from a9089c5 changes only the right disconnected advertising state machine, its pure stage constants/tests, readable stage diagnostics, and repository contract assertions. central.rs, SPLIT_ATT_MTU=23, CONNECTION_INTERVAL_UNITS=6, CONNECTION_LATENCY=30, CONNECTION_TIMEOUT_UNITS=400, peripheral default TX power, GATT definitions, memory.x, storage addresses, and protected boundaries are unchanged.
 
-- [x] G3: the left P3.1 UF2 is deployed to the verified left serial and returns as RUST-LEFT while the P2 right remains compatible
-  EVIDENCE: left DFU serial 52CF50988BD1E6EE was verified on G:, SHA-256 7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A was copied, USB VID_2886&PID_8029 returned as RUST-LEFT, and the unchanged P2 right produced jkl (Korean layout: ㅓㅏㅣ) through Wired USB.
+- [x] G3: a shortened 2-second fast / 3-second medium diagnostic image on the verified right serial records fast -> medium -> idle, and a disconnected right key records a return to fast
+  EVIDENCE: right DFU serial D82A03513BB02626 was verified on F: and diagnostic UF2 SHA-256 031A6720B1017FB1728405976DFB0E23C17D5E16FD1B8FD1EB7EA28DEB7C02E1 was deployed. Right diagnostics recorded fast 400 units, medium 800 units 1,805 ms later, idle 1600 units 2,532 ms later, then a disconnected key followed immediately by fast 400 units. The P3.1 left was restored from verified serial 52CF50988BD1E6EE with its unchanged hash.
 
-- [x] G4: two user-approved right power-off/on cycles at roughly 30 cm reconnect without moving the halves closer, losing input, or requiring another recovery action
-  EVIDENCE: the user reduced the requested sample from ten cycles to two and produced jj from the right after both cycles. Diagnostics recorded split-ready on attempts 2 and 3 without an error: RSSI -85/-79 dBm and total reconnect times 55,431/17,736 ms. Reliability passed this limited sample, but reconnect speed remains unproven.
+- [x] G4: the final right image uses 250 ms for 10 seconds, 500 ms for the next 50 seconds, then 1 second indefinitely; it is deployed to the verified right serial and returns as RUST-RIGHT while the P3.1 left remains compatible
+  EVIDENCE: host tests assert 400/800/1600 interval units and 1000/5000/none timeout units. Final right UF2 SHA-256 859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7 was copied only to verified right serial D82A03513BB02626 on F:, returned as RUST-RIGHT, connected from fast advertising in 274 ms, and produced jkl through the unchanged P3.1 left.
 
-- [x] G5: P3.1 diagnostics show successful reconnect stages without the previous MTU-exchange failure
-  EVIDENCE: left diagnostics after deployment recorded RSSI -56 dBm, connected in 2014 ms, ATT MTU=23, security-ok in 61 ms, gatt-ok in 376 ms, and split-ready on attempt 1 in 5946 ms; no MTU-exchange error was recorded.
+- [x] G5: at roughly 30 cm, two user-approved right power cycles restore right input without moving the halves closer, changing Windows state, or taking a recovery action; measured reconnect times are recorded
+  EVIDENCE: the user produced jj after two cycles. Cycle 1 reached split-ready in 6,142 ms at RSSI -90 dBm. Cycle 2 connected at -85 dBm but security timed out after 5,231 ms; automatic attempt 5 then reached split-ready in 4,696 ms at -79 dBm, 17,208 ms after the cycle-2 disconnect. Input reliability passed this sample, but distance reconnect speed and weak-signal security remain open.
 
-- [x] G6: right-side input works after split reconnect in both Wired USB output and the existing Windows 11 Bluetooth output
-  EVIDENCE: the unchanged P2 right produced jkl (Korean layout: ㅓㅏㅣ) through Wired USB, then produced ㅓㅓㅓ after the user switched the left output to the existing Windows 11 Bluetooth setup and power-cycled the right. The user separately observed the known single-identity profile-name/connect-loop limitation when selecting an office-PC slot from this PC; that limitation is not treated as a split-link failure.
+- [x] G6: right-side input after the final reconnect works through Wired USB and the existing Windows 11 Bluetooth output
+  EVIDENCE: final right produced jkl plus jj after Wired reconnect cycles, then produced Korean-layout ㅓ after Bluetooth/Fn+2 and a further right power cycle. The user reported that Bluetooth input arrived after a noticeable delay; no Windows device deletion or re-pairing was used.
 
-- [x] G7: left 1200-baud CDC recovery still enters the role-specific bootloader and returns to the same P3.1 firmware
-  EVIDENCE: with the left switch in Wired, verified RUST-LEFT COM19 entered USB VID_239A&PID_0029 COM9/G: with parent serial 52CF50988BD1E6EE. The same left UF2 SHA-256 7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A was restored; RUST-LEFT returned and diagnostics again showed ATT MTU=23 and split-ready on attempt 1 in 4,358 ms. Two earlier attempts while the switch remained in Bluetooth reset back to the app without an observed UF2 volume, so Wired is the documented recovery position.
+- [x] G7: right 1200-baud CDC recovery enters the role-specific bootloader and returns to the same final P3.2 image
+  EVIDENCE: COM18 parent USB VID_1D50&PID_615E RUST-RIGHT was verified, 1200-baud touch entered F: with serial D82A03513BB02626, the same final right hash was restored, and RUST-RIGHT returned. Post-recovery diagnostics recorded fast 250 ms advertising, connection in 1,295 ms, ATT MTU 23, and security-ok in 60 ms.
 
-- [x] G8: English and Korean documents, artifacts, hashes, ranges, measured P3.1 evidence, and the remaining P3 experiments are accurate
-  EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record 65 Rust/17 Python tests, measured P3.1 timings/RSSI, the two-cycle sample limit, the single-identity Windows profile limitation, Wired-position left recovery, current UF2 ranges 0x27000..0x395ff/0x27000..0x326ff, and current hashes. A direct metadata check found every current artifact hash in the required documents; the next experiment is staged advertising/key-triggered fast advertising with TX power and latency unchanged.
+- [x] G8: English and Korean documents, artifacts, hashes, ranges, measured P3.2 evidence, and the remaining P3 experiments are accurate
+  EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record the schedule, short diagnostic, two-cycle timings/RSSI/security retry, Wired/Bluetooth input, right recovery, 66/17 tests, current hashes/ranges, and TX power as the next single variable. Direct metadata checks matched every current artifact hash in README EN/KO and HANDOFF; repository tests remain 17/17.
 
-- [x] G9: the verified P3.1 implementation, artifacts, documentation, and gate ledger are committed
-  EVIDENCE: implementation, generated artifacts, documentation, and measured gate evidence were committed as 7228d0fd732d6657098eaeaff4fc8cc11a0e8fa6; this gate closure is recorded in the immediately following documentation commit.
+- [ ] G9: the verified P3.2 implementation, artifacts, documentation, and gate ledger are committed
+  EVIDENCE: pending

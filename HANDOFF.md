@@ -134,7 +134,7 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
 최신 UF2 실제 범위는 왼쪽 `0x27000..0x395ff`, 오른쪽
-`0x27000..0x326ff`입니다.
+`0x27000..0x327ff`입니다.
 
 ## 6. 최신 산출물
 
@@ -142,10 +142,10 @@ hotkey는 구현·실기 검증됐습니다.
 |---|---:|---|
 | `firmware/NocFree_Rust_Left.bin` | 75,020 | `75E6E954C433B135467338884744E1E25D9BB8A824CC7297FDF7FFD1D9B1CD4B` |
 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 150,528 | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `E2077DFC789B506F99A774935414CACADB986EDC7DEA7B4F99C0F95A533BE2F2` |
-| `firmware/NocFree_Rust_Right.bin` | 46,844 | `DFD7D1D988A4D6818B6D9AF10E4537D0DDEC3EB91C8F567A757A8BB905AB3DF9` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 93,696 | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 47,726 | `9D6564D9EE2D0FFD04A8430ABB37BBDA9AC3169B9322B762FBCACDEA0F3B01EC` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 75,896 | `C772CDF616CDF7A6D6C3F4AD36B4FE0075B2EDDF2000FA2A8348787F3D6A843C` |
+| `firmware/NocFree_Rust_Right.bin` | 46,924 | `87C4DA9A806643A013D45055EA6FDDD339B61C9B25099D51BD5844A84BF2915D` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 94,208 | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 47,806 | `32655708B56EF6AD76E48F4C720E01990A4179847CDDB598FB7F447AA1B7F0D6` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -171,7 +171,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 
 마지막 결과:
 
-- Rust host tests: 65/65
+- Rust host tests: 66/66
 - Python contract/artifact tests: 17/17
 - fmt: 통과
 - host lib 및 central/right ARM Clippy `-D warnings`: 통과
@@ -211,6 +211,19 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 - `NocFree 1/2/3`은 하나의 BLE identity를 공유함. 다른 PC에 bond된 슬롯을
   현재 Windows에서 선택하면 같은 항목 이름이 바뀌고 페어링됨/연결됨이 반복될
   수 있으므로, 현재 PC의 슬롯으로 돌아가야 함
+
+### P3.2 단계별 연결 알림 패킷
+
+- 오른쪽 단절 시 250 ms 10초 → 500 ms 50초 → 1초 장기, 미연결 오른쪽
+  키 입력 시 즉시 250 ms 단계로 복귀
+- 2초/3초 진단 이미지로 fast/medium/idle과 key→fast 기록을 먼저 실기 확인
+- 최종 이미지 약 30cm 재인가 2회 입력 성공: 6.142초와 17.208초. 두 번째는
+  -85 dBm 보안 timeout 뒤 -79 dBm 자동 재시도로 회복
+- Wired `jkljj`, Windows 11 Bluetooth 오른쪽 `ㅓ` 통과. Bluetooth는 사용자가
+  지연을 체감했고 Windows 삭제/재페어링은 하지 않음
+- 오른쪽 COM18 1200-baud → serial `D82A03513BB02626` F: → 같은 최종 이미지
+  복구 → RUST-RIGHT, 1.295초 연결과 60 ms 보안 확인
+- P3 다음 변수는 오른쪽 TX 출력 비교. latency와 connection timing은 유지
 
 저장소 기본 target은 MCU이므로 `cargo test --all-targets`를 그대로 실행하면
 `std`가 없는 `thumbv7em-none-eabihf`에서 실패합니다. 반드시 빌드 스크립트나

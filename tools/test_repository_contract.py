@@ -110,6 +110,7 @@ class RepositoryContractTests(unittest.TestCase):
 
     def test_split_connection_uses_zmk_timing(self) -> None:
         central = read("src/bin/central.rs")
+        right = read("src/bin/right.rs")
         protocol = read("src/split_protocol.rs")
         self.assertIn("pub const CONNECTION_INTERVAL_UNITS: u16 = 6", protocol)
         self.assertIn("pub const CONNECTION_LATENCY: u16 = 30", protocol)
@@ -123,6 +124,8 @@ class RepositoryContractTests(unittest.TestCase):
             central,
         )
         self.assertIn("att_mtu: Some(SPLIT_ATT_MTU)", central)
+        self.assertIn("AdvertisingStage::Fast", right)
+        self.assertIn("DISCONNECTED_KEY.wait()", right)
 
     def test_firmware_uses_published_gpio_pins(self) -> None:
         central = read("src/bin/central.rs")

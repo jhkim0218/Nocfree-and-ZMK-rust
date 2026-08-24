@@ -47,7 +47,7 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P0 Baseline and regression capture | Complete | Full build/test/artifact validation passed and regressions are documented |
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
-| P3 BLE reconnect tuning | In progress (P3.1 complete) | The observed MTU-stage failure is removed and a two-cycle desk-distance sample passed; staged advertising/key-triggered fast advertising remains because reconnect was still slow |
+| P3 BLE reconnect tuning | In progress (P3.2 complete) | Standard MTU and staged/key-triggered advertising pass, but one weak-signal security timeout and 6-17 second desk-distance results require TX-power comparison |
 | P4 Cross-half ordering | Pending | 10,000+ automated events and USB/BLE hardware stress pass without loss, duplication, reordering, or stuck keys |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
@@ -136,6 +136,33 @@ Last updated: 2026-08-24 (Asia/Seoul)
 |---|---|---|---|---|
 | Left | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | P3.1 deployed and recovery-tested | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
 | Right | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | P2 remained deployed; current artifact only improves actual-MTU logging | `A511095812F945E4AE67090B5F33993137FF537060E9ED10B12280F575A250D8` | `0x27000..0x326ff` |
+
+## P3.2 staged advertising — complete
+
+- The right advertises at 250 ms for 10 seconds after disconnect, 500 ms for
+  the next 50 seconds, then 1 second indefinitely. A disconnected right key
+  immediately restarts the 250 ms stage.
+- A shortened 2-second/3-second diagnostic image recorded fast -> medium ->
+  idle and disconnected-key -> fast before the final durations were built.
+- Automated validation passed: 66 Rust tests, 17 Python/contract/artifact
+  tests, formatting, host/ARM Clippy, both release builds, and artifact checks.
+- At roughly 30 cm, two user-approved right power cycles restored input in
+  6,142 and 17,208 ms. The second connected at -85 dBm but security timed out;
+  attempt 5 recovered automatically at -79 dBm.
+- Final right input passed as `jkljj` through Wired USB and as a Korean-layout
+  `ㅓ` through the existing Windows 11 Bluetooth profile. The user noticed a
+  Bluetooth delay; no Windows deletion or re-pairing was used.
+- Right 1200-baud recovery verified COM18 parent `RUST-RIGHT`, DFU serial
+  `D82A03513BB02626`, restored the same final image, and returned as
+  `RUST-RIGHT`. It connected from fast advertising in 1,295 ms and secured in
+  60 ms.
+- P3 remains open. The next single-variable experiment is right TX power;
+  connection latency and timing remain unchanged.
+
+| Role | UF2 | SHA-256 | Written range |
+|---|---|---|---|
+| Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
+| Right P3.2 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `859846B4B119B3469468E6998A2A5292EA436F63771C31D71589C599CB7819A7` | `0x27000..0x327ff` |
 
 ## Protected facts
 

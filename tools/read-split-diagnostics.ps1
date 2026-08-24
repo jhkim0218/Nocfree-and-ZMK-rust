@@ -121,7 +121,7 @@ function Format-DiagnosticRecord {
         14 { 'attempt={0}, total={1} ms' -f $data, $value }
         15 { 'HCI-reason=0x{0:X2}' -f ($arg -band 0xFF) }
         16 {
-            $mode = if ($arg -eq 0) { 'fast' } else { 'idle' }
+            $mode = switch ($arg) { 0 { 'fast' } 1 { 'medium' } 2 { 'idle' } default { 'unknown' } }
             'attempt={0}, mode={1}, interval={2} units ({3:N0} ms)' -f $data, $mode, $value, ($value * 0.625)
         }
         17 { '{0}, elapsed={1} ms' -f $advertisingErrors[$arg], $value }
