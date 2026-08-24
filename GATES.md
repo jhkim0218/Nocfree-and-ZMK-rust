@@ -35,5 +35,5 @@ Scope: make a disconnected right half easy to rediscover without keeping its BLE
 - [x] G8: English and Korean documents, artifacts, hashes, ranges, measured P3.2 evidence, and the remaining P3 experiments are accurate
   EVIDENCE: README.md, README_ko.md, HANDOFF.md, PROGRESS.md, ROADMAP.md, ROADMAP_ko.md, and RECOVERY.md record the schedule, short diagnostic, two-cycle timings/RSSI/security retry, Wired/Bluetooth input, right recovery, 66/17 tests, current hashes/ranges, and TX power as the next single variable. Direct metadata checks matched every current artifact hash in README EN/KO and HANDOFF; repository tests remain 17/17.
 
-- [ ] G9: the verified P3.2 implementation, artifacts, documentation, and gate ledger are committed
-  EVIDENCE: pending
+- [x] G9: the verified P3.2 implementation, artifacts, documentation, and gate ledger are committed
+  EVIDENCE: implementation, generated artifacts, documentation, and measured gate evidence were committed as 7736e78157127dc0805574b4938bb4c9a9c21903; this gate closure is recorded in the immediately following documentation commit.
