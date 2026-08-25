@@ -7,8 +7,11 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)이며,
 이 저장소는 독립적인 Rust 포팅입니다.
 
-이 펌웨어는 **84키 NocFree & ANSI 모델만 지원**합니다. 다른 NocFree 모델과
-ISO 배열은 지원하지 않습니다.
+84키 ANSI 물리 배열만 현재 로컬 실기 검증 이력이 있습니다. ISO, JIS, KR은
+각각 선택해 빌드할 수 있지만 **Experimental·실기 미검증** 상태입니다.
+사용 전 [LAYOUTS.md](LAYOUTS.md)를 확인하십시오.
+2026-08-25에 키맵을 분리한 새 ANSI 산출물은 자동 검사를 모두 통과했지만 오늘
+flash하지 않았으므로, 배포 전 짧은 ANSI 회귀 실기 검증이 한 번 더 필요합니다.
 
 2026-08-23 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
 84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
@@ -64,15 +67,17 @@ if ($componentExit -ne 0) { throw ('rustup component add failed with exit code {
 $pipExit = $LASTEXITCODE
 if ($pipExit -ne 0) { throw ('dependency installation failed with exit code {0}' -f $pipExit) }
 
-& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1'
+& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1' -Layout ANSI
 $buildExit = $LASTEXITCODE
 if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
 ```
 
-스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
+`-Layout`에는 `ANSI`, `ISO`, `JIS`, `KR` 중 하나를 지정합니다. ANSI 산출물은
+`firmware`, 나머지 실험 배열 산출물은 역할·배열명이 포함된 이름으로
+`firmware/experimental`에 생성됩니다. 스크립트는 포맷, Windows 호스트 테스트, host/ARM Clippy, 양쪽 release 빌드,
 BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 Rust 71개,
-Python/계약/아티팩트 18개 테스트 통과입니다.
+일치를 모두 검사합니다. 최신 결과는 배열별 Rust 73개,
+Python/계약/아티팩트 20개 테스트 통과입니다.
 
 빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
 
@@ -90,12 +95,16 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 80,964 | `22F38C6EA74CB155F19D3AA219CC5E3EF6239F73D9433C1750FBA3983AE436DD` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 81,840 | `DF597EA1650313A2917B4E2956EDDF801B0D165C470D7B6C1B817D137F947FFB` |
-| `firmware/NocFree_Rust_Right.bin` | 47,508 | `1D6CDBB284AA9008AE0D89CFFB10EB979EC7017B0EEBFB76AE81848139D23BA4` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,390 | `A181DCA39D8E6E7CCDFAAB3C3DB7DF72FF109A8FBB1E6FC091BC5D38BF34106F` |
+| `firmware/NocFree_Rust_Left.bin` | 81,140 | `F929A8D4CA71BA051ABC5C538CE988DD75F659218A5439E8CC586AF90AB77700` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `9855CA2B829F78D3967926F83A1582F27D4824FE9C6D1518CD4086E15B373F99` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `3F2654B439C82FB350729330110329DF03CC47579DB004408B7C4B493B03CD93` |
+| `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `D343C39267413FE4163FA9D162260C8002C06E2D7F8DE1B8DA52CBC0837D1332` |
+
+실험 배열의 UF2 좌우 세트는 [`firmware/experimental`](firmware/experimental)에
+커밋합니다. 자동 검사만 통과했고 해당 배열 실물에는 flash하지 않았습니다.
+서로 다른 배열이나 빌드의 좌우 파일을 섞어 쓰면 안 됩니다.
 
 UF2는 앱 시작 `0x27000`부터 왼쪽 `0x3acff`, 오른쪽 `0x329ff`까지만
 기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.

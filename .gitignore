@@ -7,3 +7,5 @@ __pycache__/
 **/*.rs.bk
 *.pdb
 **/mutants.out*/
+/firmware/experimental/*.bin
+/firmware/experimental/*_DFU.zip

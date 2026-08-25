@@ -1,8 +1,12 @@
-use crate::keymap::{Action, KEY_COUNT, base_action, function_action};
+pub use crate::keymap::raw_from_matrix;
+use crate::keymap::{
+    Action, KEY_COUNT, LAYOUT_ID, MATRIX_COLS, MATRIX_ROWS, base_action, function_action,
+    matrix_from_raw,
+};
 
 pub const LINK_LAYERS: usize = 8;
-pub const LINK_ROWS: usize = 6;
-pub const LINK_COLS: usize = 21;
+pub const LINK_ROWS: usize = MATRIX_ROWS;
+pub const LINK_COLS: usize = MATRIX_COLS;
 pub const LINK_BINDING_BYTES: usize = 3;
 pub const LINK_KEYMAP_BYTES: usize = LINK_LAYERS * KEY_COUNT * LINK_BINDING_BYTES;
 pub const HOTKEY_SLOTS: usize = 16;
@@ -11,12 +15,7 @@ pub const LINK_KEYMAP_RECORD_BYTES: usize = 12 + LINK_KEYMAP_BYTES + HOTKEY_SLOT
 pub const LINK_KEYMAP_PAGE: u8 = 7;
 
 const MAGIC: [u8; 4] = *b"NFK1";
-const VERSION: u8 = 3;
-const LEFT_STARTS: [usize; LINK_ROWS] = [0, 7, 14, 20, 26, 32];
-const LEFT_COUNTS: [usize; LINK_ROWS] = [7, 7, 6, 6, 6, 5];
-const RIGHT_STARTS: [usize; LINK_ROWS] = [37, 45, 53, 61, 69, 77];
-const RIGHT_COUNTS: [usize; LINK_ROWS] = [8, 8, 8, 8, 8, 7];
-const RIGHT_COLUMNS: [usize; LINK_ROWS] = [7, 7, 6, 6, 6, 5];
+const VERSION: u8 = 4;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LinkBinding {
@@ -186,6 +185,8 @@ impl LinkKeymap {
         bytes[..4].copy_from_slice(&MAGIC);
         bytes[4] = VERSION;
         bytes[5] = self.system;
+        bytes[6] = LAYOUT_ID;
+        bytes[7] = KEY_COUNT as u8;
         let mut offset = 8;
         for binding in self.bindings {
             bytes[offset] = binding.kind;
@@ -208,7 +209,12 @@ impl LinkKeymap {
     }
 
     pub fn decode(bytes: &[u8; LINK_KEYMAP_RECORD_BYTES]) -> Option<Self> {
-        if bytes[..4] != MAGIC || bytes[4] != VERSION || bytes[5] > 1 {
+        if bytes[..4] != MAGIC
+            || bytes[4] != VERSION
+            || bytes[5] > 1
+            || bytes[6] != LAYOUT_ID
+            || bytes[7] as usize != KEY_COUNT
+        {
             return None;
         }
         let crc_offset = LINK_KEYMAP_RECORD_BYTES - 4;
@@ -242,34 +248,6 @@ impl LinkKeymap {
         }
         Some(map)
     }
-}
-
-pub const fn raw_from_matrix(row: usize, col: usize) -> Option<usize> {
-    if row >= LINK_ROWS {
-        return None;
-    }
-    if col < LEFT_COUNTS[row] {
-        return Some(LEFT_STARTS[row] + col);
-    }
-    let right_col = RIGHT_COLUMNS[row];
-    if col >= right_col && col < right_col + RIGHT_COUNTS[row] {
-        return Some(RIGHT_STARTS[row] + col - right_col);
-    }
-    None
-}
-
-pub const fn matrix_from_raw(raw: usize) -> Option<(usize, usize)> {
-    let mut row = 0;
-    while row < LINK_ROWS {
-        if raw >= LEFT_STARTS[row] && raw < LEFT_STARTS[row] + LEFT_COUNTS[row] {
-            return Some((row, raw - LEFT_STARTS[row]));
-        }
-        if raw >= RIGHT_STARTS[row] && raw < RIGHT_STARTS[row] + RIGHT_COUNTS[row] {
-            return Some((row, RIGHT_COLUMNS[row] + raw - RIGHT_STARTS[row]));
-        }
-        row += 1;
-    }
-    None
 }
 
 const fn binding_from_action(action: Action) -> LinkBinding {
@@ -453,8 +431,22 @@ mod tests {
         let map = LinkKeymap::default();
         assert_eq!(map.matrix_binding(0, 0, 0), Some(LinkBinding::new(0, 0x29)));
         assert_eq!(map.matrix_binding(0, 2, 6), Some(LinkBinding::new(0, 0x1c)));
-        assert_eq!(map.matrix_binding(0, 5, 0), Some(LinkBinding::new(3, 1)));
-        assert_eq!(map.matrix_binding(1, 0, 10), Some(LinkBinding::new(2, 168)));
+        let fn_raw = (0..KEY_COUNT)
+            .find(|raw| base_action(*raw) == Action::Fn)
+            .unwrap();
+        let (fn_row, fn_col) = matrix_from_raw(fn_raw).unwrap();
+        assert_eq!(
+            map.matrix_binding(0, fn_row, fn_col),
+            Some(LinkBinding::new(3, 1))
+        );
+        let mute_raw = (0..KEY_COUNT)
+            .find(|raw| function_action(*raw) == Action::Consumer(0x00e2))
+            .unwrap();
+        let (row, col) = matrix_from_raw(mute_raw).unwrap();
+        assert_eq!(
+            map.matrix_binding(1, row, col),
+            Some(LinkBinding::new(2, 168))
+        );
     }
 
     #[test]
@@ -475,6 +467,8 @@ mod tests {
         assert!(map.set_system(0));
         let mut encoded = map.encode();
         assert_eq!(encoded[4], VERSION);
+        assert_eq!(encoded[6], LAYOUT_ID);
+        assert_eq!(encoded[7] as usize, KEY_COUNT);
         assert_eq!(LinkKeymap::decode(&encoded), Some(map));
         encoded[4] = VERSION - 1;
         assert_eq!(LinkKeymap::decode(&encoded), None);

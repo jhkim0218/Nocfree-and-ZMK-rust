@@ -30,6 +30,7 @@ use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, us
 use nocfree_and_rust::ble_hid::BleHidServer;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState, KeyUpdate};
+use nocfree_and_rust::keymap::PRODUCT_NAME;
 use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
 use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
@@ -316,13 +317,25 @@ async fn run_deep_sleep() -> ! {
             .is_ok()
         {}
         loop {
-            if should_system_off(usb_power_detected(), BONDS.is_pairing(), key_wake_ready(31)) {
+            if should_system_off(
+                usb_power_detected(),
+                BONDS.is_pairing(),
+                key_wake_ready(31),
+                OUTPUT.should_send_ble(),
+                cfg!(feature = "ble-host-wake-diagnostic"),
+            ) {
                 set_backlight(BacklightCommand::Idle);
                 Timer::after(Duration::from_millis(DEEP_SLEEP_PREP_MS)).await;
                 if POWER_ACTIVITY.try_take().is_some() {
                     break;
                 }
-                if should_system_off(usb_power_detected(), BONDS.is_pairing(), key_wake_ready(31)) {
+                if should_system_off(
+                    usb_power_detected(),
+                    BONDS.is_pairing(),
+                    key_wake_ready(31),
+                    OUTPUT.should_send_ble(),
+                    cfg!(feature = "ble-host-wake-diagnostic"),
+                ) {
                     try_system_off(31);
                 }
             }
@@ -1005,7 +1018,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let usb_driver = Driver::new(peripherals.USBD, Irqs, &*vbus);
     let mut usb_config = Config::new(0x2886, 0x8029);
     usb_config.manufacturer = Some("NocFree");
-    usb_config.product = Some("NocFree & ANSI");
+    usb_config.product = Some(PRODUCT_NAME);
     usb_config.serial_number = Some("RUST-LEFT");
     let mut config_descriptor = [0; 256];
     let mut bos_descriptor = [0; 64];

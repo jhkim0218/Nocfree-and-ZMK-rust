@@ -1,6 +1,8 @@
-use crate::keymap::{LEFT_KEY_COUNT, RIGHT_KEY_COUNT};
+use crate::keymap::{
+    EXPANDER_COUNT, EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS, LEFT_KEY_COUNT, LEFT_ROW_COUNTS,
+    RIGHT_KEY_COUNT, RIGHT_ROW_COUNTS,
+};
 
-pub const EXPANDER_ADDRESSES: [u8; 3] = [0x20, 0x22, 0x24];
 pub const ACTIVE_SCAN_MS: u16 = 3;
 pub const IDLE_SCAN_MS: u16 = 10;
 pub const IDLE_SAFETY_SCAN_MS: u16 = 250;
@@ -165,8 +167,8 @@ impl SnapshotMerger {
 impl Half {
     pub const fn row_counts(self) -> [u8; 6] {
         match self {
-            Half::Left => [7, 7, 6, 6, 6, 5],
-            Half::Right => [8, 8, 8, 8, 8, 7],
+            Half::Left => LEFT_ROW_COUNTS,
+            Half::Right => RIGHT_ROW_COUNTS,
         }
     }
 
@@ -178,7 +180,7 @@ impl Half {
     }
 }
 
-pub fn decode_pressed(half: Half, port_words: [u16; 3]) -> u64 {
+pub fn decode_pressed(half: Half, port_words: [u16; EXPANDER_COUNT]) -> u64 {
     let counts = half.row_counts();
     let mut pressed = 0_u64;
     let mut local = 0;
@@ -196,6 +198,20 @@ pub fn decode_pressed(half: Half, port_words: [u16; 3]) -> u64 {
         }
         row += 1;
     }
+    let extra = match half {
+        Half::Left => EXTRA_LEFT_KEYS,
+        Half::Right => EXTRA_RIGHT_KEYS,
+    };
+    if extra != 0 {
+        let extra_word = port_words.get(3).copied().unwrap_or(u16::MAX);
+        for bit in 0..extra {
+            if extra_word & (1_u16 << bit) == 0 {
+                pressed |= 1_u64 << local;
+            }
+            local += 1;
+        }
+    }
+    debug_assert_eq!(local, half.key_count());
     pressed
 }
 
@@ -280,10 +296,13 @@ mod tests {
 
     #[test]
     fn released_and_pressed_levels_are_active_low() {
-        assert_eq!(decode_pressed(Half::Left, [0xffff; 3]), 0);
-        assert_eq!(decode_pressed(Half::Right, [0xffff; 3]), 0);
-        assert_eq!(decode_pressed(Half::Left, [0xfffe, 0xffff, 0xffff]), 1);
-        assert_eq!(decode_pressed(Half::Right, [0xfffe, 0xffff, 0xffff]), 1);
+        let released = [0xffff; EXPANDER_COUNT];
+        let mut first_pressed = released;
+        first_pressed[0] = 0xfffe;
+        assert_eq!(decode_pressed(Half::Left, released), 0);
+        assert_eq!(decode_pressed(Half::Right, released), 0);
+        assert_eq!(decode_pressed(Half::Left, first_pressed), 1);
+        assert_eq!(decode_pressed(Half::Right, first_pressed), 1);
     }
 
     #[test]
@@ -293,11 +312,21 @@ mod tests {
             let mut expected = 0;
             for row in 0..6 {
                 for column in 0..counts[row] {
-                    let mut words = [0xffff; 3];
+                    let mut words = [0xffff; EXPANDER_COUNT];
                     words[row / 2] &= !(1 << ((row & 1) * 8 + column as usize));
                     assert_eq!(decode_pressed(half, words), 1_u64 << expected);
                     expected += 1;
                 }
+            }
+            let extra = match half {
+                Half::Left => EXTRA_LEFT_KEYS,
+                Half::Right => EXTRA_RIGHT_KEYS,
+            };
+            for bit in 0..extra {
+                let mut words = [0xffff; EXPANDER_COUNT];
+                *words.get_mut(3).expect("extra layout expander") &= !(1 << bit);
+                assert_eq!(decode_pressed(half, words), 1_u64 << expected);
+                expected += 1;
             }
             assert_eq!(expected, half.key_count());
         }

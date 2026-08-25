@@ -93,7 +93,7 @@ class RepositoryContractTests(unittest.TestCase):
         storage = read("src/bond_store.rs")
         protocol = read("src/link_protocol.rs")
         self.assertIn("Config::new(0x2886, 0x8029)", central)
-        self.assertIn('usb_config.product = Some("NocFree & ANSI")', central)
+        self.assertIn("usb_config.product = Some(PRODUCT_NAME)", central)
         self.assertIn("LinkUsbClass::new", central)
         self.assertIn("BONDS.key_action(layer, raw)", central)
         self.assertIn('EMBASSY_USB_MAX_INTERFACE_COUNT = "5"', cargo_config)
@@ -101,6 +101,20 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("LINK_KEYMAP_PAGE", storage)
         self.assertIn("const SET_HOTKEY: u8 = 52", protocol)
         self.assertIn("const GET_TEXT: u8 = 49", protocol)
+
+    def test_layout_variants_are_explicit_and_separate(self) -> None:
+        cargo = read("Cargo.toml")
+        selector = read("src/keymap.rs")
+        build = read("tools/build-release.ps1")
+        for layout in ("ansi", "iso", "jis", "kr"):
+            self.assertIn(f"layout-{layout} = []", cargo)
+            self.assertTrue((ROOT / "src" / "keymap" / f"{layout}.rs").is_file())
+            self.assertIn(f'mod {layout};', selector)
+        self.assertIn('default = ["layout-ansi"]', cargo)
+        self.assertIn("'ANSI', 'ISO', 'JIS', 'KR'", build)
+        self.assertIn("firmware\\experimental", build)
+        self.assertIn("LAYOUT_ID", read("src/link_keymap.rs"))
+        self.assertIn("KEY_COUNT as u8", read("src/link_keymap.rs"))
 
     def test_cross_half_updates_share_one_fifo(self) -> None:
         central = read("src/bin/central.rs")

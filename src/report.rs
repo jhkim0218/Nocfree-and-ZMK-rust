@@ -310,17 +310,33 @@ impl ReportEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keymap::{LEFT_FN_RAW, RIGHT_FN_RAW};
+    use crate::keymap::{LEFT_FN_RAW, LEFT_KEY_COUNT, RIGHT_FN_RAW};
 
     fn key_is_set(report: &KeyboardReport, usage: u8) -> bool {
         let index = (usage - FIRST_BITMAP_USAGE) as usize;
         report.keys[index / 8] & (1 << (index & 7)) != 0
     }
 
+    fn raw_with_base(action: Action) -> usize {
+        (0..KEY_COUNT)
+            .find(|raw| base_action(*raw) == action)
+            .expect("selected layout contains the base action")
+    }
+
+    fn raw_with_function(action: Action) -> usize {
+        (0..KEY_COUNT)
+            .find(|raw| function_action(*raw) == action)
+            .expect("selected layout contains the function action")
+    }
+
     #[test]
     fn left_and_right_keys_share_one_report() {
         let mut engine = ReportEngine::default();
-        let effects = engine.apply_snapshot((1 << 1) | (1_u128 << 37));
+        let left = raw_with_base(Action::Key(0x3a));
+        let right = (LEFT_KEY_COUNT..KEY_COUNT)
+            .find(|raw| base_action(*raw) == Action::Key(0x40))
+            .expect("selected layout contains right F7");
+        let effects = engine.apply_snapshot((1_u128 << left) | (1_u128 << right));
         assert!(key_is_set(&effects.keyboard, 0x3a));
         assert!(key_is_set(&effects.keyboard, 0x40));
     }
@@ -369,7 +385,7 @@ mod tests {
     fn battery_status_requires_three_seconds_and_triggers_once() {
         for fn_raw in [LEFT_FN_RAW, RIGHT_FN_RAW] {
             let mut engine = ReportEngine::default();
-            let keys = (1_u128 << fn_raw) | (1_u128 << 55);
+            let keys = (1_u128 << fn_raw) | (1_u128 << raw_with_base(Action::Key(0x0c)));
             assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
             assert!(engine.apply_snapshot_at(keys, 3_009).commands().is_empty());
             assert_eq!(
@@ -384,7 +400,7 @@ mod tests {
     #[test]
     fn system_shortcuts_tap_letters_and_hold_to_select_the_os() {
         let mut engine = ReportEngine::default();
-        let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << 69);
+        let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << raw_with_base(Action::Key(0x11)));
         assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
         assert_eq!(
             engine
@@ -393,7 +409,7 @@ mod tests {
             &[Command::KeyTap(0x11)]
         );
 
-        let keys = (1_u128 << RIGHT_FN_RAW) | (1_u128 << 70);
+        let keys = (1_u128 << RIGHT_FN_RAW) | (1_u128 << raw_with_base(Action::Key(0x10)));
         assert!(engine.apply_snapshot_at(keys, 2_000).commands().is_empty());
         assert_eq!(
             engine.apply_snapshot_at(keys, 3_000).commands(),
@@ -406,15 +422,17 @@ mod tests {
     #[test]
     fn transparent_function_keys_keep_their_base_action() {
         let mut engine = ReportEngine::default();
-        let effects = engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << 15));
+        let q = raw_with_base(Action::Key(0x14));
+        let effects = engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << q));
         assert!(key_is_set(&effects.keyboard, 0x14));
     }
 
     #[test]
     fn action_selected_on_press_survives_fn_release() {
         let mut engine = ReportEngine::default();
-        engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << 40));
-        let effects = engine.apply_snapshot(1_u128 << 40);
+        let mute = raw_with_function(Action::Consumer(0x00e2));
+        engine.apply_snapshot((1_u128 << LEFT_FN_RAW) | (1_u128 << mute));
+        let effects = engine.apply_snapshot(1_u128 << mute);
         assert_eq!(effects.consumer, 0x00e2);
         assert!(!effects.consumer_changed);
         assert_eq!(engine.apply_snapshot(0).consumer, 0);
@@ -423,15 +441,25 @@ mod tests {
     #[test]
     fn modifiers_are_encoded_separately() {
         let mut engine = ReportEngine::default();
-        let effects = engine.apply_snapshot((1_u128 << 33) | (1_u128 << 80));
+        let left_control = raw_with_base(Action::Key(0xe0));
+        let right_alt = raw_with_base(Action::Key(0xe6));
+        let effects = engine.apply_snapshot((1_u128 << left_control) | (1_u128 << right_alt));
         assert_eq!(effects.keyboard.modifiers, (1 << 0) | (1 << 6));
     }
 
     #[test]
     fn dfu_shortcuts_require_three_seconds_and_trigger_once() {
         for (fn_raw, key_raw, command) in [
-            (LEFT_FN_RAW, 12, Command::BootLeft),
-            (RIGHT_FN_RAW, 48, Command::BootRight),
+            (
+                LEFT_FN_RAW,
+                raw_with_base(Action::Key(0x22)),
+                Command::BootLeft,
+            ),
+            (
+                RIGHT_FN_RAW,
+                raw_with_base(Action::Key(0x27)),
+                Command::BootRight,
+            ),
         ] {
             let mut engine = ReportEngine::default();
             let keys = (1_u128 << fn_raw) | (1_u128 << key_raw);

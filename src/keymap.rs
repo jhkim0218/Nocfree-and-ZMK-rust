@@ -1,8 +1,48 @@
-pub const KEY_COUNT: usize = 84;
-pub const LEFT_KEY_COUNT: usize = 37;
-pub const RIGHT_KEY_COUNT: usize = 47;
-pub const LEFT_FN_RAW: usize = 32;
-pub const RIGHT_FN_RAW: usize = 79;
+#[cfg(any(
+    all(feature = "layout-ansi", feature = "layout-iso"),
+    all(feature = "layout-ansi", feature = "layout-jis"),
+    all(feature = "layout-ansi", feature = "layout-kr"),
+    all(feature = "layout-iso", feature = "layout-jis"),
+    all(feature = "layout-iso", feature = "layout-kr"),
+    all(feature = "layout-jis", feature = "layout-kr"),
+))]
+compile_error!("select exactly one of layout-ansi, layout-iso, layout-jis, or layout-kr");
+
+#[cfg(not(any(
+    feature = "layout-ansi",
+    feature = "layout-iso",
+    feature = "layout-jis",
+    feature = "layout-kr"
+)))]
+compile_error!("select one of layout-ansi, layout-iso, layout-jis, or layout-kr");
+
+#[cfg_attr(not(feature = "layout-ansi"), allow(dead_code))]
+mod ansi;
+#[cfg(feature = "layout-iso")]
+mod iso;
+#[cfg(feature = "layout-jis")]
+mod jis;
+#[cfg(feature = "layout-kr")]
+mod kr;
+
+#[cfg(feature = "layout-ansi")]
+use ansi as selected;
+#[cfg(feature = "layout-iso")]
+use iso as selected;
+#[cfg(feature = "layout-jis")]
+use jis as selected;
+#[cfg(feature = "layout-kr")]
+use kr as selected;
+
+pub use selected::{
+    EXPANDER_ADDRESSES, EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS, KEY_COUNT, LAYOUT_ID, LAYOUT_NAME,
+    LEFT_FN_RAW, LEFT_KEY_COUNT, LEFT_ROW_COUNTS, PRODUCT_NAME, RIGHT_FN_RAW, RIGHT_KEY_COUNT,
+    RIGHT_ROW_COUNTS, ROW_KEY_COUNTS, VISUAL_TO_RAW,
+};
+
+pub const EXPANDER_COUNT: usize = EXPANDER_ADDRESSES.len();
+pub const MATRIX_ROWS: usize = ROW_KEY_COUNTS.len();
+pub const MATRIX_COLS: usize = 21;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Action {
@@ -38,86 +78,86 @@ pub enum Action {
     SystemF4,
 }
 
-macro_rules! k {
-    ($usage:expr) => {
-        Action::Key($usage)
-    };
-}
-
-#[rustfmt::skip]
-const VISUAL_BASE: [Action; KEY_COUNT] = [
-    k!(0x29), k!(0x3a), k!(0x3b), k!(0x3c), k!(0x3d), k!(0x3e), k!(0x3f),
-    k!(0x40), k!(0x41), k!(0x42), k!(0x43), k!(0x44), k!(0x45), k!(0x46), k!(0x4a),
-
-    k!(0x35), k!(0x1e), k!(0x1f), k!(0x20), k!(0x21), k!(0x22), k!(0x23),
-    k!(0x24), k!(0x25), k!(0x26), k!(0x27), k!(0x2d), k!(0x2e), k!(0x2a), k!(0x4b),
-
-    k!(0x2b), k!(0x14), k!(0x1a), k!(0x08), k!(0x15), k!(0x17),
-    k!(0x1c), k!(0x18), k!(0x0c), k!(0x12), k!(0x13), k!(0x2f), k!(0x30), k!(0x31),
-
-    k!(0x39), k!(0x04), k!(0x16), k!(0x07), k!(0x09), k!(0x0a),
-    k!(0x0b), k!(0x0d), k!(0x0e), k!(0x0f), k!(0x33), k!(0x34), k!(0x28), k!(0x4c),
-
-    k!(0xe1), k!(0x1d), k!(0x1b), k!(0x06), k!(0x19), k!(0x05),
-    k!(0x11), k!(0x10), k!(0x36), k!(0x37), k!(0x38), k!(0xe5), k!(0x52), k!(0x4e),
-
-    Action::Fn, k!(0xe0), k!(0xe2), k!(0xe3), k!(0x2c),
-    k!(0x2c), k!(0xe7), Action::Fn, k!(0xe6), k!(0x50), k!(0x51), k!(0x4f),
-];
-
-pub const fn raw_to_visual(raw: usize) -> usize {
-    match raw {
-        0..=6 => raw,
-        7..=13 => raw + 8,
-        14..=19 => raw + 16,
-        20..=25 => raw + 24,
-        26..=31 => raw + 32,
-        32..=36 => raw + 40,
-        37..=44 => raw - 30,
-        45..=52 => raw - 23,
-        53..=60 => raw - 17,
-        61..=68 => raw - 11,
-        69..=76 => raw - 5,
-        77..=83 => raw,
-        _ => panic!("raw key index outside the ANSI map"),
-    }
-}
-
 pub const fn base_action(raw: usize) -> Action {
-    VISUAL_BASE[raw_to_visual(raw)]
+    selected::base_action(raw)
 }
 
 pub const fn function_action(raw: usize) -> Action {
-    match raw_to_visual(raw) {
-        0 => Action::ResetLeft,
-        1 => Action::Consumer(0x006f),
-        2 => Action::Consumer(0x0070),
-        3 => Action::SystemF3,
-        4 => Action::SystemF4,
-        5 => Action::BacklightDown,
-        6 => Action::BacklightUp,
-        7 => Action::Consumer(0x00b6),
-        8 => Action::Consumer(0x00cd),
-        9 => Action::Consumer(0x00b5),
-        10 => Action::Consumer(0x00e2),
-        11 => Action::Consumer(0x00ea),
-        12 => Action::Consumer(0x00e9),
-        16 => Action::ProfileShortcut(0),
-        17 => Action::ProfileShortcut(1),
-        18 => Action::ProfileShortcut(2),
-        20 => Action::BootLeft,
-        25 => Action::BootRight,
-        30 => Action::BacklightToggle,
-        38 => Action::BatteryStatus,
-        64 => Action::SystemShortcut {
+    function_action_for(base_action(raw))
+}
+
+pub const fn raw_to_visual(raw: usize) -> usize {
+    let mut visual = 0;
+    while visual < KEY_COUNT {
+        if VISUAL_TO_RAW[visual] == raw {
+            return visual;
+        }
+        visual += 1;
+    }
+    panic!("raw key index outside the selected layout")
+}
+
+pub const fn raw_from_matrix(row: usize, col: usize) -> Option<usize> {
+    if row >= MATRIX_ROWS || col >= ROW_KEY_COUNTS[row] {
+        return None;
+    }
+    let mut visual = col;
+    let mut preceding = 0;
+    while preceding < row {
+        visual += ROW_KEY_COUNTS[preceding];
+        preceding += 1;
+    }
+    Some(VISUAL_TO_RAW[visual])
+}
+
+pub const fn matrix_from_raw(raw: usize) -> Option<(usize, usize)> {
+    if raw >= KEY_COUNT {
+        return None;
+    }
+    let visual = raw_to_visual(raw);
+    let mut row = 0;
+    let mut start = 0;
+    while row < MATRIX_ROWS {
+        let end = start + ROW_KEY_COUNTS[row];
+        if visual < end {
+            return Some((row, visual - start));
+        }
+        start = end;
+        row += 1;
+    }
+    None
+}
+
+const fn function_action_for(base: Action) -> Action {
+    match base {
+        Action::Key(0x29) => Action::ResetLeft,
+        Action::Key(0x3a) => Action::Consumer(0x006f),
+        Action::Key(0x3b) => Action::Consumer(0x0070),
+        Action::Key(0x3c) => Action::SystemF3,
+        Action::Key(0x3d) => Action::SystemF4,
+        Action::Key(0x3e) => Action::BacklightDown,
+        Action::Key(0x3f) => Action::BacklightUp,
+        Action::Key(0x40) => Action::Consumer(0x00b6),
+        Action::Key(0x41) => Action::Consumer(0x00cd),
+        Action::Key(0x42) => Action::Consumer(0x00b5),
+        Action::Key(0x43) => Action::Consumer(0x00e2),
+        Action::Key(0x44) => Action::Consumer(0x00ea),
+        Action::Key(0x45) => Action::Consumer(0x00e9),
+        Action::Key(0x1e) => Action::ProfileShortcut(0),
+        Action::Key(0x1f) => Action::ProfileShortcut(1),
+        Action::Key(0x20) => Action::ProfileShortcut(2),
+        Action::Key(0x22) => Action::BootLeft,
+        Action::Key(0x27) | Action::Key(0x4c) => Action::BootRight,
+        Action::Key(0x2b) => Action::BacklightToggle,
+        Action::Key(0x0c) => Action::BatteryStatus,
+        Action::Key(0x11) => Action::SystemShortcut {
             system: 1,
             key: 0x11,
         },
-        65 => Action::SystemShortcut {
+        Action::Key(0x10) => Action::SystemShortcut {
             system: 0,
             key: 0x10,
         },
-        57 => Action::BootRight,
         _ => Action::Transparent,
     }
 }
@@ -127,28 +167,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn transform_is_a_permutation() {
+    fn selected_transform_is_a_permutation() {
         let mut seen = [false; KEY_COUNT];
         for raw in 0..KEY_COUNT {
             let visual = raw_to_visual(raw);
             assert!(!seen[visual], "duplicate visual index {visual}");
             seen[visual] = true;
+            assert_eq!(
+                raw_from_matrix(
+                    matrix_from_raw(raw).unwrap().0,
+                    matrix_from_raw(raw).unwrap().1
+                ),
+                Some(raw)
+            );
         }
         assert!(seen.into_iter().all(|value| value));
+        assert_eq!(ROW_KEY_COUNTS.iter().sum::<usize>(), KEY_COUNT);
     }
 
     #[test]
     fn halves_and_function_keys_are_not_swapped() {
-        assert_eq!(raw_to_visual(0), 0);
-        assert_eq!(raw_to_visual(37), 7);
+        assert!(LEFT_FN_RAW < LEFT_KEY_COUNT);
+        assert!(RIGHT_FN_RAW >= LEFT_KEY_COUNT);
         assert_eq!(base_action(LEFT_FN_RAW), Action::Fn);
         assert_eq!(base_action(RIGHT_FN_RAW), Action::Fn);
         assert_eq!(function_action(0), Action::ResetLeft);
-        assert_eq!(function_action(68), Action::BootRight);
     }
 
     #[test]
-    fn function_layer_matches_nocfree_shortcuts() {
+    fn function_layer_matches_nocfree_shortcuts_by_key_identity() {
+        for raw in 0..KEY_COUNT {
+            match base_action(raw) {
+                Action::Key(0x1e) => assert_eq!(function_action(raw), Action::ProfileShortcut(0)),
+                Action::Key(0x1f) => assert_eq!(function_action(raw), Action::ProfileShortcut(1)),
+                Action::Key(0x20) => assert_eq!(function_action(raw), Action::ProfileShortcut(2)),
+                Action::Key(0x22) => assert_eq!(function_action(raw), Action::BootLeft),
+                Action::Key(0x27) | Action::Key(0x4c) => {
+                    assert_eq!(function_action(raw), Action::BootRight)
+                }
+                Action::Key(0x2b) => assert_eq!(function_action(raw), Action::BacklightToggle),
+                Action::Key(0x0c) => assert_eq!(function_action(raw), Action::BatteryStatus),
+                _ => {}
+            }
+        }
+    }
+
+    #[cfg(feature = "layout-ansi")]
+    #[test]
+    fn ansi_constants_and_known_raw_positions_are_unchanged() {
+        assert_eq!((LAYOUT_ID, LAYOUT_NAME), (1, "ANSI"));
+        assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (37, 47, 84));
+        assert_eq!(raw_to_visual(0), 0);
+        assert_eq!(raw_to_visual(37), 7);
+        assert_eq!(function_action(68), Action::BootRight);
         assert_eq!(function_action(8), Action::ProfileShortcut(0));
         assert_eq!(function_action(9), Action::ProfileShortcut(1));
         assert_eq!(function_action(10), Action::ProfileShortcut(2));
@@ -156,33 +227,52 @@ mod tests {
         assert_eq!(function_action(48), Action::BootRight);
         assert_eq!(function_action(14), Action::BacklightToggle);
         assert_eq!(function_action(55), Action::BatteryStatus);
-        assert_eq!(
-            function_action(69),
-            Action::SystemShortcut {
-                system: 1,
-                key: 0x11
-            }
+    }
+
+    #[cfg(feature = "layout-iso")]
+    #[test]
+    fn iso_matches_the_official_extra_left_key_and_non_us_usages() {
+        assert_eq!((LAYOUT_ID, LAYOUT_NAME), (2, "ISO"));
+        assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (38, 47, 85));
+        assert_eq!(LEFT_ROW_COUNTS, [7, 7, 6, 6, 7, 5]);
+        assert!(
+            (0..LEFT_KEY_COUNT).any(|raw| base_action(raw) == Action::Key(0x64)),
+            "ISO must expose Keyboard Non-US Backslash"
         );
-        assert_eq!(
-            function_action(70),
-            Action::SystemShortcut {
-                system: 0,
-                key: 0x10
-            }
+        assert!(
+            (LEFT_KEY_COUNT..KEY_COUNT).any(|raw| base_action(raw) == Action::Key(0x32)),
+            "ISO must expose Keyboard Non-US Hash"
         );
-        assert_eq!(function_action(54), Action::Transparent);
-        assert_eq!(function_action(31), Action::Transparent);
-        assert_eq!(function_action(1), Action::Consumer(0x006f));
-        assert_eq!(function_action(2), Action::Consumer(0x0070));
-        assert_eq!(function_action(3), Action::SystemF3);
-        assert_eq!(function_action(4), Action::SystemF4);
-        assert_eq!(function_action(5), Action::BacklightDown);
-        assert_eq!(function_action(6), Action::BacklightUp);
-        assert_eq!(function_action(37), Action::Consumer(0x00b6));
-        assert_eq!(function_action(38), Action::Consumer(0x00cd));
-        assert_eq!(function_action(39), Action::Consumer(0x00b5));
-        assert_eq!(function_action(40), Action::Consumer(0x00e2));
-        assert_eq!(function_action(41), Action::Consumer(0x00ea));
-        assert_eq!(function_action(42), Action::Consumer(0x00e9));
+    }
+
+    #[cfg(feature = "layout-jis")]
+    #[test]
+    fn jis_matches_the_hardware_tested_custom_zmk_mapping() {
+        assert_eq!((LAYOUT_ID, LAYOUT_NAME), (4, "JIS"));
+        assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (37, 48, 85));
+        assert_eq!(RIGHT_ROW_COUNTS, [8, 8, 8, 8, 8, 8]);
+        for usage in [0x87, 0x89, 0x8a] {
+            assert!(
+                (0..KEY_COUNT).any(|raw| base_action(raw) == Action::Key(usage)),
+                "JIS usage {usage:#04x} must be present"
+            );
+        }
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_duplicates_the_verified_boundary_keys() {
+        assert_eq!((LAYOUT_ID, LAYOUT_NAME), (3, "KR"));
+        assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (39, 50, 89));
+        assert_eq!((EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS), (2, 3));
+        for usage in [0x3f, 0x23, 0x1c, 0x0b, 0x05] {
+            assert_eq!(
+                (0..KEY_COUNT)
+                    .filter(|raw| base_action(*raw) == Action::Key(usage))
+                    .count(),
+                2,
+                "KR boundary usage {usage:#04x} must appear on both halves"
+            );
+        }
     }
 }

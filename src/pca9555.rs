@@ -1,6 +1,6 @@
 use embedded_hal_async::i2c::I2c;
 
-use crate::scanner::EXPANDER_ADDRESSES;
+use crate::keymap::{EXPANDER_ADDRESSES, EXPANDER_COUNT};
 
 const INPUT_PORT0: u8 = 0x00;
 const POLARITY_PORT0: u8 = 0x04;
@@ -52,8 +52,8 @@ where
         Ok(())
     }
 
-    pub async fn read_inputs(&mut self) -> Result<[u16; 3], Error<I::Error>> {
-        let mut words = [0; 3];
+    pub async fn read_inputs(&mut self) -> Result<[u16; EXPANDER_COUNT], Error<I::Error>> {
+        let mut words = [0; EXPANDER_COUNT];
         for (index, address) in EXPANDER_ADDRESSES.into_iter().enumerate() {
             words[index] = self.read_pair(address, INPUT_PORT0).await?;
         }
@@ -102,14 +102,14 @@ mod tests {
     }
 
     struct MockI2c {
-        registers: [[u16; 4]; 3],
+        registers: [[u16; 4]; EXPANDER_COUNT],
         ignore_polarity_write: bool,
     }
 
     impl MockI2c {
         fn new() -> Self {
             Self {
-                registers: [[0xffff, 0, 0xffff, 0]; 3],
+                registers: [[0xffff, 0, 0xffff, 0]; EXPANDER_COUNT],
                 ignore_polarity_write: false,
             }
         }
@@ -204,13 +204,13 @@ mod tests {
     #[test]
     fn input_reads_keep_expander_order() {
         let mut i2c = MockI2c::new();
-        i2c.registers[0][0] = 0x1111;
-        i2c.registers[1][0] = 0x2222;
-        i2c.registers[2][0] = 0x3333;
+        for (index, registers) in i2c.registers.iter_mut().enumerate() {
+            registers[0] = 0x1111 * (index as u16 + 1);
+        }
         let mut bus = Pca9555Bus::new(i2c);
-        assert_eq!(
-            block_on(bus.read_inputs()).unwrap(),
-            [0x1111, 0x2222, 0x3333]
-        );
+        let words = block_on(bus.read_inputs()).unwrap();
+        for (index, word) in words.into_iter().enumerate() {
+            assert_eq!(word, 0x1111 * (index as u16 + 1));
+        }
     }
 }

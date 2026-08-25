@@ -1,6 +1,6 @@
 # NocFree Rust 펌웨어 작업 인계서
 
-마지막 갱신: 2026-08-24 (Asia/Seoul)
+마지막 갱신: 2026-08-25 (Asia/Seoul)
 
 이 문서는 다른 AI나 작업자가 대화 기록 없이 현재 상태를 이어가기 위한 기준
 문서입니다. 먼저 `git status`, 양쪽 USB 부모 ID, 산출물 해시를 확인하십시오.
@@ -28,6 +28,13 @@ hotkey는 구현·실기 검증됐습니다.
 검증을 통과한 후보입니다. 실제 queue 전체 경로와 BLE jitter/drift를 검증하기
 전에는 안정판으로 표현하지 않습니다. +8 dBm 거리·전력 통제 비교도 남았습니다. 진행은
 `PROGRESS.md`를 따릅니다.
+
+2026-08-25에는 키맵 구조를 `src/keymap/ansi.rs`, `iso.rs`, `jis.rs`, `kr.rs`로
+분리했습니다. ANSI만 기존 실기 검증 상태이고 ISO/JIS/KR은 자동 검사와 양쪽 ARM
+빌드만 통과한 Experimental입니다. JIS 전기 순서는 실제 JIS 기기에서 입력을
+검증한 `electricdoc187/NocFree-and-zmk`의 `jis-custom` 브랜치를 근거로 했습니다.
+상세 빌드·제한 사항은 `LAYOUTS.md`를 따르며, 오늘은 키보드가 없어 어떤 새
+산출물도 flash하지 않았습니다.
 
 ## 2. 저장소
 

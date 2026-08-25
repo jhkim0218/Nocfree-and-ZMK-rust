@@ -67,5 +67,26 @@ class DfuPackageTests(unittest.TestCase):
                 self.assertEqual(application["softdevice_req"], [0xFFFE])
 
 
+class ExperimentalArtifactTests(unittest.TestCase):
+    def test_layout_uf2_pairs_stay_inside_the_application_partition(self) -> None:
+        directory = ROOT / "firmware" / "experimental"
+        paths = sorted(directory.glob("*.uf2"))
+        self.assertEqual(len(paths), 6)
+        for layout in ("ISO", "JIS", "KR"):
+            for half in ("Left", "Right"):
+                expected = (
+                    directory
+                    / f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_{half}.uf2"
+                )
+                self.assertIn(expected, paths)
+        for path in paths:
+            with self.subTest(path=path.name):
+                image = UF2Image.load(path)
+                addresses = sorted(image.blocks)
+                self.assertEqual(image.family_id, NRF52833_FAMILY_ID)
+                self.assertEqual(addresses[0], APP_BASE)
+                self.assertLessEqual(addresses[-1] + 256, APP_END)
+
+
 if __name__ == "__main__":
     unittest.main()

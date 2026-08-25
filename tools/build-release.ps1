@@ -1,8 +1,20 @@
+param(
+    [ValidateSet('ANSI', 'ISO', 'JIS', 'KR')]
+    [string]$Layout = 'ANSI'
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$firmwareDir = Join-Path $repo 'firmware'
+$layoutLower = $Layout.ToLowerInvariant()
+$featureArguments = @('--no-default-features', '--features', ('layout-{0}' -f $layoutLower))
+$firmwareDir = if ($Layout -eq 'ANSI') {
+    Join-Path $repo 'firmware'
+}
+else {
+    Join-Path $repo 'firmware\experimental'
+}
 $targetDir = Join-Path $repo 'target\thumbv7em-none-eabihf\release'
 $nrfutil = Get-Command adafruit-nrfutil -ErrorAction Stop
 
@@ -14,26 +26,26 @@ try {
         throw ('Rust format check failed (exit {0})' -f $fmtExitCode)
     }
 
-    cargo test --target x86_64-pc-windows-msvc --package nocfree-and-rust
+    cargo test --target x86_64-pc-windows-msvc --package nocfree-and-rust @featureArguments
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
         throw ('Host tests failed (exit {0})' -f $testExitCode)
     }
 
-    cargo clippy --target x86_64-pc-windows-msvc --lib -- -D warnings
+    cargo clippy --target x86_64-pc-windows-msvc --lib @featureArguments -- -D warnings
     $hostClippyExitCode = $LASTEXITCODE
     if ($hostClippyExitCode -ne 0) {
         throw ('Host clippy failed (exit {0})' -f $hostClippyExitCode)
     }
 
     foreach ($name in @('central', 'right')) {
-        cargo clippy --release --bin $name -- -D warnings
+        cargo clippy --release --bin $name @featureArguments -- -D warnings
         $clippyExitCode = $LASTEXITCODE
         if ($clippyExitCode -ne 0) {
             throw ('Clippy failed for {0} (exit {1})' -f $name, $clippyExitCode)
         }
 
-        cargo build --release --bin $name
+        cargo build --release --bin $name @featureArguments
         $buildExitCode = $LASTEXITCODE
         if ($buildExitCode -ne 0) {
             throw ('Release build failed for {0} (exit {1})' -f $name, $buildExitCode)
@@ -71,9 +83,17 @@ try {
         $binaryName = $artifact.Binary
         $halfName = $artifact.Half
         $elf = Join-Path $targetDir $binaryName
-        $bin = Join-Path $firmwareDir ('NocFree_Rust_{0}.bin' -f $halfName)
-        $uf2 = Join-Path $firmwareDir ('NocFree_And_Rust_ZMK_Based_ANSI_{0}.uf2' -f $halfName)
-        $dfu = Join-Path $firmwareDir ('NocFree_Rust_{0}_DFU.zip' -f $halfName)
+        if ($Layout -eq 'ANSI') {
+            $bin = Join-Path $firmwareDir ('NocFree_Rust_{0}.bin' -f $halfName)
+            $uf2 = Join-Path $firmwareDir ('NocFree_And_Rust_ZMK_Based_ANSI_{0}.uf2' -f $halfName)
+            $dfu = Join-Path $firmwareDir ('NocFree_Rust_{0}_DFU.zip' -f $halfName)
+        }
+        else {
+            $stem = 'NocFree_And_Rust_ZMK_Based_{0}_Experimental_{1}' -f $Layout, $halfName
+            $bin = Join-Path $firmwareDir ('{0}.bin' -f $stem)
+            $uf2 = Join-Path $firmwareDir ('{0}.uf2' -f $stem)
+            $dfu = Join-Path $firmwareDir ('{0}_DFU.zip' -f $stem)
+        }
         if (-not (Test-Path -LiteralPath $elf)) {
             throw ('Missing release ELF {0}' -f $elf)
         }
@@ -104,13 +124,9 @@ try {
     }
 
     Get-ChildItem -LiteralPath $firmwareDir -File |
-        Where-Object {
-            $_.Name -like 'NocFree_Rust_*' -or
-            $_.Name -like 'NocFree_And_Rust_ZMK_Based_ANSI_*'
-        } |
         Select-Object Name, Length, FullName
 
-    Write-Output 'NocFree release verification passed'
+    Write-Output ('NocFree {0} release verification passed' -f $Layout)
 }
 finally {
     Pop-Location

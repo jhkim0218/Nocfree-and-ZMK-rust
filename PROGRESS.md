@@ -1,6 +1,6 @@
 # NocFree Rust progress
 
-Last updated: 2026-08-24 (Asia/Seoul)
+Last updated: 2026-08-25 (Asia/Seoul)
 
 ## Baseline
 
@@ -55,7 +55,28 @@ Last updated: 2026-08-24 (Asia/Seoul)
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
 | D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
-| Layout variants | Deferred | ANSI remains stable; non-ANSI mappings come from verified sources and remain hardware-unverified until tested |
+| P7 Layout architecture | Software-complete | Shared behavior and separate ANSI/ISO/JIS/KR modules pass host and ARM checks |
+| P8 Layout variants | Experimental artifacts built | ISO/JIS/KR mappings come from verified sources but remain Rust hardware-unverified until matching devices are tested |
+
+## P7/P8 layout variants — software-complete, hardware pending
+
+- Exactly one Cargo layout feature is selected. `layout-ansi` is the default;
+  `layout-iso`, `layout-jis`, and `layout-kr` are explicit alternatives.
+- Layout-specific counts, raw/visual transforms, HID usages, Fn positions, and
+  PCA9555 addresses live in `src/keymap/{ansi,iso,jis,kr}.rs`. Shared scanner,
+  report, Link, USB, and packaging code consumes the selected layout.
+- Persisted Link records were bumped to version 4 and now reject records whose
+  layout ID or key count does not match, while preserving CRC validation.
+- ISO is 38 LEFT + 47 RIGHT. JIS is 37 LEFT + 48 RIGHT. KR is 39 LEFT +
+  50 RIGHT and reads the documented fourth expander at `0x21`.
+- The JIS scan map comes from the hardware-tested `jis-custom` branch of
+  `electricdoc187/NocFree-and-zmk`. The Rust JIS build still requires matching
+  hardware testing, and left Eisu tap Muhenkan / hold Fn is currently Fn-only.
+- All four variants passed 73 host tests, host/ARM Clippy, both ARM release
+  builds, UF2 protected-range/round-trip checks, and 20 repository/artifact
+  tests on 2026-08-25. No firmware was copied to hardware.
+- Experimental matching Left/Right UF2 pairs are under
+  `firmware/experimental`; never mix layouts or builds.
 
 ## P1 absolute backlight — complete
 

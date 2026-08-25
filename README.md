@@ -7,8 +7,11 @@ This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),
 and this repository is an independent Rust port.
 
-This firmware supports **only the 84-key NocFree & ANSI model**. Other NocFree
-models and ISO layouts are not supported.
+The 84-key ANSI physical layout remains the only locally hardware-verified target.
+Separately selected ISO, JIS, and KR builds are available as **Experimental,
+hardware-unverified** variants. See [LAYOUTS.md](LAYOUTS.md) before using them.
+The 2026-08-25 refactored ANSI artifact passed all automated checks but was not
+flashed today, so it still needs a short ANSI regression pass before release.
 
 As of 2026-08-23, the latest Rust images are installed on both halves and have
 passed hardware tests for USB, BLE, all 84 physical keys, the physical
@@ -71,15 +74,17 @@ if ($componentExit -ne 0) { throw ('rustup component add failed with exit code {
 $pipExit = $LASTEXITCODE
 if ($pipExit -ne 0) { throw ('dependency installation failed with exit code {0}' -f $pipExit) }
 
-& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1'
+& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1' -Layout ANSI
 $buildExit = $LASTEXITCODE
 if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
 ```
 
-The script runs formatting, Windows host tests, host/ARM Clippy, release builds
+Choose `ANSI`, `ISO`, `JIS`, or `KR` with `-Layout`. ANSI writes the stable
+files under `firmware`; the other layouts write role- and layout-specific files
+under `firmware/experimental`. The script runs formatting, Windows host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 71 Rust tests and 18 Python/contract/artifact tests.
+passed 73 Rust tests per layout and 20 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -97,12 +102,16 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 80,964 | `22F38C6EA74CB155F19D3AA219CC5E3EF6239F73D9433C1750FBA3983AE436DD` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `031F4FE1299F439153A405358B52E5C92E7D3E68B5F0DB803918FE1798699DF3` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 81,840 | `DF597EA1650313A2917B4E2956EDDF801B0D165C470D7B6C1B817D137F947FFB` |
-| `firmware/NocFree_Rust_Right.bin` | 47,508 | `1D6CDBB284AA9008AE0D89CFFB10EB979EC7017B0EEBFB76AE81848139D23BA4` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `453BC8AAB3A762C9A9CBC6A7E6D4159B97FEAE55DE5D79CF1E3C0C075FCBDACE` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,390 | `A181DCA39D8E6E7CCDFAAB3C3DB7DF72FF109A8FBB1E6FC091BC5D38BF34106F` |
+| `firmware/NocFree_Rust_Left.bin` | 81,140 | `F929A8D4CA71BA051ABC5C538CE988DD75F659218A5439E8CC586AF90AB77700` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `9855CA2B829F78D3967926F83A1582F27D4824FE9C6D1518CD4086E15B373F99` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `3F2654B439C82FB350729330110329DF03CC47579DB004408B7C4B493B03CD93` |
+| `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `D343C39267413FE4163FA9D162260C8002C06E2D7F8DE1B8DA52CBC0837D1332` |
+
+Experimental UF2 pairs are committed under [`firmware/experimental`](firmware/experimental).
+They passed software and artifact checks but were not flashed or tested on matching
+hardware. Never mix halves from different layouts or builds.
 
 The UF2 files write only from the application start at `0x27000` through
 `0x3acff` on the left and `0x329ff` on the right. They preserve the SoftDevice,
