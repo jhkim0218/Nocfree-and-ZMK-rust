@@ -24,10 +24,12 @@ Last updated: 2026-08-25 (Asia/Seoul)
 - Intended rapid input: `jam`
 - Observed output: `ajm`
 - Fast alternating input between the right and left halves can be reordered.
-- P4 adds source timestamps, right sequence, clock-domain conversion, and a 3 ms
-  global reorder queue. The automated 10,000-event comparison and Wired/Windows
-  11 Bluetooth hardware stress passed. The 10,000-event check covers the pure
-  reorder model, not every runtime queue and transport, so stable status is held.
+- P4 adds source timestamps, right sequence, clock-domain conversion, and a
+  global reorder queue. The previously deployed 3 ms value passed the automated
+  10,000-event comparison and limited Wired/Windows 11 Bluetooth stress. The
+  configured value is now 8 ms to add margin for the new `삼 -> ㅅ마` L-R-L
+  regression, but that 8 ms image has not been hardware-tested. The synthetic
+  check does not cover every runtime queue and transport, so stable status is held.
 
 ### R2: split reconnect sensitivity
 
@@ -51,7 +53,7 @@ Last updated: 2026-08-25 (Asia/Seoul)
 | P1 Absolute backlight state | Complete | Automated and hardware tests passed; deliberate divergence converged after reconnect |
 | P2 BLE reconnect observability | Complete | Both halves expose stage-specific logs; hardware captured an MTU-exchange failure and the following successful attempt |
 | P3 BLE reconnect tuning | Partial | Current P4 right deploys +8 dBm; P3.2 reconnect checks pass, but +8 dBm range/security/power benefit is not controlled or measured |
-| P4 Cross-half ordering | Hardware-tested candidate | Reorder-model and limited Wired/Windows 11 Bluetooth stress pass; end-to-end queues, real BLE jitter/drift, reconnect-edge load, and Android remain |
+| P4 Cross-half ordering | Software candidate; prior 3 ms hardware-tested | Current 8 ms passes the existing reorder model but needs `삼`/Wired/BLE hardware tests; end-to-end queues, real BLE jitter/drift, reconnect-edge load, and Android remain |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
 | D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
@@ -204,13 +206,14 @@ Last updated: 2026-08-25 (Asia/Seoul)
 | Left P3.1 | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | `7BAAA67BE4BB53B577E7591807BAD07CC661573B3630394951EA6A81F29FFF7A` | `0x27000..0x395ff` |
 | Right P3.3 +8 dBm | `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | `A6D35EAB11B628A35673D0F6507E9FADFD740A0DC8624F8C28FAFBD7E7E17084` | `0x27000..0x327ff` |
 
-## P4 global cross-half ordering — hardware-tested candidate
+## P4 global cross-half ordering — 8 ms software candidate
 
 - Each right snapshot carries pressed state, a monotonic source timestamp,
   sequence, and reconciliation metadata in one 20-byte ATT value.
 - LEFT performs a three-sample minimum-RTT clock estimate before split-ready,
   refreshes it every 60 seconds, and converts RIGHT source time to LEFT time.
-- LEFT local updates use the same 3 ms bounded reorder queue as RIGHT updates.
+- LEFT local updates use the same bounded reorder queue as RIGHT updates. The
+  current window is 8 ms; the hardware results below used the former 3 ms value.
 - Comparing 1, 2, 3, 4, and 5 ms over 10,000 alternating snapshots with 4 ms
   RIGHT delay found 1/2 ms reordered and 3/4/5 ms clean; 3 ms was selected.
 - Full validation passed: 71 Rust tests, 18 Python tests, formatting, host/ARM

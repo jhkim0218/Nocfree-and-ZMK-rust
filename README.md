@@ -13,6 +13,13 @@ hardware-unverified** variants. See [LAYOUTS.md](LAYOUTS.md) before using them.
 The 2026-08-25 refactored ANSI artifact passed all automated checks but was not
 flashed today, so it still needs a short ANSI regression pass before release.
 
+| Layout | Firmware status | Physical hardware validation |
+|---|---|---|
+| ANSI | 8 ms ordering candidate | Previous 3 ms builds were tested; the current 8 ms build is not yet hardware-tested |
+| ISO | Experimental | **Not tested on an ISO keyboard** |
+| JIS | Experimental | **Not tested on a JIS keyboard** |
+| KR | Experimental | **Not tested on a KR keyboard** |
+
 As of 2026-08-23, the latest Rust images are installed on both halves and have
 passed hardware tests for USB, BLE, all 84 physical keys, the physical
 mode/power switches, shortcuts, NocFree Link key changes, DFU on both halves,
@@ -102,12 +109,12 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 81,140 | `F929A8D4CA71BA051ABC5C538CE988DD75F659218A5439E8CC586AF90AB77700` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `9855CA2B829F78D3967926F83A1582F27D4824FE9C6D1518CD4086E15B373F99` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `3F2654B439C82FB350729330110329DF03CC47579DB004408B7C4B493B03CD93` |
+| `firmware/NocFree_Rust_Left.bin` | 81,132 | `BE17C8FF091F6B61AF8ECE727A8D8A5CA5A57B20674D8772FA82FAACB510A0C5` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `A57F74FDC51BB3BA545967D630D945C7638D838EF3BA443DDDC23478679D2A82` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,008 | `D8C3CCE71331BF0C7EEA532808127B55A5D962D0A5E1B5BD1E9DAC31091F2A9A` |
 | `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `D343C39267413FE4163FA9D162260C8002C06E2D7F8DE1B8DA52CBC0837D1332` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `5DEEE6D6336B403DF2C901E979554B457CE6D8432C3F29897B41CF1659AC7CDF` |
 
 Experimental UF2 pairs are committed under [`firmware/experimental`](firmware/experimental).
 They passed software and artifact checks but were not flashed or tested on matching
@@ -184,12 +191,13 @@ security, current-consumption, and battery comparisons remain unverified.
 RIGHT snapshots now carry source time, sequence, and reconciliation metadata in
 one 20-byte ATT value. LEFT estimates the clock offset with three samples before
 split-ready, refreshes it every 60 seconds, and holds both local and remote
-updates in one 3 ms reorder queue. Synthetic comparison of 1–5 ms over 10,000
-events selected 3 ms as the smallest clean window: lost=0, duplicate=0,
-reordered=0, stuck=0 inside the reorder model. Real `jam`/`ja` stress passed
+updates in one 8 ms reorder queue. The earlier synthetic comparison of 1–5 ms
+over 10,000 events found 3 ms as the smallest clean window; the configured
+window was increased to 8 ms on 2026-08-25 to add margin for the reported
+`삼 -> ㅅ마` L-R-L regression. Real `jam`/`ja` stress passed
 through Wired USB and Windows 11 Bluetooth. Runtime queues, long-run drift,
 reconnect-edge stress, Android P4, and measured BLE arrival jitter remain before
-stable status.
+stable status. The 8 ms setting has not yet been tested on hardware.
 
 ## Changing keys with NocFree Link
 
@@ -214,7 +222,7 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P4 hardware-tested candidate / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and a 3 ms global queue passed the reorder-model test plus limited Wired/Windows 11 Bluetooth stress. End-to-end queue loss, real BLE jitter/drift, reconnect-edge stress, and controlled +8 dBm power/range remain unverified |
+| P4 software candidate / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and an 8 ms global queue. The earlier 3 ms value passed limited Wired/Windows 11 Bluetooth stress; the new 8 ms value is automated-test-only. End-to-end queue loss, real BLE jitter/drift, reconnect-edge stress, and controlled +8 dBm power/range remain unverified |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
 | Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |

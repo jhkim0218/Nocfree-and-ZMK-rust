@@ -8,7 +8,7 @@ pub const IDLE_SCAN_MS: u16 = 10;
 pub const IDLE_SAFETY_SCAN_MS: u16 = 250;
 pub const DEBOUNCE_PRESS_MS: u16 = 5;
 pub const DEBOUNCE_RELEASE_MS: u16 = 5;
-pub const REORDER_WINDOW_MS: u64 = 3;
+pub const REORDER_WINDOW_MS: u64 = 8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Half {
@@ -412,9 +412,9 @@ mod tests {
     #[test]
     fn selects_the_smallest_clean_window_over_ten_thousand_events() {
         const EVENT_COUNT: usize = 10_000;
-        let mut clean = [false; 5];
+        let mut clean = [false; 8];
 
-        for window_ms in 1..=5_u64 {
+        for window_ms in 1..=8_u64 {
             let mut arrivals = Vec::with_capacity(EVENT_COUNT);
             let mut sequences = [0_u16; 2];
             let mut states = [0_u64; 2];
@@ -471,7 +471,7 @@ mod tests {
                 lost == 0 && duplicate == 0 && reordered == 0 && stuck == 0;
         }
 
-        assert_eq!(clean, [false, false, true, true, true]);
-        assert_eq!(REORDER_WINDOW_MS, 3);
+        assert_eq!(clean, [false, false, true, true, true, true, true, true]);
+        assert_eq!(REORDER_WINDOW_MS, 8);
     }
 }

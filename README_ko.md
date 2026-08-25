@@ -13,6 +13,13 @@ NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 2026-08-25에 키맵을 분리한 새 ANSI 산출물은 자동 검사를 모두 통과했지만 오늘
 flash하지 않았으므로, 배포 전 짧은 ANSI 회귀 실기 검증이 한 번 더 필요합니다.
 
+| 배열 | 펌웨어 상태 | 실물 검증 상태 |
+|---|---|---|
+| ANSI | 8 ms 입력 순서 후보 | 이전 3 ms 빌드는 실기 검증했으나 현재 8 ms 빌드는 실기 미검증 |
+| ISO | Experimental | **ISO 실물 키보드에서 검증하지 못함** |
+| JIS | Experimental | **JIS 실물 키보드에서 검증하지 못함** |
+| KR | Experimental | **KR 실물 키보드에서 검증하지 못함** |
+
 2026-08-23 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
 84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
 역할별 순정 원복을 통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저
@@ -95,12 +102,12 @@ flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 81,140 | `F929A8D4CA71BA051ABC5C538CE988DD75F659218A5439E8CC586AF90AB77700` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `9855CA2B829F78D3967926F83A1582F27D4824FE9C6D1518CD4086E15B373F99` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `3F2654B439C82FB350729330110329DF03CC47579DB004408B7C4B493B03CD93` |
+| `firmware/NocFree_Rust_Left.bin` | 81,132 | `BE17C8FF091F6B61AF8ECE727A8D8A5CA5A57B20674D8772FA82FAACB510A0C5` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `A57F74FDC51BB3BA545967D630D945C7638D838EF3BA443DDDC23478679D2A82` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,008 | `D8C3CCE71331BF0C7EEA532808127B55A5D962D0A5E1B5BD1E9DAC31091F2A9A` |
 | `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
 | [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `D343C39267413FE4163FA9D162260C8002C06E2D7F8DE1B8DA52CBC0837D1332` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `5DEEE6D6336B403DF2C901E979554B457CE6D8432C3F29897B41CF1659AC7CDF` |
 
 실험 배열의 UF2 좌우 세트는 [`firmware/experimental`](firmware/experimental)에
 커밋합니다. 자동 검사만 통과했고 해당 배열 실물에는 flash하지 않았습니다.
@@ -167,11 +174,13 @@ MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 �
 
 오른쪽 snapshot은 하나의 20-byte ATT 값에 원본 시각·순번·재조정 표시를 담습니다.
 왼쪽은 split-ready 전에 3회 표본으로 시계 차이를 추정하고 60초마다 갱신하며,
-로컬/원격 입력을 같은 3 ms 대기열에서 정렬합니다. 1~5 ms를 10,000개 합성
-이벤트로 비교해 3 ms를 가장 작은 무오류 값으로 선택했고 재정렬 모델 안에서는
-누락·중복·재정렬·고착이 모두 0이었습니다. Wired USB와 Windows 11 Bluetooth의
+로컬/원격 입력을 같은 8 ms 대기열에서 정렬합니다. 과거 1~5 ms를 10,000개 합성
+이벤트로 비교했을 때 3 ms가 가장 작은 무오류 값이었으나, 보고된
+`삼 -> ㅅ마` L-R-L 문제에 여유를 두기 위해 2026-08-25에 8 ms로 늘렸습니다.
+Wired USB와 Windows 11 Bluetooth의
 실제 `jam`/`ja` 교차 입력도 통과했습니다. 안정판 판정 전 실제 queue 전체 경로,
 장시간 drift, 재연결 직후, Android P4, 실제 BLE 도착 jitter 검증이 남았습니다.
+8 ms 설정 자체는 아직 실기 검증 전입니다.
 
 ## NocFree Link 키 변경
 
@@ -194,7 +203,7 @@ ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocF
 |---|---|---|
 | 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
 | 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| P4 실기 후보 / P3 tuning 부분 | 양쪽 split과 입력 순서 | timestamp·순번·시계 동기화·3 ms 대기열이 재정렬 모델과 제한된 Wired/Windows 11 Bluetooth 실기를 통과. 실제 queue end-to-end 유실, BLE jitter/drift, 재연결 직후 스트레스, +8 dBm 거리·전력 통제 비교는 남음 |
+| P4 소프트웨어 후보 / P3 tuning 부분 | 양쪽 split과 입력 순서 | timestamp·순번·시계 동기화·8 ms 대기열. 이전 3 ms 값은 제한된 Wired/Windows 11 Bluetooth 실기를 통과했지만 새 8 ms 값은 자동 검사만 통과. 실제 queue end-to-end 유실, BLE jitter/drift, 재연결 직후 스트레스, +8 dBm 거리·전력 통제 비교는 남음 |
 | 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
 | 완료 | 백라이트 | 왼쪽 기준 version 포함 절대 상태가 enabled·밝기·timeout·generation을 모든 변경과 재연결 때 오른쪽에 동기화하며 30초 소등과 첫 키 wake도 유지 |
 | 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
