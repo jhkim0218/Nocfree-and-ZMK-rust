@@ -4,73 +4,60 @@
 
 > [!CAUTION]
 > `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
-> 통과했지만 **실물 하드웨어에서 검증되지 않았습니다**.
+> 통과하지만 **실물 하드웨어에서 검증되지 않았습니다**.
 
-> [!NOTE]
-> 좌우 입력 순서 대기값은 실기 검증한 **3 ms**에서 **8 ms** 후보를 거쳐 현재
-> 절충값인 **5 ms**로 변경했습니다. 빌더는 `src/scanner.rs`의
-> `REORDER_WINDOW_MS`를 조정할 수 있습니다. 변경 후에는 양쪽을 함께 다시
-> 빌드·플래시하고 USB와 Bluetooth에서 빠른 교차 입력을 확인해야 합니다.
-
-NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
-옮긴 프로젝트입니다. 원본 프로젝트는
-[`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)이며,
-이 저장소는 독립적인 Rust 포팅입니다.
+nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
+[`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
+동작을 포팅했으며 NocFree 공식 펌웨어가 아닙니다.
 
 > [!IMPORTANT]
-> 펌웨어 **기본값은 Windows 모드**입니다. macOS 키 동작을 사용하려면
-> `Fn+M`을 1초 동안 누르십시오. 선택은 재부팅 후에도 저장됩니다. Windows로
-> 돌아가려면 `Fn+N`을 1초 동안 누릅니다. 짧게 누르면 원래대로 M/N이 입력됩니다.
+> - 펌웨어 **기본값은 Windows 모드**입니다. macOS 모드는 `Fn+M`, Windows
+>   복귀는 `Fn+N`을 각각 1초 동안 누릅니다.
+> - 키보드 좌우와 배열에 맞는 파일만 플래시하십시오. 서로 다른 빌드나 배열의
+>   왼쪽·오른쪽 파일을 섞으면 안 됩니다.
+> - NocFree &에는 외부 리셋 버튼이 없습니다. 플래시 전에 [RECOVERY_ko.md](RECOVERY_ko.md)를
+>   읽고 양쪽 DFU 및 순정 V2.3.0 복구 방법을 확인하십시오.
+> - 공장 USB 동글/2.4 GHz 입력은 구현되지 않았습니다. 왼쪽 스위치의 2.4G
+>   위치에서는 의도적으로 아무 입력도 출력하지 않습니다.
 
-84키 ANSI 물리 배열만 현재 로컬 실기 검증 이력이 있습니다. ISO, JIS, KR은
-각각 선택해 빌드할 수 있지만 **Experimental·실기 미검증** 상태입니다.
-사용 전 [LAYOUTS.md](LAYOUTS.md)를 확인하십시오.
-2026-08-25에 키맵을 분리한 새 ANSI 산출물은 자동 검사를 모두 통과했지만 오늘
-flash하지 않았으므로, 배포 전 짧은 ANSI 회귀 실기 검증이 한 번 더 필요합니다.
-
-| 배열 | 펌웨어 상태 | 실물 검증 상태 |
+| 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
-| ANSI | 5 ms 입력 순서 후보 | 이전 3 ms 빌드는 실기 검증했으나 현재 5 ms 빌드는 실기 미검증 |
-| ISO | Experimental | **ISO 실물 키보드에서 검증하지 못함** |
-| JIS | Experimental | **JIS 실물 키보드에서 검증하지 못함** |
-| KR | Experimental | **KR 실물 키보드에서 검증하지 못함** |
+| ANSI | 기본 빌드, 5 ms 입력 순서 후보 | 이전 3 ms 펌웨어는 검증했지만 현재 5 ms 빌드는 실기 미검증 |
+| ISO | Experimental | 해당 실물에서 미검증 |
+| JIS | Experimental | 해당 실물에서 미검증 |
+| KR | Experimental | 해당 실물에서 미검증 |
 
-2026-08-23 현재 양쪽 최신 Rust 이미지가 실제 장치에 설치돼 있고 USB, BLE,
-84개 물리 키, 물리 모드/전원 스위치, 단축키, NocFree Link 키 변경, 양쪽 DFU와
-역할별 순정 원복을 통과했습니다. 다음 작업자는 [HANDOFF.md](HANDOFF.md)를 먼저
-읽으십시오.
+## 먼저 확인할 내용
 
-순정 firmware 비교, 추가 기능 우선순위와 배터리 보정 절차는
-[ROADMAP_ko.md](ROADMAP_ko.md)에 정리돼 있습니다.
+키보드는 역할이 고정된 좌우 분리형 구조입니다.
 
-> [!IMPORTANT]
-> 배터리 환산은 역분석한 순정 V2.3.0 알고리즘을 따르지만 전체 방전 주기와
-> 소비전력 측정은 아직 남아 있습니다. 파란 페어링 LED와 빨간 저전압 LED
-> 점멸은 구현했으나 충전/완충을 비롯한 나머지 순정 LED 상태는 미완성입니다.
-> 공장 USB 동글/2.4G 기능도 구현·검증되지 않았습니다.
->
-> 2026-08-24 실기에서 빠른 좌우 교차 입력, 책상 거리 split 재연결, 백라이트
-> 수렴 문제를 다시 열었습니다. 절대 백라이트 상태 동기화는 실기 검증을
-> 통과했습니다. P4 timestamp 입력 순서는 제한된 Wired/Windows 11 시험을 통과한
-> 실기 후보이며 장시간 end-to-end 검증 전입니다. +8 dBm 거리·전력 비교도 남았습니다.
-> [PROGRESS.md](PROGRESS.md)를 참고하십시오.
+- **왼쪽(`central`)**은 37키와 오른쪽 입력을 모아 전체 키맵을 처리하고 USB 또는
+  Bluetooth HID를 출력합니다.
+- **오른쪽(`right`)**은 47키를 스캔해 암호화 BLE split으로 왼쪽에 보냅니다.
+  오른쪽 USB는 복구·진단용이며 키보드 HID를 출력하지 않습니다.
 
-## 역할
+왼쪽 물리 스위치는 출력 방식을 선택합니다.
 
-- **왼쪽 (`central`)**: 왼쪽 37키, 오른쪽 split 수신, 전체 84키 키맵,
-  USB/BLE HID, BLE 멀티 페어링 슬롯 3개, NocFree Link를 담당합니다.
-- **오른쪽 (`right`)**: 오른쪽 47키를 스캔해 암호화 BLE split으로 왼쪽에
-  전달합니다. 오른쪽 USB는 HID가 아니라 독립 CDC 복구용입니다.
+| 위치 | 모드 | 동작 |
+|---|---|---|
+| 위 | 2.4G | 출력 없음. 공장 동글 전송은 미구현 |
+| 가운데 | Wired | 왼쪽 USB 포트로 USB HID 출력 |
+| 아래 | Bluetooth | 왼쪽에서 Bluetooth HID 출력 |
 
-양쪽은 PCA9555 세 개(`0x20`, `0x22`, `0x24`)를 SDA P0.11/SCL P1.09에서
-100 kHz로 읽습니다. active-low 입력, 5 ms debounce, 1M BLE PHY를 사용합니다.
-부트로더나 다른 펌웨어가 I2C 전송 중 MCU를 재시작해도 외부 확장칩이 걸린 채
-남지 않도록 TWIM 초기화 전에 최대 9회의 bus-clear clock과 STOP을 보냅니다.
+오른쪽 스위치는 배터리 전원을 물리적으로 제어합니다. 위가 OFF, 아래가 ON입니다.
+USB 전원은 스위치를 우회하므로 USB 연결 중에는 OFF여도 오른쪽 보드가 켜집니다.
+왼쪽 USB가 없는 Wired 모드는 HID 출력만 없을 뿐 키보드 전원을 끄지 않습니다.
 
-## 빌드
+처음 사용할 때는 다음 순서를 권장합니다.
 
-Windows, macOS, Linux 모두 같은 Python 표준 라이브러리 빌더를 사용합니다.
-Rust, Python 3, libclang을 포함한 C/C++ 도구와 아래 펌웨어 도구를 설치하십시오.
+1. [RECOVERY_ko.md](RECOVERY_ko.md)를 읽고 좌우 펌웨어를 구분합니다.
+2. 같은 빌드의 UF2 두 개를 빌드하거나 내려받습니다.
+3. 한쪽씩 플래시한 뒤 Wired USB에서 양쪽 입력을 먼저 확인합니다.
+4. Bluetooth, 물리 스위치, DFU 단축키와 빠른 좌우 교차 입력을 확인합니다.
+
+## 빌드와 펌웨어
+
+Rust, Python 3, libclang이 포함된 C/C++ 도구와 패키징 도구를 설치합니다.
 
 ```text
 rustup target add thumbv7em-none-eabihf
@@ -78,288 +65,160 @@ rustup component add llvm-tools-preview
 python3 -m pip install adafruit-nrfutil==0.5.3.post16
 ```
 
-Windows에서 Python 명령이 `python`이면 `python3` 대신 사용합니다. 저장소
-macOS에서 Xcode 도구로 libclang을 찾지 못하면 Homebrew LLVM을 설치하고,
-Debian/Ubuntu는 `clang`과 `libclang-dev`를 설치합니다. 계속 찾지 못하면
-libclang shared library가 있는 폴더를 `LIBCLANG_PATH`로 지정하십시오. 저장소
-루트에서 배열 하나를 빌드합니다.
+Windows에서는 설치된 명령에 따라 `python3` 대신 `python`을 사용할 수 있습니다.
+macOS에서 libclang을 찾지 못하면 Homebrew LLVM을 설치하고, Debian/Ubuntu에서는
+`clang`과 `libclang-dev`를 설치합니다. 자동 탐색이 실패할 때만 `LIBCLANG_PATH`를
+설정하십시오.
+
+Windows, macOS 또는 Linux에서 ANSI를 빌드하고 검사합니다.
 
 ```text
 python3 -B tools/build_release.py --layout ANSI
 ```
 
-실험 배열은 `--layout ISO`, `--layout JIS`, `--layout KR`로 선택하고, 네 배열을
-모두 검사·패키징하려면 다음을 사용합니다.
+Experimental 배열은 `ISO`, `JIS`, `KR`을 지정하고, 네 배열 전체는 다음과 같이
+빌드합니다.
 
 ```text
 python3 -B tools/build_release.py --all-layouts
 ```
 
-기존 PowerShell 명령도 Windows용 호환 래퍼로 유지됩니다.
+Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 ```powershell
 & pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1' -Layout ANSI
 ```
 
-ANSI 산출물은 `firmware`, 나머지 실험 배열 산출물은 역할·배열명이 포함된
-이름으로 `firmware/experimental`에 생성됩니다. 빌더는 포맷, 실행 OS의 호스트
-테스트, host/ARM Clippy, 양쪽 release 빌드,
-BIN/UF2/serial-DFU ZIP 생성, 주소/family/vector/round-trip 및 ZIP 내부 BIN
-일치를 모두 검사합니다. 최신 결과는 배열별 Rust 74개,
-Python/계약/아티팩트 27개 테스트 통과입니다.
+빌더는 형식 검사, host/ARM 검사, 좌우 빌드, BIN/UF2/serial-DFU 생성과 주소·내용
+검증을 수행합니다. ANSI 산출물은 `firmware`, Experimental 배열은
+`firmware/experimental`에 저장됩니다.
 
-빌드가 성공하면 반드시 각 반쪽에 맞는 UF2만 사용하십시오.
+저장소에 포함된 ANSI UF2:
 
-- **왼쪽/central:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
-- **오른쪽/peripheral:** [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+- [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
+- [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
-이 두 파일은 저장소에도 커밋되어 있어 직접 빌드하지 않고 내려받을 수 있습니다.
-flash하기 전에 [RECOVERY.md](RECOVERY.md)를 먼저 읽으십시오.
+키보드에서 실행되는 코드는 모두 Rust `no_std`입니다. Python과
+`adafruit-nrfutil`은 PC에서 산출물을 만들 때만 사용하며 키보드에는 들어가지 않습니다.
 
-키보드에서 실행되는 코드는 전부 Rust `no_std`입니다. `tools/*.py`와 Python
-패키지인 `adafruit-nrfutil`은 PC에서 산출물을 만들고 검사할 때만 사용되며
-키보드에는 들어가지 않습니다.
+## 미구현 및 미검증 항목
 
-## 최신 산출물
+| 영역 | 남은 작업 |
+|---|---|
+| 현재 ANSI 후보 | 5 ms 입력 순서와 새 백라이트 곡선을 플래시해 회귀 검증해야 함. 새 곡선은 실기 확인이 남음 |
+| ISO/JIS/KR | 소프트웨어 빌드는 통과하지만 각 배열의 실물 키보드 검증이 필요함 |
+| Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
+| 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
+| 상태 LED | 방전된 장치에서 빨간 저전압 표시 확인, 순정과 같은 충전/완충 표시 구현 |
+| 공장 2.4 GHz/동글 | USB 수신기, 외부 nRF24L01, ESB, 동글 페어링과 별도 숫자패드 통신 미구현 |
+| NocFree Link 부가 기능 | 배터리 표시는 unavailable이며 Quick Text 저장·삭제·실행 미구현 |
+| 기타 도구 | 공장 updater와 ZMK Studio 호환은 미구현이며 현재 프로젝트 필수 범위가 아님 |
+| 플랫폼 범위 | Bluetooth host는 Windows 11과 Android만 검증. macOS, iOS, Linux와 세 번째 host는 미검증 |
 
-| 파일 | 크기(bytes) | SHA-256 |
-|---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 81,140 | `D00E33E4EF6A6783433F10770850FA4C0D59E08742F8EAAA11AA7C39B613EB7E` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `3CCA14536448F7E69597FFBB2CA88B5FB3BD9E8186B8B5C7F575788335674B76` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `6960EC1B54358BDC8F3B24A50E12C33D5FABCF2CFED4F65FBF07492839EFC119` |
-| `firmware/NocFree_Rust_Right.bin` | 47,564 | `C1C20269444F3A9C55911025F93942325CBEA7BD4E343E3D21369D9BFE9F47AC` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `1C489F55FB77C2827E1AB2F0BB9F10180045A2534977D10558B523633A5354FC` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,446 | `6F576F621B10670691C36DCE088B6C0B901EDE0C23C5B76A4729E7F2A58E09BE` |
+순정 펌웨어와의 우선순위 비교 및 배터리 보정 방법은 [ROADMAP_ko.md](ROADMAP_ko.md),
+상세 실험 기록은 [PROGRESS_ko.md](PROGRESS_ko.md)에 정리합니다.
 
-실험 배열의 UF2 좌우 세트는 [`firmware/experimental`](firmware/experimental)에
-커밋합니다. 자동 검사만 통과했고 해당 배열 실물에는 flash하지 않았습니다.
-서로 다른 배열이나 빌드의 좌우 파일을 섞어 쓰면 안 됩니다.
+## 구현된 기능
 
-UF2는 앱 시작 `0x27000`부터 왼쪽 `0x3acf3`, 오른쪽 `0x329cb`까지만
-기록합니다. SoftDevice, 저장소, 공장 파일시스템과 UF2 부트로더는 보존합니다.
+- **ANSI 입력:** 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 미디어·시스템 키, 한국어
+  Windows 특수키와 암호화 BLE split 전송.
+- **USB/Bluetooth HID:** 물리 스위치 출력 선택, BLE 자동 재연결, CCCD 상태 저장,
+  선택 상태가 유지되는 페어링 슬롯 3개.
+- **NocFree Link:** 8×84 키맵, 실행 가능한 hotkey 16개, CRC가 있는 flash 저장,
+  삭제와 기본값 복구.
+- **복구:** 양쪽 독립 1200-baud CDC DFU, 길게 누르는 Fn DFU, UF2 진입과
+  Rust ↔ 순정 V2.3.0 복구 경로.
+- **백라이트:** 양쪽 on/off와 0/20/40/60/80/100% 동기화, 10 kHz PWM, 체감 보정
+  곡선, 30초 자동 소등과 첫 키 wake. `Fn+F5`는 감소, `Fn+F6`은 증가.
+- **전원 동작:** interrupt 기반 idle 스캔과 250 ms 안전 스캔, 측정할 때만 배터리
+  divider 활성화, 배터리에서 왼쪽 5분 후 System OFF.
+- **배터리 표기:** 순정 V2.3.0 환산·필터 로직과 `Fn+I` 출력. 완충된 양쪽에서
+  `L 100 R 100` 확인.
+- **상태와 진단:** 지속되는 파란 페어링 표시, 자동 검사된 빨간 저전압 로직,
+  USB 양쪽에서 읽을 수 있는 최근 split 이벤트 32개.
+- **안전한 flash 범위:** SoftDevice, 영구 저장소, 공장 filesystem과 UF2 bootloader
+  영역을 보존.
 
-## Split 재연결 진단
+이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,
+물리 스위치, NocFree Link, 백라이트 동기화·소등, 전원 wake, 양쪽 DFU와 순정
+복구를 실기에서 통과했습니다. 이 결과가 현재 `develop` 산출물의 실기 검증을
+대체하지는 않습니다. 최신 인계 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
-각 반쪽은 최근 split 이벤트 32개를 RAM에 보관합니다. 해당 반쪽 USB를 연결한
-뒤 Windows PowerShell에서 다음처럼 키보드 상태를 바꾸지 않고 읽을 수 있습니다.
+## 기본 단축키
+
+양쪽 Fn은 같은 layer를 사용합니다. 아래 표는 NocFree Link로 바꾸기 전 기본값입니다.
+
+| 키 | 실행 | 동작 |
+|---|---|---|
+| `Fn+Esc` | 즉시 | 왼쪽 애플리케이션 재시작. DFU는 아님 |
+| `Fn+F1` / `Fn+F2` | 즉시 | 화면 밝기 감소 / 증가 |
+| `Fn+F3` / `Fn+F4` | 즉시 | Mission Control/Task View, Spotlight/Search |
+| `Fn+F5` / `Fn+F6` | 즉시 | 양쪽 키보드 백라이트 20% 감소 / 증가 |
+| `Fn+F7` / `Fn+F8` / `Fn+F9` | 즉시 | 이전 곡 / 재생·일시정지 / 다음 곡 |
+| `Fn+F10` / `Fn+F11` / `Fn+F12` | 즉시 | 음소거 / 음량 감소 / 증가 |
+| `Fn+1` / `Fn+2` / `Fn+3` | 짧게 | Bluetooth 페어링 슬롯 1 / 2 / 3 선택 |
+| `Fn+1` / `Fn+2` / `Fn+3` | 1초 | 해당 bond 삭제 후 새 페어링 시작 |
+| `Fn+5` | 3초 | **왼쪽** UF2 bootloader 진입 |
+| `Fn+0` | 3초 | **오른쪽** UF2 bootloader 진입 |
+| `Fn+Tab` | 즉시 | 양쪽 백라이트 토글 |
+| `Fn+I` | 3초 | 활성 출력으로 `L {왼쪽 %} R {오른쪽 %}` 입력 |
+| `Fn+Delete` | 3초 | 오른쪽 DFU 호환 단축키. 새 작업은 `Fn+0` 권장 |
+| `Fn+M` | 짧게 / 1초 | M 입력 / macOS 모드 저장 |
+| `Fn+N` | 짧게 / 1초 | N 입력 / Windows 모드 저장 |
+
+표에 없는 Fn 조합은 원래 키를 입력합니다. `Fn+6`, `Fn+7`은 profile 삭제나 출력
+전환을 하지 않습니다. 대신 `Fn+1/2/3` 길게 누르기와 물리 스위치를 사용합니다.
+`Fn+U`, `Fn+B`도 원래 글자를 입력합니다.
+
+## 기술 참고
+
+### 좌우 입력 순서
+
+오른쪽 snapshot은 원본 시각·순번·재조정 정보를 보내고, 왼쪽은 split 준비 전에
+시계 차이를 계산해 60초마다 갱신하며 로컬·원격 이벤트를 한 queue에서 합칩니다.
+
+입력 순서 대기값은 실기 검증한 **3 ms**에서 **8 ms** 후보를 거쳐 현재 절충값
+**5 ms**로 변경했습니다. 빌더는 `src/scanner.rs`의 `REORDER_WINDOW_MS`를 조정할
+수 있습니다. 작은 값은 지연을 줄이고 큰 값은 BLE 전송 jitter 여유를 늘립니다.
+변경 후 양쪽을 함께 다시 빌드·플래시하고 USB와 Bluetooth에서 빠른 L-R-L 및
+R-L-R 입력을 검사해야 합니다. 컴파일 성공만으로 안전한 값을 정할 수 없습니다.
+
+### Bluetooth profile과 split 연결
+
+페어링 슬롯 1/2/3은 하나의 BLE identity 아래 저장된 bond이며 서로 다른 키보드
+3대가 아닙니다. `NocFree 1/2/3`은 선택한 슬롯의 광고 이름입니다. 현재 host에
+연결된 슬롯으로 돌아가면 되며, profile을 바꿀 때마다 Windows 장치를 삭제하는
+방식은 정상 절차가 아닙니다.
+
+오른쪽 split은 1M BLE, 암호화, 7.5 ms 연결 주기, latency 30, 4초 supervision
+timeout, ATT MTU 23, 단계식 미연결 광고와 +8 dBm TX 출력을 사용합니다. 복구는
+개선됐지만 거리·전력·장시간 동작은 위 미검증 목록에 남아 있습니다.
+
+### 전원, 진단과 복구
+
+- NocFree 키 입력이 30초 없으면 USB 연결 중에도 양쪽 백라이트가 꺼집니다.
+- 배터리에서 왼쪽은 5분 후 System OFF에 진입합니다. USB 전원과 페어링 중에는
+  진입하지 않습니다. USB를 연결하거나 재연결될 때까지 왼쪽 키를 길게 눌러 깨웁니다.
+- 오른쪽은 BLE split 자동 재연결을 위해 저활동 System ON을 유지합니다. 오른쪽
+  System OFF는 구현하지 않았습니다.
+- 키보드 상태를 바꾸지 않고 split 로그를 읽을 수 있습니다.
 
 ```powershell
 & '.\tools\read-split-diagnostics.ps1' -Role Left
 & '.\tools\read-split-diagnostics.ps1' -Role Right
 ```
 
-왼쪽 로그는 scan, 광고 identity/RSSI, 연결, 보안, GATT 탐색, split-ready,
-해제 사유, 시도 횟수와 실제 연결 파라미터를 구분합니다. 오른쪽 로그는 광고
-모드/간격, 연결/보안, 해제 사유와 미연결 상태 키 입력을 포함합니다. 진단은
-115200 baud를 사용하며 기존 1200-baud DFU는 복구 전용으로 그대로 유지됩니다.
+진단은 115200 baud, DFU touch는 1200 baud를 사용합니다. 확인되지 않은 PCB pad를
+단락하지 말고 [RECOVERY_ko.md](RECOVERY_ko.md)를 따르십시오.
 
-### P3.1 재연결 결과
+## 관련 문서
 
-P2에서 포착한 실패는 불필요한 ATT MTU 교환 단계에서 발생했습니다. P3.1은
-split 연결에 표준 ATT MTU 23을 요청합니다. 이때 값 용량 20바이트는 가장 큰
-split 값 8바이트보다 충분히 큽니다. 광고, TX 출력, 7.5 ms 연결 주기,
-latency 30, 4초 supervision timeout은 바꾸지 않았습니다.
+- [복구와 순정 펌웨어 복귀](RECOVERY_ko.md)
+- [배열별 안내](LAYOUTS_ko.md)
+- [미구현 기능과 배터리 보정 계획](ROADMAP_ko.md)
+- [상세 개발·검증 기록](PROGRESS_ko.md)
+- [후속 작업 인계](HANDOFF.md)
 
-약 30cm에서 사용자가 승인한 오른쪽 전원 재인가 2회가 반쪽을 가까이 옮기거나
-복구하지 않고 모두 성공했습니다. 측정된 split-ready 시간은 RSSI -85/-79 dBm에서
-55,431/17,736 ms였고 MTU 실패는 반복되지 않았습니다. 오른쪽 입력은 Wired USB와
-기존 Windows 11 Bluetooth 출력에서 통과했습니다. 왼쪽 1200-baud 복구 뒤 첫
-시도도 ATT MTU 23으로 4,358 ms에 split-ready가 됐습니다. 따라서 P3.1은 관측된
-MTU 단계 실패를 해결했지만 발견/재연결이 여전히 느릴 수 있어 P3 전체는 진행
-중입니다. 여기서 광고(advertising)는 상업 광고가 아니라, 끊어진 오른쪽이
-왼쪽에 "연결 가능"을 알리려고 주기적으로 보내는 작은 BLE 패킷입니다. 다음
-실험은 이 패킷의 단계별 주기와 미연결 키 입력 시 즉시 빠른 주기로 복귀하는
-동작이며, 그 결과를 측정하기 전에는 TX 출력과 latency를 바꾸지 않습니다.
-
-### P3.2 연결 알림 패킷 결과
-
-끊어진 오른쪽은 처음 10초 동안 250 ms, 다음 50초 동안 500 ms, 이후 1초
-간격으로 BLE 연결 가능 패킷을 보냅니다. 끊어진 상태에서 오른쪽 키를 누르면
-즉시 250 ms 단계부터 다시 시작합니다. 최종 시간값을 빌드하기 전에 2초/3초로
-줄인 진단 이미지로 세 단계와 키 입력 복귀를 모두 기록했습니다.
-
-약 30cm에서 오른쪽 전원 재인가 2회가 각각 6.142초와 17.208초에 입력까지
-복귀했습니다. 두 번째는 -85 dBm에서 연결된 뒤 보안 timeout이 났지만 -79 dBm
-자동 재시도로 회복했습니다. Wired USB와 기존 Windows 11 Bluetooth 출력은
-통과했지만 사용자는 Bluetooth 지연을 느꼈습니다. 오른쪽 1200-baud 복구도 같은
-최종 이미지로 돌아와 1.295초에 연결됐습니다. P3.2는 완료지만 약한 신호에서
-보안 실패가 남아 P3 전체는 계속 진행합니다. 다음 비교 변수는 오른쪽 TX 출력이며
-연결 latency는 유지합니다.
-
-### P3.3 설정된 TX 출력
-
-현재 P4 오른쪽 이미지는 미연결 광고와 연결된 split 모두 +8 dBm이며 P4 입력
-시험 때 실물에 배포했습니다. Wired/Bluetooth 입력은 통과했지만 +8 dBm 자체의
-거리·보안·소비전류·배터리 효과를 통제 비교한 것은 아닙니다.
-
-### P4 전역 좌우 입력 순서 후보
-
-오른쪽 snapshot은 하나의 20-byte ATT 값에 원본 시각·순번·재조정 표시를 담습니다.
-왼쪽은 split-ready 전에 3회 표본으로 시계 차이를 추정하고 60초마다 갱신하며,
-로컬/원격 입력을 같은 5 ms 대기열에서 정렬합니다. 과거 1~5 ms를 10,000개 합성
-이벤트로 비교했을 때 3 ms가 가장 작은 무오류 값이었습니다. 2026-08-25에 여유를
-위해 8 ms 후보를 만들었고, 현재 절충값은 5 ms입니다.
-Wired USB와 Windows 11 Bluetooth의
-실제 `jam`/`ja` 교차 입력도 통과했습니다. 안정판 판정 전 실제 queue 전체 경로,
-장시간 drift, 재연결 직후, Android P4, 실제 BLE 도착 jitter 검증이 남았습니다.
-5 ms 설정 자체는 아직 실기 검증 전입니다.
-
-빌더가 조정할 값은 `src/scanner.rs`의 `REORDER_WINDOW_MS`입니다. 작은 값은 좌우
-지연을 줄이고 큰 값은 BLE 전송 jitter 허용 폭을 넓힙니다. 값을 바꾸면 양쪽을
-같이 다시 빌드·플래시하고 USB와 BLE 모두에서 빠른 L-R-L/R-L-R 입력을 확인해야
-합니다. 컴파일 성공만으로 값을 결정하면 안 됩니다.
-
-## NocFree Link 키 변경
-
-왼쪽은 `link.nocfree.com`이 인식하는 VID/PID `2886:8029`, 제품명
-`NocFree & ANSI`, WinUSB vendor bulk interface를 제공합니다.
-
-- 8개 레이어 × 84개 물리 키
-- 16개 hotkey 슬롯과 실제 HID chord 실행
-- 키맵/hotkey CRC 포함 flash 영구 저장
-- 단일 키 변경, 재부팅 후 보존, hotkey 생성/삭제, 기본값 복구 실기 통과
-
-ZMK Studio 프로토콜은 구현하지 않았고, 요청된 두 경로 중 NocFree Link를
-선택했습니다. quick text는 조회 시 빈 슬롯으로 응답해 웹앱 timeout을 막지만
-저장·실행은 구현하지 않았습니다. Link의 배터리 조회도 현재 `0xff`(사용할 수
-없음)를 반환하므로, 배터리 확인은 아래 `Fn+I`를 사용해야 합니다.
-
-## 구현 상태
-
-| 상태 | 기능 | 현재 범위와 제한 |
-|---|---|---|
-| 완료 | 84키 ANSI 입력 | 왼쪽 37키와 오른쪽 47키, 양쪽 Fn, 비문자 키와 한국어 Windows 특수키까지 실기 확인 |
-| 완료 | USB/BLE HID | 왼쪽 USB HID, BLE HID, CCCD 즉시 저장·복원, USB↔BLE 전환과 같은 이미지에서의 BLE 자동 재연결 |
-| P4 소프트웨어 후보 / P3 tuning 부분 | 양쪽 split과 입력 순서 | timestamp·순번·시계 동기화·5 ms 대기열. 이전 3 ms 값은 제한된 Wired/Windows 11 Bluetooth 실기를 통과했지만 현재 5 ms 값은 자동 검사만 통과. 실제 queue end-to-end 유실, BLE jitter/drift, 재연결 직후 스트레스, +8 dBm 거리·전력 통제 비교는 남음 |
-| 완료 | BLE 멀티 페어링 | 호스트 bond 슬롯 3개와 선택 상태 영구 저장. Windows 11과 Android 두 호스트로 슬롯 1/2 페어링 확인; 세 번째 호스트와 다른 OS는 미검증 |
-| 소프트웨어 후보 | 백라이트 | `Fn+F5`는 내리고 `Fn+F6`은 올리며 양쪽이 0/20/40/60/80/100% 설정을 공유. 10 kHz PWM과 체감 보정 듀티 곡선으로 여섯 설정을 구분하며 새 곡선은 실기 확인이 남음. 절대 상태 동기화, 30초 소등과 첫 키 wake는 유지 |
-| 완료 | 물리 스위치 | 왼쪽 Wired/Bluetooth 선택과 2.4G 위치의 안전한 무출력, 오른쪽 물리 전원 스위치 동작 |
-| 완료 | NocFree Link 키맵 | 8×84 키, hotkey 16개, 실행·삭제·기본값 복구와 CRC 포함 flash 저장 |
-| 완료 | 복구 | 양쪽 독립 CDC 1200-baud DFU, Fn DFU 단축키, Rust↔순정 V2.3.0 왕복 |
-| 부분 | 배터리 | 양쪽 모두 순정 V2.3.0에서 복구한 ADC/divider 환산, 75/25 전압 필터, 2.31–3.30 V 퍼센트 곡선, 60초 주기 측정과 `Fn+I` 출력을 사용. 완충된 양쪽에서 100%를 확인했으며 전체 방전 주기와 DMM 검증은 남음 |
-| 부분 | NocFree Link 호환 | 키맵과 hotkey는 동작. Link 배터리 표시는 미지원이며 quick text는 빈 조회만 지원하고 저장·삭제·실행은 미지원 |
-| 부분 | 순정 전원 관리 | 배터리 divider는 측정할 때만 켜고 idle 키 스캔은 왼쪽 `P0.31`/오른쪽 `P0.05` PCA9555 interrupt와 250 ms 안전 스캔을 사용. 배터리 사용 중 NocFree 키 무입력 5분 후 왼쪽 central이 System OFF에 진입하며 USB 전원은 System OFF만 막고 30초 백라이트 timeout에는 영향을 주지 않음. 오른쪽은 자동 재연결을 위해 System ON idle을 유지하고 최초 split 연결 뒤 단절 광고 주기를 250 ms에서 1초로 늦춤. 충전 상태·sleep 전류·순정 수준 사용 시간은 아직 계측 검증하지 않음 |
-| 미구현 | 공장 USB 동글 / 2.4 GHz 통신 | 동글 페어링과 입력은 동작하거나 검증된 상태가 아님. 공장 USB receiver, 왼쪽 외부 nRF24L01, 오른쪽/별도 numpad의 ESB 연결은 사용하지 않으며 현재 split은 BLE 전용 |
-| 부분 | 물리 스위치 옆 LED | 왼쪽 파란 LED는 페어링부터 bond 완료 또는 프로필 선택까지 점멸. 양쪽 빨간 charger 공유 선은 open-drain 방식으로 10% 이하에서 0.5초 간격 점멸. 파란 LED는 실기 통과했고 빨간 LED는 자동 테스트만 통과했으며 양쪽이 완충이라 실물 점멸은 확인하지 못함. 충전/완충 등 나머지 순정 표시는 남음 |
-| 미구현 | 기타 설정 경로 | ZMK Studio와 공장 firmware updater의 완전한 호환은 제공하지 않음 |
-
-## 전원 및 깨우기 동작
-
-- NocFree 키 무입력 30초 후 USB 전원 연결 여부와 관계없이 양쪽 백라이트가 꺼집니다. 다음 키 입력으로 백라이트가 켜지며 해당 입력도 정상적으로 전달됩니다.
-- 배터리 사용 중 NocFree 키 무입력 5분 후 왼쪽 central이 nRF52 System OFF에 진입합니다. 진입 전에 양쪽 백라이트 소등을 요청하며, USB 전원이 연결되어 있거나 BLE 페어링 중이면 System OFF에 들어가지 않습니다.
-- 잠든 왼쪽은 USB를 연결하거나 키보드가 다시 연결될 때까지 왼쪽 키 하나를 길게 눌러 깨울 수 있습니다. System OFF wake는 MCU reset을 동반하므로 아주 짧게 누른 wake 키 문자는 부팅 중 소모될 수 있습니다.
-- 오른쪽은 BLE 전용 split 자동 재연결을 위해 저활동 System ON을 유지합니다. 최초 split 연결 뒤 단절 광고 주기를 250 ms에서 1초로 늦추지만, 오른쪽 System OFF나 실제 소비전류 감소량은 구현·검증됐다고 주장하지 않습니다.
-
-## 전체 기본 단축키
-
-왼쪽 Fn과 오른쪽 Fn은 같은 레이어를 사용합니다. 아래 표는 NocFree Link에서
-키를 바꾸기 전의 firmware 기본값입니다.
-
-| 키 | 누르는 방법 | 동작 |
-|---|---|---|
-| `Fn+Esc` | 즉시 | 왼쪽 애플리케이션 재시작. DFU가 아님 |
-| `Fn+F1` / `Fn+F2` | 즉시 | 화면 밝기 내림 / 올림 |
-| `Fn+F3` | 즉시 | macOS: Mission Control, Windows: Task View |
-| `Fn+F4` | 즉시 | macOS: Spotlight, Windows: Search |
-| `Fn+F5` / `Fn+F6` | 즉시 | 양쪽 백라이트 밝기 20% 내림 / 올림 |
-| `Fn+F7` / `F8` / `F9` | 즉시 | 이전 곡 / 재생·일시정지 / 다음 곡 |
-| `Fn+F10` / `F11` / `F12` | 즉시 | 음소거 / 볼륨 내림 / 볼륨 올림 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 짧게 | BLE 페어링 슬롯 1 / 2 / 3 선택 |
-| `Fn+1` / `Fn+2` / `Fn+3` | 1초 홀드 | 해당 슬롯의 bond를 삭제하고 새 호스트 페어링 시작 |
-| `Fn+5` | 3초 홀드 | **왼쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
-| `Fn+0` | 3초 홀드 | **오른쪽** UF2 부트로더 진입. 짧게 누르면 무동작 |
-| `Fn+Tab` | 즉시 | 양쪽 백라이트 켜기 / 끄기 |
-| `Fn+I` | 3초 홀드 | `L {왼쪽 퍼센트} R {오른쪽 퍼센트}`를 현재 출력으로 입력. 짧게 누르면 무동작 |
-| `Fn+Delete` | 3초 홀드 | 호환용 **오른쪽** DFU 별칭. 새 조작은 `Fn+0` 권장 |
-| `Fn+M` | 짧게 / 1초 홀드 | 짧게 M 입력 / 홀드하면 macOS 모드 영구 저장 |
-| `Fn+N` | 짧게 / 1초 홀드 | 짧게 N 입력 / 홀드하면 Windows 모드 영구 저장 |
-
-표에 없는 `Fn+키`는 별도 기능이 없는 transparent 동작이라 원래 키가
-입력됩니다. 특히 기준 ZMK의 `Fn+6`(활성 프로필 삭제)과 `Fn+7`(USB/BLE
-toggle)은 Rust에서 같은 위치에 구현하지 않았습니다. 슬롯 삭제·페어링은
-대상 `Fn+1/2/3`을 1초 홀드하고, 출력 선택은 왼쪽 물리 스위치를 사용하십시오.
-`Fn+U`와 `Fn+B`는 출력 전환 기능이 없으며 각각 원래 문자로 동작합니다.
-DFU는 오입력 방지를 위해 기준 ZMK의 즉시 실행 대신 3초 홀드로
-변경했습니다.
-
-왼쪽 DFU와 split이 끊긴 오른쪽 DFU는 각 반쪽의 CDC 1200-baud touch를
-사용합니다. NocFree &에는 외부 리셋 버튼이 없습니다. 확인되지 않은 PCB
-패드를 쇼트하지 마십시오. 정확한 절차는 [RECOVERY.md](RECOVERY.md)에 있습니다.
-
-## 물리 스위치
-
-왼쪽 3단 스위치는 P0.15/P0.17 active-low 입력으로 동작합니다. 위치 의미는
-[NocFree & 공식 설명서](https://www.nocfree.com/pages/nocfree-and-manual)를
-기준으로 확인했습니다.
-
-- 위 **2.4G**: 아직 2.4G transport가 없어 USB/BLE 출력을 모두 안전하게 차단
-- 가운데 **Wired**: USB HID 출력 선택
-- 아래 **Bluetooth**: BLE HID 출력 선택
-
-두 감지 핀이 동시에 low인 전환 순간에는 이전 출력을 유지하며, 20 ms 동안
-같은 위치가 확인된 뒤에만 모드를 바꿉니다. Wired에서 왼쪽 USB가 없으면
-HID 출력은 없지만 스위치가 전원을 끄지는 않으므로 MCU와 스캐너는 배터리를
-소모합니다.
-
-오른쪽 스위치는 펌웨어 입력이 아니라 배터리 전원선의 물리 ON/OFF입니다. 위가
-OFF, 아래가 ON입니다. 오른쪽 USB가 연결되면 VBUS가 배터리 스위치를 우회하므로
-OFF에서도 보드가 켜지는 것이 하드웨어상 정상입니다.
-
-## 실기 검증
-
-| 요구사항 | 최신 이미지의 증거 |
-|---|---|
-| USB 양쪽 입력/순서 | P4 3 ms timestamp 정렬 뒤 `jam` 10회와 긴 `ja` 교차 입력이 정확한 순서로 통과 |
-| 84개 물리 키 | 문자 50개 + 비문자 33개 자동 sweep + Print Screen 수동 확인 |
-| 한국어 Windows 특수키 | Right Alt의 `KanaMode` 매핑과 Print Screen OS 처리 확인 |
-| BLE | 새 페어링 `freshcapture` → Wired `freshwired2` → 장치 삭제·재페어링 없는 BLE `reconnectcapture` 통과 |
-| BLE 멀티 페어링 | 슬롯 1은 Windows 11, 슬롯 2는 Android에서 페어링·연결 확인 |
-| 왼쪽 물리 모드 | Wired `wiredswitchok`, BLE `bleswitchok`/`bleagainok`, 2.4G 무출력 `24silentok` 통과 |
-| 오른쪽 물리 전원 | 오른쪽 USB 분리 후 ON `jkluiop`, OFF 무입력, ON 복귀 `jkluiop` 통과 |
-| Link | A→B, Shift+B hotkey, 재부팅 보존, 삭제/기본 A 복구 통과 |
-| 양쪽 순정 원복 | Rust→순정 V2.3.0→serial DFU→같은 Rust→입력 통과 |
-| 오른쪽 DFU 단축키 | `Fn+Delete`→UF2 확인→최신 Rust→전원 재인가 없이 `jkluiop` 통과 |
-| 미디어 | mute/unmute, volume down/up 통과 |
-| 배터리 | 순정 V2.3.0 환산식과 필터 복구 후 완충된 양쪽에서 `Fn+I` 3초 홀드로 `L 100 R 100` 출력; 방전 동작은 장기 실기 확인이 남음 |
-| 상태 LED | `Fn+3` 홀드 후 손을 떼도 왼쪽 파란 LED가 계속 점멸하고, `Fn+1` 짧게 눌러 Windows bond 슬롯으로 복귀하면 소등됨을 확인. 빨간 저전압 점멸은 양쪽 모두 10% 초과라 실물 확인하지 못함 |
-| interrupt 기반 idle 스캔 | 3초 idle 뒤 양쪽 모두 첫 키를 즉시 감지하고, 길게 누르기 반복과 release가 정상이며 좌우 혼합 입력 순서를 보존함. interrupt 유실 대비 250 ms 안전 스캔 유지 |
-| 백라이트 동기화/자동 소등 | 왼쪽을 수동 OFF로 둔 채 오른쪽을 재부팅해 상태를 어긋내도 자동 수렴, 토글 10회 동기 유지, 30초 양쪽 자동 소등과 오른쪽 첫 키의 양쪽 wake 확인 |
-| Split 재연결 진단 | 약 30cm에서 `-75/-74 dBm`, 첫 MTU 교환 실패와 다음 연결·보안·GATT 성공, HCI 해제 사유 `0x08`, 미연결 오른쪽 키를 기록. 양쪽 1200-baud 복구 뒤 입력 복귀도 확인 |
-| P3.1 split 재연결 | ATT MTU 23으로 관측된 MTU 교환 단계 실패를 제거. 약 30cm 오른쪽 전원 재인가 2회가 거리 이동 없이 입력까지 복귀했지만 55,431/17,736 ms가 걸림. Wired USB와 Windows 11 Bluetooth 출력 통과. Wired 위치에서 왼쪽 1200-baud 복구로 같은 P3.1 복귀 뒤 4,358 ms에 split-ready 확인 |
-| P3.2 단계별 광고 | 짧은 진단 이미지로 250/500/1,000 ms 단계와 미연결 키의 250 ms 복귀를 확인. 최종 10/50초 설정은 책상 거리 입력 2회를 6.142/17.208초에 통과하고 Wired/Bluetooth 출력과 오른쪽 1200-baud 복구도 통과. -85 dBm 보안 timeout과 Bluetooth 체감 지연 때문에 TX 출력 비교가 남음 |
-| P4 좌우 입력 순서 | 1~5 ms를 10,000개 지연 교차 snapshot으로 비교해 1/2 ms 실패, 3/4/5 ms 무오류를 확인하고 3 ms 선택. Wired `jam` 10회·빠른 `ja`, Windows 11 Bluetooth `asdfjkljam…`이 재정렬·고착 없이 통과. 양쪽 역할별 Fn DFU 진입과 해당 이미지 복귀도 확인 |
-| System OFF와 split 복귀 | 10초 진단 이미지에서 USB 연결 중 System OFF 차단, 배터리 상태 왼쪽 central System OFF, sleep 전 양쪽 백라이트 소등, 왼쪽 USB 또는 왼쪽 키 홀드 wake, BLE 복귀와 오른쪽 split 입력을 확인. 배포 이미지는 같은 경로에서 timeout만 5분으로 변경. 짧은 wake 키 탭은 reset 부팅 중 소모될 수 있으므로 해당 문자도 입력하려면 재연결까지 왼쪽 키를 유지해야 함 |
-| 새 DFU 단축키 | `Fn+5` 왼쪽 DFU, 짧은 `Fn+5` 무동작, `Fn+0` 3초 오른쪽 DFU와 최신 이미지 복귀 확인 |
-| 물리 스위치 전용 출력 | `Fn+U`, `Fn+B`를 차례로 눌러 출력 전환 없이 `ub` 입력 확인 |
-
-BLE 호스트 실기 검증은 **Windows 11과 Android에서만** 수행했습니다. macOS,
-iOS, Linux 및 세 번째 호스트는 확인하지 않았습니다. `NocFree 1`/`2`/`3`은
-선택된 페어링 슬롯을 나타내는 광고 이름이며 서로 다른 Bluetooth identity가
-아닙니다. 따라서 같은 Windows 11 PC에서는 기존 장치 이름이 선택 슬롯에 따라
-바뀌어 보일 수 있고, 빈 슬롯의 새 페어링은 Android 같은 다른 호스트에서
-확인해야 합니다.
-
-다른 호스트에 bond된 슬롯을 선택하면 Windows는 같은 장치 항목의 이름을 바꾸고
-그 슬롯이 활성인 동안 `페어링됨`과 `연결됨`을 반복해 보일 수 있습니다. 이는
-하나의 BLE identity에 bond 슬롯 3개를 둔 현재 제한이며, 서로 따로 검색되는
-키보드 3개가 아닙니다. 현재 호스트에 bond된 슬롯으로 돌아가야 하며 프로필을
-바꿀 때 Windows 장치를 삭제하고 다시 페어링하는 것이 정상 절차는 아닙니다.
-
-최신 이미지 검증에서는 슬롯 1의 기존 bond와 Windows 장치를 각각 한 번
-삭제하고 새로 페어링했습니다. 이후 같은 bond로 Bluetooth→Wired→Bluetooth를
-전환했으며 Windows 장치 삭제나 재페어링 없이 HID 입력이 즉시 복구됐습니다.
-펌웨어는 Windows의 CCCD write를 받는 즉시 시스템 속성을 RAM/flash에 저장하고,
-재연결 보안이 완료되면 알림 전송 전에 복원합니다.
-
-## 코드 읽는 순서
-
-1. `src/keymap.rs`, `src/link_keymap.rs`
-2. `src/scanner.rs`, `src/pca9555.rs`, `src/hardware_scanner.rs`
-3. `src/report.rs`
-4. `src/bin/right.rs`, `src/split_ble.rs`
-5. `src/bin/central.rs`, `src/link_usb.rs`, `src/link_protocol.rs`
-6. `src/platform.rs`, `src/bond_store.rs`, `src/bond_record.rs`
-
-`vendor/nrf-softdevice`와 macro 폴더는 upstream 커밋
-`b0ac850c0a5a05b8a5aef4f752b48115755b8542`의 로컬 사본입니다. 1M PHY와
-보안 CCCD 변경 이유는 각 `README.nocfree.md`에 기록돼 있습니다.
+로컬 `vendor/nrf-softdevice`와 `vendor/nrf-softdevice-macro`는 upstream commit
+`b0ac850c0a5a05b8a5aef4f752b48115755b8542` 기반입니다. 각
+`README.nocfree_ko.md`에 1M PHY와 secure CCCD 수정 이유가 있습니다.

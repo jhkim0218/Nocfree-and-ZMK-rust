@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -28,6 +29,73 @@ def read(relative: str) -> str:
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_readme_information_architecture(self) -> None:
+        headings = {
+            "README.md": (
+                "## Start here",
+                "## Build and firmware",
+                "## Incomplete or unverified work",
+                "## Implemented features",
+                "## Default shortcuts",
+                "## Technical reference",
+                "## Documentation",
+            ),
+            "README_ko.md": (
+                "## 먼저 확인할 내용",
+                "## 빌드와 펌웨어",
+                "## 미구현 및 미검증 항목",
+                "## 구현된 기능",
+                "## 기본 단축키",
+                "## 기술 참고",
+                "## 관련 문서",
+            ),
+            "README_ja.md": (
+                "## 最初に確認すること",
+                "## ビルドとファームウェア",
+                "## 未実装・未検証項目",
+                "## 実装済み機能",
+                "## 既定のショートカット",
+                "## 技術資料",
+                "## 関連文書",
+            ),
+        }
+        for path, expected in headings.items():
+            document = read(path)
+            positions = [document.index(heading) for heading in expected]
+            self.assertEqual(positions, sorted(positions), path)
+            self.assertEqual(document.count("\n## "), len(expected), path)
+            self.assertLessEqual(len(document.splitlines()), 280, path)
+            first_section = positions[0]
+            for essential in (
+                "NocFreeKB/NocFree-and-zmk",
+                "Windows",
+                "Fn+M",
+                "Fn+N",
+                "RECOVERY",
+                "2.4 GHz",
+            ):
+                self.assertLess(document.index(essential), first_section, path)
+            incomplete = document[positions[2] : positions[3]]
+            for remaining in ("ISO", "JIS", "KR", "+8 dBm", "Quick Text", "ZMK Studio"):
+                self.assertIn(remaining, incomplete, f"{path}: {remaining}")
+
+    def test_readme_relative_links_exist(self) -> None:
+        for path in DOCUMENT_FAMILIES["README"]:
+            for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", read(path)):
+                if "://" not in target and not target.startswith("#"):
+                    self.assertTrue((ROOT / target).exists(), f"{path}: {target}")
+
+    def test_readme_has_no_chronological_development_log(self) -> None:
+        old_stage_headings = ("P3.1", "P3.2", "P3.3", "P4 global", "P4 전역")
+        for path in DOCUMENT_FAMILIES["README"]:
+            document = read(path)
+            headings = [line for line in document.splitlines() if line.startswith("##")]
+            for old_heading in old_stage_headings:
+                self.assertFalse(
+                    any(old_heading in heading for heading in headings),
+                    f"{path} still contains chronological heading {old_heading}",
+                )
+
     def test_ordering_window_contract(self) -> None:
         scanner = read("src/scanner.rs")
         self.assertIn("pub const REORDER_WINDOW_MS: u64 = 5;", scanner)
