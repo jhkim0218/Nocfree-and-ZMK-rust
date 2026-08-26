@@ -2,10 +2,6 @@
 
 [English](README.md) · [한국어](README_ko.md)
 
-> [!CAUTION]
-> `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
-> 自動検査に合格していますが、**実機では検証されていません**。
-
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)
@@ -144,7 +140,7 @@ Windows PowerShell ラッパーも利用できます。
 
 以前の ANSI は84キー、Wired/Bluetooth、Windows 11・Android の multi-pairing、
 物理スイッチ、NocFree Link、バックライト同期・消灯、電源 wake、左右 DFU、純正
-復元を実機で確認しました。この結果は現在の `develop` 成果物の実機検証を
+復元を実機で確認しました。この結果は現在の成果物の実機検証を
 代替しません。最新状態は [HANDOFF_ja.md](HANDOFF_ja.md) を参照してください。
 
 ## 既定のショートカット

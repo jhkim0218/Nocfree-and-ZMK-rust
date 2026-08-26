@@ -2,10 +2,6 @@
 
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
-> [!CAUTION]
-> The `develop` branch contains work in progress. Its firmware artifacts pass
-> automated checks but have **not been verified on physical hardware**.
-
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)
@@ -148,7 +144,7 @@ Previously tested ANSI firmware passed all 84 keys, Wired/Bluetooth output,
 Windows 11 and Android multi-pairing, both physical switches, NocFree Link,
 backlight synchronization and timeout, power wake, both DFU paths, and stock
 restoration. Those results do not replace physical testing of the current
-`develop` artifacts. See [HANDOFF_en.md](HANDOFF_en.md) for the latest handoff status.
+artifacts. See [HANDOFF_en.md](HANDOFF_en.md) for the latest handoff status.
 
 ## Default shortcuts
 

@@ -2,10 +2,6 @@
 
 [English](README.md) · [日本語](README_ja.md)
 
-> [!CAUTION]
-> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
-> 통과하지만 **실물 하드웨어에서 검증되지 않았습니다**.
-
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
 동작을 포팅했으며 NocFree 공식 펌웨어가 아닙니다.
@@ -141,7 +137,7 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,
 물리 스위치, NocFree Link, 백라이트 동기화·소등, 전원 wake, 양쪽 DFU와 순정
-복구를 실기에서 통과했습니다. 이 결과가 현재 `develop` 산출물의 실기 검증을
+복구를 실기에서 통과했습니다. 이 결과가 현재 산출물의 실기 검증을
 대체하지는 않습니다. 최신 인계 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
 ## 기본 단축키
