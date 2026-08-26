@@ -2,6 +2,10 @@
 
 [English](README.md) · [한국어](README_ko.md) · [日本語](README_ja.md)
 
+> [!CAUTION]
+> `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
+> 自動検査に合格していますが、**実機では検証されていません**。
+
 NocFree & ANSI キーボードのコミュニティ ZMK 実装を、nRF52833 向けの
 `no_std` Rust ファームウェアへ移植するプロジェクトです。原典は
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)

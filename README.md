@@ -2,6 +2,10 @@
 
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
+> [!CAUTION]
+> The `develop` branch contains work in progress. Its firmware artifacts have
+> passed automated checks but have **not been verified on physical hardware**.
+
 This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
 `no_std` Rust firmware for the nRF52833. The original project is
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),

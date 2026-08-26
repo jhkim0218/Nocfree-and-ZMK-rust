@@ -2,6 +2,10 @@
 
 [English](README.md) · [日本語](README_ja.md)
 
+> [!CAUTION]
+> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
+> 통과했지만 **실물 하드웨어에서 검증되지 않았습니다**.
+
 NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 옮긴 프로젝트입니다. 원본 프로젝트는
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)이며,
