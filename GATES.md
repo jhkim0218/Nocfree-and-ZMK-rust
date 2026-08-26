@@ -12,12 +12,12 @@ Scope: replace chronological development logs with one coherent three-language R
 - [x] G1: all three README editions put essentials first, incomplete work in the middle, and implemented features below it
   CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_readme_information_architecture && echo README architecture verification passed
   EXPECT: README architecture verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 1 test in 0.000s | OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 1 test in 0.014s | OK
 
 - [x] G2: the complete documentation contract preserves build, recovery, layout, OS, ordering, and hardware-validation guidance
   CHECK: python -B tools/test_documentation.py && echo README documentation contract passed
   EXPECT: README documentation contract passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 10 tests in 0.006s | OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 10 tests in 0.005s | OK
 
 - [x] G3: the rewritten READMEs contain no chronological P-stage sections and retain one coherent feature-based narrative
   CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_readme_has_no_chronological_development_log && echo README narrative verification passed
