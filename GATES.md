@@ -24,5 +24,5 @@ Scope: replace chronological development logs with one coherent three-language R
   EXPECT: README narrative verification passed
   EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 1 test in 0.000s | OK
 
-- [ ] G4: the final README structure is published to both remote branches and develop remains explicitly hardware-unverified
-  EVIDENCE: pending
+- [x] G4: the final README structure is published to both remote branches and develop remains explicitly hardware-unverified
+  EVIDENCE: remote README verification passed; main 4abd6e3950e7fd097bb21134aa6a29ca204d7feb contains the unified structure without the develop warning, and develop f3967b92e09bf8bcfe8fc2d4e93afe652a08351b contains the same structure with the hardware-unverified warning
