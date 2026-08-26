@@ -6,6 +6,12 @@
 > `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
 > 통과했지만 **실물 하드웨어에서 검증되지 않았습니다**.
 
+> [!NOTE]
+> 좌우 입력 순서 대기값은 실기 검증한 **3 ms**에서 **8 ms** 후보를 거쳐 현재
+> 절충값인 **5 ms**로 변경했습니다. 빌더는 `src/scanner.rs`의
+> `REORDER_WINDOW_MS`를 조정할 수 있습니다. 변경 후에는 양쪽을 함께 다시
+> 빌드·플래시하고 USB와 Bluetooth에서 빠른 교차 입력을 확인해야 합니다.
+
 NocFree & ANSI 키보드의 ZMK 동작을 nRF52833용 `no_std` Rust 펌웨어로
 옮긴 프로젝트입니다. 원본 프로젝트는
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)이며,

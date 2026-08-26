@@ -8,9 +8,10 @@ pub const IDLE_SCAN_MS: u16 = 10;
 pub const IDLE_SAFETY_SCAN_MS: u16 = 250;
 pub const DEBOUNCE_PRESS_MS: u16 = 5;
 pub const DEBOUNCE_RELEASE_MS: u16 = 5;
-// Builder tuning point: smaller values reduce latency, while larger values tolerate more
-// cross-half transport jitter. Rebuild and flash both halves together after changing this,
-// then test fast L-R-L/R-L-R sequences over both USB and BLE.
+// Builder tuning point. History: 3 ms (tested) -> 8 ms candidate -> 5 ms current.
+// Smaller values reduce latency, while larger values tolerate more cross-half transport
+// jitter. Rebuild and flash both halves together after changing this, then test fast
+// L-R-L/R-L-R sequences over both USB and BLE.
 pub const REORDER_WINDOW_MS: u64 = 5;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

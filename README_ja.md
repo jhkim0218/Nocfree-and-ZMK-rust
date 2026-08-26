@@ -6,6 +6,12 @@
 > `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
 > 自動検査に合格していますが、**実機では検証されていません**。
 
+> [!NOTE]
+> 左右入力の順序待ち時間は、実機検証済みの **3 ms** から **8 ms** 候補を経て、
+> 現在の折衷値 **5 ms** へ変更しました。ビルダーは `src/scanner.rs` の
+> `REORDER_WINDOW_MS` を調整できます。変更後は左右を一緒に再ビルド・
+> フラッシュし、USB と Bluetooth の両方で高速な交互入力を確認してください。
+
 NocFree & ANSI キーボードのコミュニティ ZMK 実装を、nRF52833 向けの
 `no_std` Rust ファームウェアへ移植するプロジェクトです。原典は
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)

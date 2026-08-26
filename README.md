@@ -6,6 +6,12 @@
 > The `develop` branch contains work in progress. Its firmware artifacts have
 > passed automated checks but have **not been verified on physical hardware**.
 
+> [!NOTE]
+> The cross-half input-ordering window was changed from the tested **3 ms** value,
+> through an **8 ms** candidate, to the current **5 ms** compromise. Builders can
+> tune `REORDER_WINDOW_MS` in `src/scanner.rs`; rebuild and flash both halves after
+> changing it, then test rapid alternating input over both USB and Bluetooth.
+
 This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
 `no_std` Rust firmware for the nRF52833. The original project is
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),
