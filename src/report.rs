@@ -1,8 +1,13 @@
 use crate::keymap::{Action, KEY_COUNT, base_action, function_action};
 
-pub const KEY_BITMAP_BYTES: usize = 14;
-const FIRST_BITMAP_USAGE: u8 = 0x04;
-const LAST_BITMAP_USAGE: u8 = 0x73;
+pub const FIRST_BITMAP_USAGE: u8 = 0x04;
+#[cfg(feature = "layout-jis")]
+pub const LAST_BITMAP_USAGE: u8 = 0x8a;
+#[cfg(not(feature = "layout-jis"))]
+pub const LAST_BITMAP_USAGE: u8 = 0x73;
+pub const KEY_BITMAP_BITS: u8 = LAST_BITMAP_USAGE - FIRST_BITMAP_USAGE + 1;
+pub const KEY_BITMAP_BYTES: usize = KEY_BITMAP_BITS.div_ceil(8) as usize;
+pub const KEYBOARD_REPORT_BYTES: usize = 2 + KEY_BITMAP_BYTES;
 pub const HOLD_MS: u64 = 1_000;
 pub const BATTERY_HOLD_MS: u64 = 3_000;
 pub const DFU_HOLD_MS: u64 = 3_000;
@@ -16,8 +21,8 @@ pub struct KeyboardReport {
 }
 
 impl KeyboardReport {
-    pub fn as_bytes(&self) -> &[u8; 16] {
-        unsafe { &*(self as *const Self as *const [u8; 16]) }
+    pub fn as_bytes(&self) -> &[u8; KEYBOARD_REPORT_BYTES] {
+        unsafe { &*(self as *const Self as *const [u8; KEYBOARD_REPORT_BYTES]) }
     }
 }
 
@@ -472,8 +477,47 @@ mod tests {
 
     #[test]
     fn keyboard_report_has_no_padding() {
-        assert_eq!(core::mem::size_of::<KeyboardReport>(), 16);
-        assert_eq!(KeyboardReport::default().as_bytes(), &[0; 16]);
+        assert_eq!(
+            core::mem::size_of::<KeyboardReport>(),
+            KEYBOARD_REPORT_BYTES
+        );
+        assert_eq!(
+            KeyboardReport::default().as_bytes().len(),
+            KEYBOARD_REPORT_BYTES
+        );
+        assert!(
+            KeyboardReport::default()
+                .as_bytes()
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+    }
+
+    #[cfg(feature = "layout-jis")]
+    #[test]
+    fn jis_extended_usages_reach_the_keyboard_report() {
+        assert_eq!(
+            (LAST_BITMAP_USAGE, KEY_BITMAP_BITS, KEYBOARD_REPORT_BYTES),
+            (0x8a, 135, 19)
+        );
+        for usage in [0x87, 0x89, 0x8a] {
+            let mut engine = ReportEngine::default();
+            let raw = raw_with_base(Action::Key(usage));
+            let report = engine.apply_snapshot(1_u128 << raw).keyboard;
+            assert!(
+                key_is_set(&report, usage),
+                "JIS usage {usage:#04x} was dropped"
+            );
+        }
+    }
+
+    #[cfg(not(feature = "layout-jis"))]
+    #[test]
+    fn standard_layouts_keep_the_existing_report_shape() {
+        assert_eq!(
+            (LAST_BITMAP_USAGE, KEY_BITMAP_BITS, KEYBOARD_REPORT_BYTES),
+            (0x73, 112, 16)
+        );
     }
 
     #[test]

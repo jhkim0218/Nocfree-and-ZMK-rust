@@ -7,7 +7,7 @@ use embassy_sync::channel::{Channel, TrySendError};
 
 pub use crate::output_policy::OutputMode;
 use crate::output_policy::{releases, routes};
-use crate::report::KeyboardReport;
+use crate::report::{KEY_BITMAP_BYTES, KeyboardReport};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ReportFrame {
@@ -38,7 +38,7 @@ impl OutputRouter {
                 keyboard: KeyboardReport {
                     modifiers: 0,
                     reserved: 0,
-                    keys: [0; 14],
+                    keys: [0; KEY_BITMAP_BYTES],
                 },
                 consumer: 0,
             })),

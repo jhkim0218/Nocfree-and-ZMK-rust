@@ -1,11 +1,16 @@
 # NocFree-and-rust
 
-[한국어](README_ko.md)
+[한국어](README_ko.md) · [日本語](README_ja.md)
 
 This project ports the ZMK behavior of the NocFree & ANSI keyboard to a
 `no_std` Rust firmware for the nRF52833. The original project is
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk),
 and this repository is an independent Rust port.
+
+> [!IMPORTANT]
+> The firmware starts in **Windows mode by default**. To use macOS mappings,
+> hold `Fn+M` for one second; the choice is saved across reboots. Hold `Fn+N`
+> for one second to return to Windows mode. A short press still types M or N.
 
 The 84-key ANSI physical layout remains the only locally hardware-verified target.
 Separately selected ISO, JIS, and KR builds are available as **Experimental,
@@ -15,7 +20,7 @@ flashed today, so it still needs a short ANSI regression pass before release.
 
 | Layout | Firmware status | Physical hardware validation |
 |---|---|---|
-| ANSI | 8 ms ordering candidate | Previous 3 ms builds were tested; the current 8 ms build is not yet hardware-tested |
+| ANSI | 5 ms ordering candidate | Previous 3 ms builds were tested; the current 5 ms build is not yet hardware-tested |
 | ISO | Experimental | **Not tested on an ISO keyboard** |
 | JIS | Experimental | **Not tested on a JIS keyboard** |
 | KR | Experimental | **Not tested on a KR keyboard** |
@@ -61,37 +66,45 @@ MCU restarts during an I2C transfer from the bootloader or another firmware.
 
 ## Build
 
-After cloning the repository, open Windows PowerShell in the repository root.
-The Rust MSVC toolchain and Python 3 are required. The commands below install
-the additional build dependencies and create both UF2 files.
+The same standard-library Python entry point builds on Windows, macOS, and
+Linux. Install Rust, Python 3, a C/C++ toolchain with libclang, and the listed
+firmware tools first:
 
-```powershell
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
-
-& rustup target add thumbv7em-none-eabihf
-$targetExit = $LASTEXITCODE
-if ($targetExit -ne 0) { throw ('rustup target add failed with exit code {0}' -f $targetExit) }
-
-& rustup component add llvm-tools-preview
-$componentExit = $LASTEXITCODE
-if ($componentExit -ne 0) { throw ('rustup component add failed with exit code {0}' -f $componentExit) }
-
-& python -m pip install 'adafruit-nrfutil==0.5.3.post16'
-$pipExit = $LASTEXITCODE
-if ($pipExit -ne 0) { throw ('dependency installation failed with exit code {0}' -f $pipExit) }
-
-& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1' -Layout ANSI
-$buildExit = $LASTEXITCODE
-if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) }
+```text
+rustup target add thumbv7em-none-eabihf
+rustup component add llvm-tools-preview
+python3 -m pip install adafruit-nrfutil==0.5.3.post16
 ```
 
-Choose `ANSI`, `ISO`, `JIS`, or `KR` with `-Layout`. ANSI writes the stable
-files under `firmware`; the other layouts write role- and layout-specific files
-under `firmware/experimental`. The script runs formatting, Windows host tests, host/ARM Clippy, release builds
+On Windows, use `python` instead of `python3` if that is the installed command.
+On macOS, install LLVM with Homebrew if Xcode's tools do not provide libclang;
+on Debian/Ubuntu install `clang` and `libclang-dev`. If discovery still fails,
+set `LIBCLANG_PATH` to the directory containing the libclang shared library.
+Build one layout from the repository root:
+
+```text
+python3 -B tools/build_release.py --layout ANSI
+```
+
+Use `--layout ISO`, `--layout JIS`, or `--layout KR` for an Experimental
+variant, or verify and package every layout with:
+
+```text
+python3 -B tools/build_release.py --all-layouts
+```
+
+The existing PowerShell command remains a Windows-compatible wrapper:
+
+```powershell
+& pwsh -NoProfile -ExecutionPolicy Bypass -File '.\tools\build-release.ps1' -Layout ANSI
+```
+
+ANSI writes the stable files under `firmware`; the other layouts write role-
+and layout-specific files under `firmware/experimental`. The builder runs
+formatting, native host tests, host/ARM Clippy, release builds
 for both halves, BIN/UF2/serial-DFU ZIP generation, and checks for address,
 family, vector, round-trip, and ZIP-contained BIN consistency. The latest run
-passed 73 Rust tests per layout and 20 Python/contract/artifact tests.
+passed 74 Rust tests per layout and 27 Python/contract/artifact tests.
 
 After a successful build, use the UF2 for the matching half only:
 
@@ -109,19 +122,19 @@ verify artifacts; they are not installed on the keyboard.
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 81,132 | `BE17C8FF091F6B61AF8ECE727A8D8A5CA5A57B20674D8772FA82FAACB510A0C5` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `A57F74FDC51BB3BA545967D630D945C7638D838EF3BA443DDDC23478679D2A82` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 82,008 | `D8C3CCE71331BF0C7EEA532808127B55A5D962D0A5E1B5BD1E9DAC31091F2A9A` |
-| `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
-| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `5DEEE6D6336B403DF2C901E979554B457CE6D8432C3F29897B41CF1659AC7CDF` |
+| `firmware/NocFree_Rust_Left.bin` | 81,140 | `D00E33E4EF6A6783433F10770850FA4C0D59E08742F8EAAA11AA7C39B613EB7E` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2) | 162,304 | `3CCA14536448F7E69597FFBB2CA88B5FB3BD9E8186B8B5C7F575788335674B76` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `6960EC1B54358BDC8F3B24A50E12C33D5FABCF2CFED4F65FBF07492839EFC119` |
+| `firmware/NocFree_Rust_Right.bin` | 47,564 | `C1C20269444F3A9C55911025F93942325CBEA7BD4E343E3D21369D9BFE9F47AC` |
+| [`firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2) | 95,232 | `1C489F55FB77C2827E1AB2F0BB9F10180045A2534977D10558B523633A5354FC` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,446 | `6F576F621B10670691C36DCE088B6C0B901EDE0C23C5B76A4729E7F2A58E09BE` |
 
 Experimental UF2 pairs are committed under [`firmware/experimental`](firmware/experimental).
 They passed software and artifact checks but were not flashed or tested on matching
 hardware. Never mix halves from different layouts or builds.
 
 The UF2 files write only from the application start at `0x27000` through
-`0x3acff` on the left and `0x329ff` on the right. They preserve the SoftDevice,
+`0x3acf3` on the left and `0x329cb` on the right. They preserve the SoftDevice,
 storage, factory filesystem, and UF2 bootloader.
 
 ## Split reconnect diagnostics
@@ -191,13 +204,18 @@ security, current-consumption, and battery comparisons remain unverified.
 RIGHT snapshots now carry source time, sequence, and reconciliation metadata in
 one 20-byte ATT value. LEFT estimates the clock offset with three samples before
 split-ready, refreshes it every 60 seconds, and holds both local and remote
-updates in one 8 ms reorder queue. The earlier synthetic comparison of 1–5 ms
-over 10,000 events found 3 ms as the smallest clean window; the configured
-window was increased to 8 ms on 2026-08-25 to add margin for the reported
-`삼 -> ㅅ마` L-R-L regression. Real `jam`/`ja` stress passed
+updates in one 5 ms reorder queue. The earlier synthetic comparison of 1–5 ms
+over 10,000 events found 3 ms as the smallest clean window. An 8 ms candidate
+was prepared on 2026-08-25 for extra margin; the current compromise is 5 ms.
+Real `jam`/`ja` stress passed
 through Wired USB and Windows 11 Bluetooth. Runtime queues, long-run drift,
 reconnect-edge stress, Android P4, and measured BLE arrival jitter remain before
-stable status. The 8 ms setting has not yet been tested on hardware.
+stable status. The 5 ms setting has not yet been tested on hardware.
+
+Builders can tune `REORDER_WINDOW_MS` in `src/scanner.rs`. A smaller value
+reduces cross-half latency; a larger value tolerates more BLE transport jitter.
+Always rebuild and flash a matching pair, then test rapid L-R-L and R-L-R input
+over both USB and BLE. Do not change this value from compile success alone.
 
 ## Changing keys with NocFree Link
 
@@ -222,9 +240,9 @@ batteries.
 |---|---|---|
 | Complete | 84-key ANSI input | 37 left-side and 47 right-side keys, Fn on both halves, non-text keys, and Korean Windows special keys tested on hardware |
 | Complete | USB/BLE HID | Left-side USB HID, BLE HID, immediate CCCD save/restore, USB↔BLE switching, and BLE automatic reconnection with the same image |
-| P4 software candidate / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and an 8 ms global queue. The earlier 3 ms value passed limited Wired/Windows 11 Bluetooth stress; the new 8 ms value is automated-test-only. End-to-end queue loss, real BLE jitter/drift, reconnect-edge stress, and controlled +8 dBm power/range remain unverified |
+| P4 software candidate / P3 tuning partial | Split connection and ordering | Source timestamps, right sequence, three-sample/periodic clock sync, and a 5 ms global queue. The earlier 3 ms value passed limited Wired/Windows 11 Bluetooth stress; the current 5 ms value is automated-test-only. End-to-end queue loss, real BLE jitter/drift, reconnect-edge stress, and controlled +8 dBm power/range remain unverified |
 | Complete | BLE multi-pairing | Three host bond slots with persistent selection. Slots 1 and 2 were paired with Windows 11 and Android; a third host and other operating systems are untested |
-| Complete | Backlight | Left-owned versioned absolute state synchronizes enabled, brightness, timeout, and generation to the right after every change and reconnect; 30-second timeout and first-key wake remain supported |
+| Software candidate | Backlight | `Fn+F5` decreases and `Fn+F6` increases both halves through 0/20/40/60/80/100% settings. A 10 kHz PWM and perceptual duty curve make the six settings distinct; the new curve still needs hardware confirmation. Absolute synchronization, 30-second timeout, and first-key wake remain supported |
 | Complete | Physical switches | Left-side Wired/Bluetooth selection and safe no-output behavior at 2.4G; right-side physical power switch |
 | Complete | NocFree Link keymap | 8×84 keys, 16 hotkeys, execution/deletion/default restoration, and flash storage with CRCs |
 | Complete | Recovery | Independent 1200-baud CDC DFU on both halves, Fn DFU shortcuts, and Rust↔stock V2.3.0 round trips |

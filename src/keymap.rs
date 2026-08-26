@@ -43,6 +43,11 @@ pub use selected::{
 pub const EXPANDER_COUNT: usize = EXPANDER_ADDRESSES.len();
 pub const MATRIX_ROWS: usize = ROW_KEY_COUNTS.len();
 pub const MATRIX_COLS: usize = 21;
+pub const MAX_HALF_KEY_COUNT: usize = if LEFT_KEY_COUNT > RIGHT_KEY_COUNT {
+    LEFT_KEY_COUNT
+} else {
+    RIGHT_KEY_COUNT
+};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Action {
@@ -210,6 +215,11 @@ mod tests {
                 _ => {}
             }
         }
+        assert_eq!(
+            function_action_for(Action::Key(0x3e)),
+            Action::BacklightDown
+        );
+        assert_eq!(function_action_for(Action::Key(0x3f)), Action::BacklightUp);
     }
 
     #[cfg(feature = "layout-ansi")]

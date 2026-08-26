@@ -105,14 +105,14 @@ class RepositoryContractTests(unittest.TestCase):
     def test_layout_variants_are_explicit_and_separate(self) -> None:
         cargo = read("Cargo.toml")
         selector = read("src/keymap.rs")
-        build = read("tools/build-release.ps1")
+        build = read("tools/build_release.py")
         for layout in ("ansi", "iso", "jis", "kr"):
             self.assertIn(f"layout-{layout} = []", cargo)
             self.assertTrue((ROOT / "src" / "keymap" / f"{layout}.rs").is_file())
             self.assertIn(f'mod {layout};', selector)
         self.assertIn('default = ["layout-ansi"]', cargo)
-        self.assertIn("'ANSI', 'ISO', 'JIS', 'KR'", build)
-        self.assertIn("firmware\\experimental", build)
+        self.assertIn('(\"ANSI\", \"ISO\", \"JIS\", \"KR\")', build)
+        self.assertIn('directory /= "experimental"', build)
         self.assertIn("LAYOUT_ID", read("src/link_keymap.rs"))
         self.assertIn("KEY_COUNT as u8", read("src/link_keymap.rs"))
 

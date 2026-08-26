@@ -1,5 +1,7 @@
 # Layout variants
 
+[English](LAYOUTS.md) · [한국어](LAYOUTS_ko.md) · [日本語](LAYOUTS_ja.md)
+
 The firmware selects exactly one physical layout at compile time. ANSI remains
 the default and the only layout verified on the maintainer's keyboard.
 
@@ -24,14 +26,17 @@ and split bonds use separate records and are not part of this reset.
 
 ## Build one layout
 
-Run one of these from Windows PowerShell:
+Run the portable builder from Windows, macOS, or Linux:
 
-```powershell
-& '.\tools\build-release.ps1' -Layout ANSI
-& '.\tools\build-release.ps1' -Layout ISO
-& '.\tools\build-release.ps1' -Layout JIS
-& '.\tools\build-release.ps1' -Layout KR
+```text
+python3 -B tools/build_release.py --layout ANSI
+python3 -B tools/build_release.py --layout ISO
+python3 -B tools/build_release.py --layout JIS
+python3 -B tools/build_release.py --layout KR
 ```
+
+Use `python` instead of `python3` where appropriate. Windows PowerShell users
+may continue to use `tools/build-release.ps1 -Layout ANSI` as a wrapper.
 
 The command tests and builds both roles. Stable ANSI output is written to
 `firmware`. ISO/JIS/KR output is written to `firmware/experimental` and its

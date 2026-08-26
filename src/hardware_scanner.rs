@@ -10,6 +10,7 @@ use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_hal_async::i2c::I2c;
 
+use crate::keymap::MAX_HALF_KEY_COUNT;
 use crate::pca9555::Pca9555Bus;
 use crate::scanner::{
     ACTIVE_SCAN_MS, Debouncer, Half, IDLE_SAFETY_SCAN_MS, decode_pressed, failure_backoff_ms,
@@ -156,7 +157,7 @@ where
         Timer::after(Duration::from_millis(failure_backoff_ms(fail_streak) as u64)).await;
     }
 
-    let mut debounce = Debouncer::<47>::default();
+    let mut debounce = Debouncer::<MAX_HALF_KEY_COUNT>::default();
     let mut previous_scan = Instant::now();
     fail_streak = 0;
 

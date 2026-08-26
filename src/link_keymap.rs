@@ -429,6 +429,7 @@ mod tests {
     #[test]
     fn default_map_preserves_the_existing_zmk_layers() {
         let map = LinkKeymap::default();
+        assert_eq!(map.system(), 1, "new keymaps must start in Windows mode");
         assert_eq!(map.matrix_binding(0, 0, 0), Some(LinkBinding::new(0, 0x29)));
         assert_eq!(map.matrix_binding(0, 2, 6), Some(LinkBinding::new(0, 0x1c)));
         let fn_raw = (0..KEY_COUNT)

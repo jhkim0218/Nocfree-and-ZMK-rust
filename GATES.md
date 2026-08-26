@@ -1,45 +1,55 @@
-# Gates: v2 regression diagnosis and layout variants
+# Gates: portable build, documentation, ordering, and backlight correction
 
-OWNS: src/**, tools/**, firmware/**, README.md, README_ko.md, HANDOFF.md, ROADMAP.md, ROADMAP_ko.md, PROGRESS.md, GATES.md, Cargo.toml
+OWNS: src/**, tools/**, firmware/**, README*.md, ROADMAP*.md, RECOVERY*.md, LAYOUTS*.md, HANDOFF*.md, PROGRESS*.md, GATES.md, Cargo.toml
 
-Scope: preserve the current ANSI release behavior while preparing software-testable diagnostics and separately selected Experimental ISO/JIS/KR variants. The attached master work order is design input; this ledger records the implementation accepted for this repository. No firmware is copied to hardware in this phase.
+Scope: ship a 5 ms configurable ordering candidate, visibly stepped synchronized backlight control, portable Windows/macOS/Linux builds, and complete English/Korean/Japanese user documentation without regressing recovery or existing ANSI behavior.
 
-- [x] G0: the untouched main-branch baseline passes formatting, host tests, host/ARM Clippy, both ARM release builds, protected-range checks, UF2 round trips, DFU packaging, and repository contracts
-  CHECK: powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1 -Layout ANSI
-  EXPECT: NocFree ANSI release verification passed
+- [x] G0: this ledger states executable outcomes that can fail
+  CHECK: node C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs GATES.md
+  EXPECT: LINT OK
+  EVIDENCE: 2026-08-26 LINT OK; warnings are limited to explicit manual hardware evidence and unittest success text
 
-- [ ] G1: mandatory cross-half order regressions include both R-L-R and L-R-L (`T`, `K`, `A`) at 1/2/3/5/8/10 ms gaps, right jitter from 0 through 20 ms, duplicate/gap/reconcile cases, and at least 10,000 events with lost=0, duplicate=0, reordered=0, stuck=0 for the accepted model
-  CHECK: cargo test --target x86_64-pc-windows-msvc scanner::tests
-  EXPECT: test result: ok
+- [x] G1: the configured cross-half window is 5 ms and its tuning contract is tested and documented
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_ordering_window_contract
+  EXPECT: OK
+  EVIDENCE: DocumentationTests.test_ordering_window_contract passed in the final 26-test suite
 
-- [x] G2: the BLE-host wake diagnostic disables only LEFT System OFF while BLE is the selected output; Wired/Disabled behavior, backlight timeout, BLE service, and split operation remain compiled, and policy tests cover every output mode
-  CHECK: cargo test --target x86_64-pc-windows-msvc power_policy::tests
-  EXPECT: test result: ok
+- [x] G2: backlight controls use 10 kHz, correct Fn directions, and six distinct monotonic levels including off
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_backlight_contract
+  EXPECT: OK
+  EVIDENCE: Rust backlight/keymap tests and DocumentationTests.test_backlight_contract passed for all four layouts
 
-- [x] G3: keymap code is split into shared code plus separate ANSI, ISO, JIS, and KR modules; exactly one layout feature is required and ANSI remains the default
-  CHECK: cargo test --target x86_64-pc-windows-msvc --no-default-features --features layout-ansi keymap::tests
-  EXPECT: test result: ok
+- [x] G3: one standard-library Python entry point supports Windows, macOS, and Linux build workflows while PowerShell remains compatible
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_portable_build_contract
+  EXPECT: OK
+  EVIDENCE: portable builder help/contract passed; Windows executed the full all-layout pipeline; macOS/Linux commands are documented but not run on those OSes
 
-- [x] G4: ANSI retains 37 LEFT + 47 RIGHT keys, every raw position resolves exactly once, default/Fn actions match the pre-refactor map, and its persisted keymap record carries version, ANSI identity, key count, and CRC
-  CHECK: cargo test --target x86_64-pc-windows-msvc --no-default-features --features layout-ansi
-  EXPECT: test result: ok
+- [x] G4: every user documentation family has English, Korean, and Japanese editions with valid navigation
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_language_coverage
+  EXPECT: OK
+  EVIDENCE: DocumentationTests.test_language_coverage passed for six user guides and both NocFree vendor patch notes
 
-- [x] G5: ISO uses the official updater evidence (38 LEFT + unchanged 47 RIGHT), adds the LEFT `0x24/P0` seventh populated bit and HID Non-US positions, builds both ARM roles, and is labeled Experimental/hardware-unverified
-  CHECK: powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1 -Layout ISO
-  EXPECT: NocFree ISO release verification passed
+- [x] G5: README editions prominently state Windows default mode and the macOS selection shortcut
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_default_os_guidance
+  EXPECT: OK
+  EVIDENCE: default LinkKeymap system=1 Rust test and three-language README contract passed
 
-- [x] G6: KR uses the official updater/product evidence (39 LEFT + 50 RIGHT), reads the documented `0x21/P0` additional port, maps the duplicated Y/H and F6/6/B positions without changing ANSI, builds both ARM roles, and is labeled Experimental/hardware-unverified
-  CHECK: powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1 -Layout KR
-  EXPECT: NocFree KR release verification passed
+- [x] G6: all four layouts pass host tests, host/ARM Clippy, both release builds, packaging, and artifact checks
+  CHECK: python -B tools/build_release.py --all-layouts
+  EXPECT: NocFree all-layout release verification passed
+  EVIDENCE: 2026-08-26 python -B tools/build_release.py --all-layouts ended with NocFree all-layout release verification passed
 
-- [x] G7: JIS uses the hardware-tested `electricdoc187/NocFree-and-zmk` `jis-custom` scan map (37 LEFT + 48 RIGHT), builds both ARM roles, and documents the deferred left Eisu tap/hold behavior and Rust hardware-unverified status
-  CHECK: python -m unittest tools.test_repository_contract.RepositoryContractTests.test_layout_variants_are_explicit_and_separate
-  EXPECT: Ran 1 test
+- [x] G7: JIS and KR expanded key paths are represented by scanner and HID regression tests
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_expanded_layout_input_contract
+  EXPECT: OK
+  EVIDENCE: JIS 19-byte HID ARM builds and KR 50-key right scanner ARM builds passed; standard layouts retained 16-byte HID tests
 
-- [x] G8: all default ANSI release checks still pass after the changes and ISO/JIS/KR artifact ranges stay inside `0x27000..0x64fff`; neither protected flash nor recovery paths change
-  CHECK: powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1 -Layout ANSI
-  EXPECT: NocFree ANSI release verification passed
+- [x] G8: both independent 1200-baud DFU paths and protected flash boundaries remain present
+  CHECK: python -B -m unittest tools.test_repository_contract.RepositoryContractTests.test_dfu_uses_softdevice_system_calls tools.test_repository_contract.RepositoryContractTests.test_only_left_exposes_host_hid tools.test_repository_contract.RepositoryContractTests.test_linker_and_storage_boundaries_preserve_factory_regions
+  EXPECT: OK
+  EVIDENCE: final repository and UF2/DFU artifact contract suite passed
 
-- [x] G9: English/Korean documentation distinguishes Stable ANSI, Experimental hardware-unverified ISO/JIS/KR, exact build commands, today’s no-hardware limitation, and the next physical test order; verified code is committed but not pushed unless requested
-  CHECK: python -m unittest discover -s tools -p 'test_*.py'
-  EXPECT: Ran 20 tests
+- [x] G9: with no keyboard available, every new hardware-facing candidate is explicitly labeled hardware-unverified and no flash/deployment claim is made
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_hardware_validation_disclosure
+  EXPECT: OK
+  EVIDENCE: user explicitly waived physical testing on 2026-08-26; the three README editions preserve the unverified status

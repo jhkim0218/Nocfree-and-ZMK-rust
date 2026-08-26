@@ -5,7 +5,7 @@ use nrf_softdevice::ble::gatt_server::{self, RegisterError, WriteOp};
 use nrf_softdevice::ble::{Connection, SecurityMode, Uuid};
 
 use crate::report::KeyboardReport;
-use crate::usb_descriptor::BLE_HID_REPORT_DESCRIPTOR;
+use crate::usb_descriptor::{BLE_HID_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES};
 
 const HID_SERVICE: Uuid = Uuid::new_16(0x1812);
 const HID_INFORMATION: Uuid = Uuid::new_16(0x2a4a);
@@ -57,7 +57,7 @@ impl HidService {
 
         let mut keyboard_input = service.add_characteristic(
             HID_REPORT,
-            Attribute::new([0_u8; 16]).security(SecurityMode::JustWorks),
+            Attribute::new([0_u8; KEYBOARD_REPORT_BYTES]).security(SecurityMode::JustWorks),
             Metadata::new(Properties::new().read().notify()).security(SecurityMode::JustWorks),
         )?;
         keyboard_input.add_descriptor(

@@ -1,6 +1,6 @@
 # Stock-parity roadmap
 
-[한국어](ROADMAP_ko.md)
+[English](ROADMAP.md) · [한국어](ROADMAP_ko.md) · [日本語](ROADMAP_ja.md)
 
 This roadmap compares the Rust firmware with the local NocFree & ANSI V2.3.0
 UF2 images and the official NocFree documentation. A binary-size difference
@@ -32,7 +32,7 @@ right Rust images.
 | P0 | Battery accuracy | Meaningful levels for both 1100 mAh batteries | Recovered stock V2.3.0 conversion and 75/25 filter; both fully charged halves reported 100% | DMM error and percentage error are recorded for both halves across a discharge cycle |
 | P0 | Status LEDs | Pairing/connected/wired, low battery, charging, and full indications | Blue pairing and open-drain red low-battery flashing are implemented. Charging/full and other patterns remain | Blue pairing passes hardware tests; red flashing is observed below 10%; remaining stock truth table is captured without electrical contention |
 | P0 | Power baseline | Approximately two weeks per charge is the published expectation | No measured idle-current or battery-life result | Stock and Rust current are measured on the same half under identical modes |
-| Candidate | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Source timestamps, sequence, clock conversion, and an 8 ms global queue replace arrival-only ordering; 8 ms is not hardware-tested | Measure real jitter and prove 10,000+ events end to end through runtime queues; repeat Wired/Windows 11/Android and reconnect-edge stress |
+| Candidate | Cross-half ordering | Physical left/right event order is preserved without lost, duplicate, or stuck keys | Source timestamps, sequence, clock conversion, and a 5 ms global queue replace arrival-only ordering; 5 ms is not hardware-tested | Measure real jitter and prove 10,000+ events end to end through runtime queues; repeat Wired/Windows 11/Android and reconnect-edge stress |
 | P0 regression / P3.3 deployed | Split reconnect | Right reconnects at normal desk distance without moving the halves closer | P3.2 restored two inputs in 6.1/17.2 seconds. Current P4 right deploys +8 dBm | Hardware-compare +8 dBm range/security/current; P4 input success does not isolate its radio effect |
 | Done | Backlight synchronization | Both halves converge after commands, timeout, wake, reboot, and reconnect | Left-owned versioned absolute state replaces relative split toggles and is resent after GATT discovery | Deliberate right reboot while left stayed off converged once; 10 toggles, timeout, and right-key wake stayed aligned |
 | Done | Idle scanning | Wake from PCA9555 `INT` with periodic safety polling | Left `P0.31` and right `P0.05` wake immediately; active debounce remains 3 ms and a 250 ms full scan covers missed interrupts | Both halves pass idle first-key, hold, release, and mixed-order hardware tests; idle scans fall from about 100/s to 4/s |
@@ -53,7 +53,7 @@ right Rust images.
 2. P4.2 run 10,000+ end-to-end transitions through scanner, split, ordering,
    report, and USB/BLE queues; eliminate silent loss or prove reconciliation.
 3. P4.3 repeat Wired, Windows 11 Bluetooth, Android, reconnect-edge, and both
-   1200-baud recovery checks. Retain 8 ms only if measurements support it.
+   1200-baud recovery checks. Retain 5 ms only if measurements support it.
 4. Compare right 0/+4/+8 dBm range, security, reconnect time, and current under
    the same conditions; choose the lowest reliable value.
 5. Continue P5 long-running sleep/wake, reconnect, convergence, and per-half

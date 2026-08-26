@@ -1,5 +1,7 @@
 # NocFree Rust 펌웨어 작업 인계서
 
+[English](HANDOFF_en.md) · [한국어](HANDOFF.md) · [日本語](HANDOFF_ja.md)
+
 마지막 갱신: 2026-08-25 (Asia/Seoul)
 
 이 문서는 다른 AI나 작업자가 대화 기록 없이 현재 상태를 이어가기 위한 기준
@@ -26,7 +28,7 @@ hotkey는 구현·실기 검증됐습니다.
 재현됐습니다. 백라이트는 왼쪽 기준 절대 상태로 바꾼 뒤 실기 재검증을 통과했고,
 입력 순서는 P4 timestamp/sequence와 당시 3 ms 전역 대기열로 제한된 자동·실기
 검증을 통과했습니다. 2026-08-25에는 `삼 -> ㅅ마` 문제의 여유를 늘리기 위해
-대기값을 8 ms로 변경했지만 새 이미지는 실기 미검증입니다. 실제 queue 전체
+8 ms 여유 후보를 거쳐 현재 대기값을 5 ms로 정했지만 새 이미지는 실기 미검증입니다. 실제 queue 전체
 경로와 BLE jitter/drift를 검증하기
 전에는 안정판으로 표현하지 않습니다. +8 dBm 거리·전력 통제 비교도 남았습니다. 진행은
 `PROGRESS.md`를 따릅니다.
@@ -86,7 +88,7 @@ hotkey는 구현·실기 검증됐습니다.
 - 오래된 split 키로 보안 연결이 실패하면 그 키만 삭제하고 자동 재페어링
 - 양쪽 scanner는 원본 시각과 순번을 붙이고, 오른쪽은 20-byte 암호화 ATT
   snapshot으로 전달. 왼쪽은 연결 전 3회·60초 주기 시계 보정 뒤 양쪽을 같은
-  8 ms 대기열에서 원본 시각순으로 처리
+  현재 5 ms 대기열에서 원본 시각순으로 처리
 - interval 7.5 ms, latency 30, supervision timeout 4초
 - vendor patch로 모든 BLE PHY를 1M에 고정
 - 백라이트는 왼쪽이 `enabled`/밝기/timeout/generation 절대 상태를 소유하고,
@@ -144,19 +146,19 @@ hotkey는 구현·실기 검증됐습니다.
 - `0x6d000..0x73fff`: factory filesystem, 보존
 - `0x74000..0x7ffff`: UF2 bootloader/metadata, 보존
 
-최신 UF2 실제 범위는 왼쪽 `0x27000..0x3acff`, 오른쪽
-`0x27000..0x329ff`입니다.
+최신 UF2 실제 binary 범위는 왼쪽 `0x27000..0x3acf3`, 오른쪽
+`0x27000..0x329cb`입니다.
 
 ## 6. 최신 산출물
 
 | 파일 | 크기(bytes) | SHA-256 |
 |---|---:|---|
-| `firmware/NocFree_Rust_Left.bin` | 81,132 | `BE17C8FF091F6B61AF8ECE727A8D8A5CA5A57B20674D8772FA82FAACB510A0C5` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 162,304 | `A57F74FDC51BB3BA545967D630D945C7638D838EF3BA443DDDC23478679D2A82` |
-| `firmware/NocFree_Rust_Left_DFU.zip` | 82,008 | `D8C3CCE71331BF0C7EEA532808127B55A5D962D0A5E1B5BD1E9DAC31091F2A9A` |
-| `firmware/NocFree_Rust_Right.bin` | 47,548 | `C7A229B5E430AEAB23FD857BB5619A9AAB07AC029DA0B0368D8A01F175140BF2` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 95,232 | `BB64EE9DFE84D8281FE3281CE692CC38E4E58084B306FE2A0706B2101C1B2918` |
-| `firmware/NocFree_Rust_Right_DFU.zip` | 48,430 | `5DEEE6D6336B403DF2C901E979554B457CE6D8432C3F29897B41CF1659AC7CDF` |
+| `firmware/NocFree_Rust_Left.bin` | 81,140 | `D00E33E4EF6A6783433F10770850FA4C0D59E08742F8EAAA11AA7C39B613EB7E` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2` | 162,304 | `3CCA14536448F7E69597FFBB2CA88B5FB3BD9E8186B8B5C7F575788335674B76` |
+| `firmware/NocFree_Rust_Left_DFU.zip` | 82,016 | `6960EC1B54358BDC8F3B24A50E12C33D5FABCF2CFED4F65FBF07492839EFC119` |
+| `firmware/NocFree_Rust_Right.bin` | 47,564 | `C1C20269444F3A9C55911025F93942325CBEA7BD4E343E3D21369D9BFE9F47AC` |
+| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` | 95,232 | `1C489F55FB77C2827E1AB2F0BB9F10180045A2534977D10558B523633A5354FC` |
+| `firmware/NocFree_Rust_Right_DFU.zip` | 48,446 | `6F576F621B10670691C36DCE088B6C0B901EDE0C23C5B76A4729E7F2A58E09BE` |
 
 DFU ZIP은 application-only이며 자동 테스트가 ZIP 내부 BIN과 같은 역할의 최신
 `.bin`이 일치하는지 검사합니다. 키보드 코드는 모두 Rust `no_std`이고 Python은
@@ -247,7 +249,7 @@ if ($buildExit -ne 0) { throw ('build failed with exit code {0}' -f $buildExit) 
 - 오른쪽 snapshot: state u64 + source timestamp u64 + sequence u16 + flags/reserved
   2 bytes = 기본 MTU 값 한도 20 bytes
 - 왼쪽은 split-ready 전에 3회 왕복 중 최소 RTT로 시계 offset을 잡고 60초마다 갱신
-- 로컬 왼쪽도 즉시 출력하지 않고 오른쪽과 같은 8 ms `SnapshotOrderer<32>` 사용
+- 로컬 왼쪽도 즉시 출력하지 않고 오른쪽과 같은 5 ms `SnapshotOrderer<32>` 사용
 - 10,000개 합성 교차 입력에서 1/2 ms 실패, 3/4/5 ms 무오류라 3 ms 선택
 - 실기 Wired `jam` 10회와 긴 `ja`, Windows 11 Bluetooth `asdfjkljam…` 통과
 - 오른쪽 `Fn+0`, 왼쪽 `Fn+5` 순서로 역할 시리얼 확인 후 P4 배포·복귀

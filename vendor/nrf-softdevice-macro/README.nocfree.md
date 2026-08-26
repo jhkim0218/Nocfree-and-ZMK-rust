@@ -1,5 +1,7 @@
 # NocFree local patch
 
+[English](README.nocfree.md) · [한국어](README.nocfree_ko.md) · [日本語](README.nocfree_ja.md)
+
 This directory is copied from `embassy-rs/nrf-softdevice` commit
 `b0ac850c0a5a05b8a5aef4f752b48115755b8542`.
 

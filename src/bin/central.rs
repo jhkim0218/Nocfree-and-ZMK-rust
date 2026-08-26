@@ -24,7 +24,9 @@ use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::class::hid::{Config as HidConfig, HidWriter, State as HidState};
 use embassy_usb::driver::Driver as UsbDriver;
 use embassy_usb::{Builder, Config, Handler};
-use nocfree_and_rust::backlight::{AUTO_OFF_SECS, BacklightCommand, BacklightSnapshot};
+use nocfree_and_rust::backlight::{
+    AUTO_OFF_SECS, BACKLIGHT_PWM_HZ, BacklightCommand, BacklightSnapshot,
+};
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
 use nocfree_and_rust::ble_hid::BleHidServer;
@@ -372,7 +374,7 @@ async fn run_hardware(
     mut enable: Output<'_>,
     mut saadc: Saadc<'_, 1>,
 ) -> ! {
-    pwm.set_period(10_000);
+    pwm.set_period(BACKLIGHT_PWM_HZ);
     let mut backlight = current_backlight();
     pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     saadc.calibrate().await;

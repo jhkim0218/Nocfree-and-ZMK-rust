@@ -19,7 +19,7 @@ use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::{Builder, Config};
-use nocfree_and_rust::backlight::BacklightSnapshot;
+use nocfree_and_rust::backlight::{BACKLIGHT_PWM_HZ, BacklightSnapshot};
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
@@ -179,7 +179,7 @@ async fn run_hardware(
     mut battery_enable: Output<'_>,
     mut saadc: Saadc<'_, 1>,
 ) -> ! {
-    pwm.set_period(10_000);
+    pwm.set_period(BACKLIGHT_PWM_HZ);
     let mut backlight = BacklightSnapshot::new();
     pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
     saadc.calibrate().await;
