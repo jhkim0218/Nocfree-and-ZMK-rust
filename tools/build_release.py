@@ -45,10 +45,10 @@ def llvm_objcopy() -> Path:
 
 
 def artifact_paths(
-    layout: str, half: str, backlight_curve: str = "linear"
+    layout: str, half: str, backlight_curve: str = "perceptual"
 ) -> tuple[Path, Path, Path]:
     directory = ROOT / "firmware"
-    if layout == "ANSI" and backlight_curve == "linear":
+    if layout == "ANSI" and backlight_curve == "perceptual":
         return (
             directory / f"NocFree_Rust_{half}.bin",
             directory / f"NocFree_And_Rust_ZMK_Based_ANSI_{half}.uf2",
@@ -56,7 +56,7 @@ def artifact_paths(
         )
     directory /= "experimental"
     if layout == "ANSI":
-        stem = f"NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_{half}"
+        stem = f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}"
     else:
         stem = f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_{half}"
     return (
@@ -71,7 +71,7 @@ def build_layout(
     host: str,
     objcopy: Path,
     nrfutil: str,
-    backlight_curve: str = "linear",
+    backlight_curve: str = "perceptual",
 ) -> None:
     selected_features = [f"layout-{layout.lower()}"]
     if backlight_curve == "perceptual":
@@ -144,7 +144,9 @@ def build_layout(
             "0xFFFE",
             str(dfu_path),
         )
-    curve_label = "" if backlight_curve == "linear" else " perceptual backlight"
+    curve_label = (
+        "" if backlight_curve == "perceptual" else " linear backlight comparison"
+    )
     print(f"NocFree {layout}{curve_label} release verification passed", flush=True)
 
 
@@ -155,14 +157,12 @@ def main() -> None:
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--layout", choices=LAYOUTS, default="ANSI")
     selection.add_argument("--all-layouts", action="store_true")
-    parser.add_argument(
-        "--backlight-curve", choices=BACKLIGHT_CURVES, default="linear"
-    )
+    parser.add_argument("--backlight-curve", choices=BACKLIGHT_CURVES)
     arguments = parser.parse_args()
-    if arguments.backlight_curve != "linear" and (
+    if arguments.backlight_curve == "perceptual" and (
         arguments.all_layouts or arguments.layout != "ANSI"
     ):
-        parser.error("the perceptual backlight comparison is available only for ANSI")
+        parser.error("the perceptual backlight is available only for ANSI")
 
     for command in ("cargo", "rustc"):
         if shutil.which(command) is None:
@@ -183,7 +183,10 @@ def main() -> None:
     objcopy = llvm_objcopy()
     layouts = LAYOUTS if arguments.all_layouts else (arguments.layout,)
     for layout in layouts:
-        build_layout(layout, host, objcopy, nrfutil, arguments.backlight_curve)
+        backlight_curve = arguments.backlight_curve
+        if backlight_curve is None:
+            backlight_curve = "perceptual" if layout == "ANSI" else "linear"
+        build_layout(layout, host, objcopy, nrfutil, backlight_curve)
     run(
         sys.executable,
         "-B",

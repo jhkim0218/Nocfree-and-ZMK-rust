@@ -82,7 +82,7 @@ class ExperimentalArtifactTests(unittest.TestCase):
         for half in ("Left", "Right"):
             self.assertIn(
                 directory
-                / f"NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_{half}.uf2",
+                / f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}.uf2",
                 paths,
             )
         for path in paths:

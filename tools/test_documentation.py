@@ -108,7 +108,7 @@ class DocumentationTests(unittest.TestCase):
     def test_backlight_contract(self) -> None:
         backlight = read("src/backlight.rs")
         keymap = read("src/keymap.rs")
-        self.assertIn("BACKLIGHT_PWM_HZ: u32 = 10_000", backlight)
+        self.assertIn("BACKLIGHT_PWM_HZ: u32 = 1_000", backlight)
         self.assertIn('feature = "backlight-perceptual"', backlight)
         self.assertIn("self.percent as u32 / 100", backlight)
         self.assertIn("percent * percent / 10_000", backlight)
@@ -123,12 +123,12 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("backlight-perceptual = []", cargo)
         self.assertIn("--backlight-curve", builder)
         self.assertIn("backlight-perceptual", builder)
-        self.assertIn("ANSI_Perceptual_Backlight_Experimental", builder)
+        self.assertIn("ANSI_Linear_Backlight_Experimental", builder)
         for path in DOCUMENT_FAMILIES["README"]:
             document = read(path)
-            self.assertIn("--backlight-curve perceptual", document)
-            self.assertIn("ANSI_Perceptual_Backlight_Experimental_Left.uf2", document)
-            self.assertIn("ANSI_Perceptual_Backlight_Experimental_Right.uf2", document)
+            self.assertIn("--backlight-curve linear", document)
+            self.assertIn("ANSI_Linear_Backlight_Experimental_Left.uf2", document)
+            self.assertIn("ANSI_Linear_Backlight_Experimental_Right.uf2", document)
 
     def test_portable_build_contract(self) -> None:
         builder = read("tools/build_release.py")
@@ -169,9 +169,9 @@ class DocumentationTests(unittest.TestCase):
 
     def test_hardware_validation_disclosure(self) -> None:
         required = {
-            "README.md": ("current 5 ms build is not yet hardware-tested", "Both A/B pairs are hardware-unverified"),
-            "README_ko.md": ("현재 5 ms 빌드는 실기 미검증", "두 A/B 펌웨어 모두 실물 미검증"),
-            "README_ja.md": ("現在の 5 ms は未検証", "A/B の両方とも実機未検証"),
+            "README.md": ("current 5 ms build passed wired input", "upper brightness steps remain visually close"),
+            "README_ko.md": ("현재 5 ms 빌드는 유선 입력", "상위 밝기 단계의 체감 차이는 여전히 작음"),
+            "README_ja.md": ("現在の 5 ms ビルドは有線入力", "上位の明るさ段階は見た目の差が小さい"),
         }
         for path, phrases in required.items():
             document = read(path)
