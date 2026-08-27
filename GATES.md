@@ -22,5 +22,5 @@ Scope: publish the physically tested 1 kHz perceptual ANSI backlight as the cano
 - [x] G4: real ANSI hardware retains input and synchronized PWM control with the accepted perceptual curve
   EVIDENCE: User verified input after both 1 kHz flashes. Linear made about three rising levels distinct; the subsequently flashed perceptual pair also controlled both halves, with upper perceived differences still small and explicitly accepted for publication on 2026-08-27.
 
-- [ ] G5: verified behavior, artifact hashes, documentation, commit, origin/develop, and origin/main agree
-  EVIDENCE: pending
+- [x] G5: verified behavior, artifact hashes, documentation, commit, origin/develop, and origin/main agree
+  EVIDENCE: origin/develop contains 1075c64 and origin/main contains merge 3ea50ce. Both remote branches expose the same canonical UF2 Git blobs as the local files; SHA-256 is 2DE64AE372074DE68EB20C33DA2193CFDF078F6AFBD93A1CDA4EC649132DE870 for left and 1C66C90A37C9CCAB4D663D881C21DF0FDA6A694C2B3DA503DFEE874A02357D5C for right.
