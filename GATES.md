@@ -1,26 +1,33 @@
-# Gates: ANSI backlight hardware dimming recovery
+# Gates: experimental Rust dongle firmware
 
-OWNS: Cargo.toml, src/backlight.rs, tools/build_release.py, tools/test_documentation.py, tools/test_nocfree_uf2.py, tools/test_repository_contract.py, firmware/**, README.md, README_ko.md, README_ja.md, GATES.md
+OWNS: Cargo.toml, src/**, tools/**, firmware/experimental/**, README.md, README_ko.md, README_ja.md, ROADMAP.md, ROADMAP_ko.md, ROADMAP_ja.md, RECOVERY.md, RECOVERY_ko.md, RECOVERY_ja.md, GATES.md
 
-Scope: publish the physically tested 1 kHz perceptual ANSI backlight as the canonical firmware while documenting that upper perceived levels remain close.
+Scope: add a secure BLE keyboard-to-dongle transport, build a layout-matched nRF52833 dongle UF2, and leave an exact recovery and hardware-test handoff.
 
-- [x] G1: backlight state and PWM conversion expose six ordered 20-percent levels with enough hardware duty resolution
-  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi,backlight-perceptual backlight_uses_selected_curve && echo Backlight duty verification passed
-  EXPECT: Backlight duty verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 0.29s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-bdb99773bed8c535.exe)
+- [x] G1: dongle framing, advertisement matching, sequence handling, output routing, and dedicated bond records pass host tests
+  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-kr && echo Dongle host verification passed
+  EXPECT: Dongle host verification passed
+  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=da2fab1ecc4e/39 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 8.00s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-d343baa66fb7bba1.exe)
 
-- [x] G2: the complete ANSI host and ARM verification suite passes
-  CHECK: cargo test --target x86_64-pc-windows-msvc --no-default-features --features layout-ansi,backlight-perceptual && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin central -- -D warnings && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin right -- -D warnings && echo ANSI regression verification passed
-  EXPECT: ANSI regression verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `release` profile [optimized] target(s) in 0.14s | Finished `release` profile [optimized] target(s) in 0.08s
+- [x] G2: KR left, right, and dongle ARM applications compile without warnings
+  CHECK: cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-kr --bin central --bin right --bin dongle -- -D warnings && cargo build --release --target thumbv7em-none-eabihf --no-default-features --features layout-kr --bin central --bin right --bin dongle && echo Dongle ARM verification passed
+  EXPECT: Dongle ARM verification passed
+  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=da2fab1ecc4e/39 entries; output=warning: `nrf-softdevice-macro` (lib) generated 1 warning | Finished `release` profile [optimized] target(s) in 12.59s
 
-- [x] G3: canonical ANSI left and right UF2 artifacts build and pass repository artifact contracts
-  CHECK: python -B tools/build_release.py --layout ANSI
-  EXPECT: NocFree ANSI release verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.032s | OK
+- [x] G3: the KR dongle UF2 is regenerated from the ARM application and stays inside the application partition
+  CHECK: python -B -c "import sys; sys.path.insert(0, 'tools'); import build_release as b; b.run('cargo', 'fmt', '--package', 'nocfree-and-rust', '--', '--check'); b.build_dongle('KR', b.llvm_objcopy())" && python -B tools/test_dongle_firmware.py && echo Dongle UF2 verification passed
+  EXPECT: Dongle UF2 verification passed
+  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=da2fab1ecc4e/39 entries; output=Ran 3 tests in 1.125s | OK
 
-- [x] G4: real ANSI hardware retains input and synchronized PWM control with the accepted perceptual curve
-  EVIDENCE: User verified input after both 1 kHz flashes. Linear made about three rising levels distinct; the subsequently flashed perceptual pair also controlled both halves, with upper perceived differences still small and explicitly accepted for publication on 2026-08-27.
+- [x] G4: repository artifact, documentation, and recovery contracts pass
+  CHECK: python -B -m unittest discover -s tools -p test_*.py && echo Dongle repository verification passed
+  EXPECT: Dongle repository verification passed
+  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=da2fab1ecc4e/39 entries; output=Ran 34 tests in 1.535s | OK
 
-- [x] G5: verified behavior, artifact hashes, documentation, commit, origin/develop, and origin/main agree
-  EVIDENCE: origin/develop contains 1075c64 and origin/main contains merge 3ea50ce. Both remote branches expose the same canonical UF2 Git blobs as the local files; SHA-256 is 2DE64AE372074DE68EB20C33DA2193CFDF078F6AFBD93A1CDA4EC649132DE870 for left and 1C66C90A37C9CCAB4D663D881C21DF0FDA6A694C2B3DA503DFEE874A02357D5C for right.
+- [x] G5: the official v2.3.21 dongle UF2 remains untracked and unchanged while its hardware boundaries are recorded
+  CHECK: python -B tools/test_dongle_firmware.py && echo Official dongle evidence verification passed
+  EXPECT: Official dongle evidence verification passed
+  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=da2fab1ecc4e/39 entries; output=Ran 3 tests in 1.157s | OK
+
+- [ ] G6: matching experimental KR left, right, and dongle images pass pairing, reconnect, input, latency, coexistence, and recovery on physical hardware
+  EVIDENCE: pending; no matching keyboard is currently available, so no firmware will be flashed and no hardware-success claim will be made.

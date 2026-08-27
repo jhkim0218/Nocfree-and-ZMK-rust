@@ -72,3 +72,9 @@ name = "right"
 path = "src/bin/right.rs"
 test = false
 bench = false
+
+[[bin]]
+name = "dongle"
+path = "src/bin/dongle.rs"
+test = false
+bench = false

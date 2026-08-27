@@ -9,6 +9,9 @@ pub mod bond_record;
 #[cfg(target_arch = "arm")]
 pub mod bond_store;
 #[cfg(target_arch = "arm")]
+pub mod dongle_ble;
+pub mod dongle_protocol;
+#[cfg(target_arch = "arm")]
 pub mod hardware_scanner;
 pub mod keymap;
 pub mod link_keymap;

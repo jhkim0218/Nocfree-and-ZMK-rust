@@ -4,20 +4,23 @@
 
 NocFree & には外部 reset button がありません。未確認の PCB pad を短絡したり、
 電源の抜き差しを reset-pin double tap とみなしてはいけません。Rust firmware は
-Fn shortcut と別に、左右それぞれ独立した 1200-baud CDC 復旧経路を維持します。
+Fn shortcut と別に、左右と Experimental ドングルそれぞれの 1200-baud CDC 復旧経路を維持します。
 
 ## 保護範囲
 
 `0x00000..0x26fff` の MBR/S140、`0x6d000..0x73fff` の工場 filesystem、
 `0x74000..0x7ffff` の UF2 bootloader は保護します。Rust application が書けるのは
-`0x27000..0x64fff` です。`0x65000..0x6cfff` は BLE profile、設定、split bond、
+`0x27000..0x64fff` です。`0x65000..0x67fff` は BLE profile、`0x68000` は予約、
+`0x69000` はドングル bond、`0x6a000..0x6cfff` は設定、split bond、
 Link keymap の保存領域です。build と UF2 round-trip test は `0x65000` を越える
-image を拒否します。左には Left、右には Right artifact だけを使用してください。
+image を拒否します。Left、Right、Dongle を役割と配列に一致させてください。
 
 ## DFU への入り方
 
 - 左 Rust CDC を 1200 baud で touch: 左独立 UF2
 - 右 Rust CDC を 1200 baud で touch: 右独立 UF2
+- ドングル Rust CDC を 1200 baud で touch: ドングル独立 UF2
+- ドングル Rust CDC を 2400 baud で touch: bond 消去後に再起動
 - `Fn+5` を3秒: 左 UF2
 - `Fn+0` を3秒: split が動作中なら右 UF2
 - `Fn+Esc`: 左 application の再起動であり DFU ではない
@@ -28,7 +31,8 @@ image を拒否します。左には Left、右には Right artifact だけを�
 再試行前に UF2 volume と bootloader CDC を確認します。
 
 Windows の COM 番号は固定ではありません。parent instance ID の
-`RUST-LEFT`/`RUST-RIGHT`、UF2 の `VID_239A&PID_0029`、serial DFU の
+`RUST-LEFT`/`RUST-RIGHT`/`RUST-DONGLE`（ドングル parent は
+`USB\VID_239A&PID_80D8\RUST-DONGLE`）、UF2 の `VID_239A&PID_0029`、serial DFU の
 `VID_239A&PID_002A` と chip serial で役割を特定します。macOS は
 `stty -f /dev/cu.usbmodemXXXX 1200`、Linux は `stty -F /dev/ttyACM0 1200` が
 基本形ですが、実際の device と左右を先に確認してください。
@@ -39,6 +43,9 @@ Windows の COM 番号は固定ではありません。parent instance ID の
 左右の volume 名は同じなので、消えた CDC と反対側 application の存在も確認します。
 左は `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`、右は
 `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` のみをコピーします。
+Experimental KR ドングルは
+`firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Dongle.uf2` を使います。
+ドングル bootloader と app 復旧は実機未検証です。
 
 serial DFU は確認済み `PID_002A` port だけで実行します。`adafruit-nrfutil` は
 過去に `No data received on serial port` と表示しながら exit 0 を返したため、

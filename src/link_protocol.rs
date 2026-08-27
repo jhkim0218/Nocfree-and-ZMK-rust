@@ -250,7 +250,7 @@ fn handle_set_hotkey(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut bool
 
     let mut modifiers = 0_u8;
     let mut key = None;
-    for event in payload[6..].chunks_exact(3) {
+    for event in payload[6..].as_chunks::<3>().0 {
         if event[2] != 1 {
             return BAD_ARG;
         }
@@ -319,14 +319,14 @@ fn handle_set_layer_row(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut b
     if layer >= LINK_LAYERS || row >= LINK_ROWS {
         return OOR;
     }
-    for chunk in payload[2..].chunks_exact(4) {
+    for chunk in payload[2..].as_chunks::<4>().0 {
         let col = chunk[0] as usize;
         let binding = LinkBinding::new(chunk[1], u16::from_be_bytes([chunk[2], chunk[3]]));
         if raw_from_matrix(row, col).is_none() || !binding_is_valid(binding) {
             return BAD_ARG;
         }
     }
-    for chunk in payload[2..].chunks_exact(4) {
+    for chunk in payload[2..].as_chunks::<4>().0 {
         let binding = LinkBinding::new(chunk[1], u16::from_be_bytes([chunk[2], chunk[3]]));
         let _ = keymap.set_matrix_binding(layer, row, chunk[0] as usize, binding);
     }

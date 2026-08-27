@@ -5,7 +5,7 @@
 NocFree & has no external reset button. Do not short undocumented PCB pads or
 assume that reconnecting power is equivalent to a reset-pin double tap. The
 Rust firmware deliberately keeps an independent 1200-baud recovery path on
-each half, in addition to role-specific Fn shortcuts.
+each half and the experimental dongle, in addition to role-specific Fn shortcuts.
 
 ## Protected flash ranges
 
@@ -13,7 +13,9 @@ each half, in addition to role-specific Fn shortcuts.
 |---|---|---|
 | `0x00000..0x26fff` | MBR + S140 7.3.0 | Preserve |
 | `0x27000..0x64fff` | Rust application | Writable |
-| `0x65000..0x69fff` | BLE host profiles | Persisted data |
+| `0x65000..0x67fff` | BLE host profiles | Persisted data |
+| `0x68000..0x68fff` | reserved | Preserve |
+| `0x69000..0x69fff` | dedicated dongle bond | Persisted data |
 | `0x6a000..0x6afff` | selected profile/settings | Persisted data |
 | `0x6b000..0x6bfff` | split bond | Persisted data |
 | `0x6c000..0x6cfff` | Link keymap/hotkeys | Persisted data |
@@ -21,12 +23,14 @@ each half, in addition to role-specific Fn shortcuts.
 | `0x74000..0x7ffff` | Adafruit UF2 bootloader/metadata | Preserve |
 
 The build and UF2 round-trip tests reject applications crossing `0x65000`.
-Always use a Left artifact on the left and a Right artifact on the right.
+Always match Left, Right, and Dongle artifacts to their exact roles and layout.
 
 ## Recovery entry points
 
 - Left Rust CDC opened/touched at 1200 baud: independent left UF2 entry.
 - Right Rust CDC opened/touched at 1200 baud: independent right UF2 entry.
+- Dongle Rust CDC opened/touched at 1200 baud: independent dongle UF2 entry.
+- Dongle Rust CDC opened/touched at 2400 baud: clear its dongle bond and restart.
 - Hold `Fn+5` for three seconds: left UF2 entry.
 - Hold `Fn+0` for three seconds: right UF2 entry, only while split works.
 - `Fn+Esc`: restarts the left application; it is not DFU.
@@ -45,6 +49,7 @@ COM numbers are not stable. Match the port's `DEVPKEY_Device_Parent` instead.
 |---|---|
 | Rust left | `USB\VID_2886&PID_8029\RUST-LEFT` |
 | Rust right | `USB\VID_1D50&PID_615E\RUST-RIGHT` |
+| Experimental Rust dongle | `USB\VID_239A&PID_80D8\RUST-DONGLE` |
 | stock left | `USB\VID_2886&PID_8029\52CF50988BD1E6EE` |
 | stock right | `USB\VID_239A&PID_80D8\D82A03513BB02626` |
 | UF2 CDC left | `USB\VID_239A&PID_0029\52CF50988BD1E6EE` |
@@ -74,8 +79,10 @@ file:
 
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`
+- `firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Dongle.uf2`
 
-Never copy a mismatched layout or half. A current serial DFU package can be sent
+The dongle bootloader and application recovery path are software-built but not
+yet physically verified. Never copy a mismatched layout or role. A current serial DFU package can be sent
 only to a verified `PID_002A` bootloader port:
 
 ```text
