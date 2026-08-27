@@ -28,5 +28,5 @@ Scope: restore a visible default backlight level, make KR key scanning follow th
   EXPECT: KR UF2 boundary verification passed
   EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=fd81366c96b4/39 entries; output=Ran 5 tests in 0.102s | OK
 
-- [ ] G7: the committed fix and generated KR artifacts are pushed to origin/develop
-  EVIDENCE: pending commit, push, and remote SHA verification
+- [x] G7: the committed fix and generated KR artifacts are pushed to origin/develop
+  EVIDENCE: git push updated origin/develop from 238c671 to 1441001; git ls-remote confirmed local and remote SHA 1441001b5b4662854edc561c99e4dae26a0e99a6
