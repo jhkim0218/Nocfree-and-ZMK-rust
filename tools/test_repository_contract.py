@@ -110,7 +110,7 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn(f"layout-{layout} = []", cargo)
             self.assertTrue((ROOT / "src" / "keymap" / f"{layout}.rs").is_file())
             self.assertIn(f'mod {layout};', selector)
-        self.assertIn('default = ["layout-ansi"]', cargo)
+        self.assertIn('default = ["layout-ansi", "backlight-perceptual"]', cargo)
         self.assertIn('(\"ANSI\", \"ISO\", \"JIS\", \"KR\")', build)
         self.assertIn('directory /= "experimental"', build)
         self.assertIn("LAYOUT_ID", read("src/link_keymap.rs"))

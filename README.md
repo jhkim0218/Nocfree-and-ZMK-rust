@@ -2,6 +2,10 @@
 
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
+> [!CAUTION]
+> The `develop` branch contains work in progress. Its firmware artifacts pass
+> automated checks but have **not been verified on physical hardware**.
+
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)
@@ -19,7 +23,7 @@ project; it is not an official NocFree firmware release.
 
 | Layout | Current status | Physical validation |
 |---|---|---|
-| ANSI | Default build; 5 ms ordering candidate | Older 3 ms firmware was tested; the current 5 ms build is not yet hardware-tested |
+| ANSI | Default build; 5 ms ordering and 1 kHz perceptual backlight | The current 5 ms build passed wired input and synchronized backlight testing; full BLE regression remains |
 | ISO | Experimental | Not tested on matching hardware |
 | JIS | Experimental | Not tested on matching hardware |
 | KR | Experimental | Not tested on matching hardware |
@@ -96,6 +100,22 @@ Committed ANSI UF2 files:
 - [Left/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [Right/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+Those canonical files use the physically tested 1 kHz perceptual curve. Build
+the linear comparison with:
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
+```
+
+The reproducible comparison pair is stored separately:
+
+- [Linear left UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Left.uf2)
+- [Linear right UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Right.uf2)
+
+Both curves were tested on ANSI hardware at 1 kHz. Linear made roughly the first
+three rising levels distinct; perceptual spread the electrical duty values, but
+the upper brightness steps remain visually close. Always flash a matching pair.
+
 All keyboard firmware is Rust `no_std`. Python and `adafruit-nrfutil` run only
 on the build computer and are not installed on the keyboard.
 
@@ -103,7 +123,7 @@ on the build computer and are not installed on the keyboard.
 
 | Area | Remaining work |
 |---|---|
-| Current ANSI candidate | Flash and regression-test the 5 ms ordering window and new backlight curve; the new curve still needs hardware confirmation |
+| Current ANSI regression | Repeat the complete USB/BLE, switch, sleep/wake, reconnect, and recovery matrix; wired input and both 1 kHz backlight curves have been checked |
 | ISO/JIS/KR | Software builds pass, but every layout still needs a matching physical keyboard test |
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |
@@ -128,8 +148,9 @@ are in [ROADMAP.md](ROADMAP.md). Detailed experiment records belong in
 - **Recovery:** independent 1200-baud CDC DFU on both halves, held Fn shortcuts,
   UF2 bootloader entry, and Rust ↔ stock V2.3.0 restoration paths.
 - **Backlight:** synchronized on/off and 0/20/40/60/80/100% settings on both
-  halves, 10 kHz PWM, a perceptual duty curve, 30-second idle off, and first-key
-  wake. The direction is `Fn+F5` down and `Fn+F6` up.
+  halves, 1 kHz PWM, a perceptual default curve, an optional reproducible linear
+  comparison, 30-second idle off, and first-key wake. The direction is `Fn+F5`
+  down and `Fn+F6` up; the upper perceived levels remain close on tested hardware.
 - **Power behavior:** interrupt-driven idle scanning with a 250 ms safety scan,
   battery-divider activation only while measuring, and left System OFF after
   five minutes on battery.
@@ -140,11 +161,12 @@ are in [ROADMAP.md](ROADMAP.md). Detailed experiment records belong in
 - **Safe flash layout:** application images preserve the SoftDevice, persistent
   storage, factory filesystem, and UF2 bootloader regions.
 
-Previously tested ANSI firmware passed all 84 keys, Wired/Bluetooth output,
+The current 5 ms ANSI firmware passed wired input and synchronized 1 kHz
+backlight control on both halves. Previously tested ANSI firmware passed all 84 keys, Wired/Bluetooth output,
 Windows 11 and Android multi-pairing, both physical switches, NocFree Link,
 backlight synchronization and timeout, power wake, both DFU paths, and stock
-restoration. Those results do not replace physical testing of the current
-artifacts. See [HANDOFF_en.md](HANDOFF_en.md) for the latest handoff status.
+restoration. The complete regression matrix has not yet been repeated on the
+current artifacts. See [HANDOFF_en.md](HANDOFF_en.md) for the latest handoff status.
 
 ## Default shortcuts
 

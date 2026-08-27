@@ -1,28 +1,26 @@
-# Gates: unified README structure on main and develop
+# Gates: ANSI backlight hardware dimming recovery
 
-OWNS: README.md, README_ko.md, README_ja.md, tools/test_documentation.py, GATES.md
+OWNS: Cargo.toml, src/backlight.rs, tools/build_release.py, tools/test_documentation.py, tools/test_nocfree_uf2.py, tools/test_repository_contract.py, firmware/**, README.md, README_ko.md, README_ja.md, GATES.md
 
-Scope: replace chronological development logs with one coherent three-language README structure, preserve essential operational facts, and publish the result to both main and develop with an explicit develop warning.
+Scope: publish the physically tested 1 kHz perceptual ANSI backlight as the canonical firmware while documenting that upper perceived levels remain close.
 
-- [x] G0: this ledger states executable outcomes that can fail
-  CHECK: node C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs GATES.md
-  EXPECT: LINT OK
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=WARN  G4: no CHECK, so this outcome is judged by hand and its evidence is only as good as the reader  [manual-gate] | LINT OK (1 warning(s))
+- [x] G1: backlight state and PWM conversion expose six ordered 20-percent levels with enough hardware duty resolution
+  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi,backlight-perceptual backlight_uses_selected_curve && echo Backlight duty verification passed
+  EXPECT: Backlight duty verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 0.29s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-bdb99773bed8c535.exe)
 
-- [x] G1: all three README editions put essentials first, incomplete work in the middle, and implemented features below it
-  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_readme_information_architecture && echo README architecture verification passed
-  EXPECT: README architecture verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 1 test in 0.014s | OK
+- [x] G2: the complete ANSI host and ARM verification suite passes
+  CHECK: cargo test --target x86_64-pc-windows-msvc --no-default-features --features layout-ansi,backlight-perceptual && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin central -- -D warnings && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin right -- -D warnings && echo ANSI regression verification passed
+  EXPECT: ANSI regression verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `release` profile [optimized] target(s) in 0.14s | Finished `release` profile [optimized] target(s) in 0.08s
 
-- [x] G2: the complete documentation contract preserves build, recovery, layout, OS, ordering, and hardware-validation guidance
-  CHECK: python -B tools/test_documentation.py && echo README documentation contract passed
-  EXPECT: README documentation contract passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 10 tests in 0.005s | OK
+- [x] G3: canonical ANSI left and right UF2 artifacts build and pass repository artifact contracts
+  CHECK: python -B tools/build_release.py --layout ANSI
+  EXPECT: NocFree ANSI release verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.032s | OK
 
-- [x] G3: the rewritten READMEs contain no chronological P-stage sections and retain one coherent feature-based narrative
-  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_readme_has_no_chronological_development_log && echo README narrative verification passed
-  EXPECT: README narrative verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=7f36783b8116/33 entries; output=Ran 1 test in 0.000s | OK
+- [x] G4: real ANSI hardware retains input and synchronized PWM control with the accepted perceptual curve
+  EVIDENCE: User verified input after both 1 kHz flashes. Linear made about three rising levels distinct; the subsequently flashed perceptual pair also controlled both halves, with upper perceived differences still small and explicitly accepted for publication on 2026-08-27.
 
-- [x] G4: the final README structure is published to both remote branches and develop remains explicitly hardware-unverified
-  EVIDENCE: remote README verification passed; main 4abd6e3950e7fd097bb21134aa6a29ca204d7feb contains the unified structure without the develop warning, and develop f3967b92e09bf8bcfe8fc2d4e93afe652a08351b contains the same structure with the hardware-unverified warning
+- [ ] G5: verified behavior, artifact hashes, documentation, commit, origin/develop, and origin/main agree
+  EVIDENCE: pending

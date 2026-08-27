@@ -2,6 +2,10 @@
 
 [English](README.md) · [日本語](README_ja.md)
 
+> [!CAUTION]
+> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
+> 통과하지만 **실물 하드웨어에서 검증되지 않았습니다**.
+
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
 동작을 포팅했으며 NocFree 공식 펌웨어가 아닙니다.
@@ -18,7 +22,7 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
-| ANSI | 기본 빌드, 5 ms 입력 순서 후보 | 이전 3 ms 펌웨어는 검증했지만 현재 5 ms 빌드는 실기 미검증 |
+| ANSI | 기본 빌드, 5 ms 입력 순서·1 kHz perceptual 백라이트 | 현재 5 ms 빌드는 유선 입력과 양쪽 백라이트를 확인했으며 BLE 전체 회귀는 남음 |
 | ISO | Experimental | 해당 실물에서 미검증 |
 | JIS | Experimental | 해당 실물에서 미검증 |
 | KR | Experimental | 해당 실물에서 미검증 |
@@ -94,6 +98,22 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 - [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+위 기본 파일은 실물에서 확인한 1 kHz perceptual 곡선을 사용합니다. linear 비교용
+펌웨어는 다음과 같이 빌드합니다.
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
+```
+
+재현 가능한 비교용 펌웨어는 별도 파일로 저장됩니다.
+
+- [Linear 왼쪽 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Left.uf2)
+- [Linear 오른쪽 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Right.uf2)
+
+두 곡선 모두 ANSI 실물에서 1 kHz로 확인했습니다. linear는 낮은 쪽 약 3단계가
+구분됐고 perceptual은 duty 간격을 벌렸지만 상위 밝기 단계의 체감 차이는 여전히 작음이
+확인됐습니다. 반드시 같은 곡선의 좌우 한 쌍을 함께 사용하십시오.
+
 키보드에서 실행되는 코드는 모두 Rust `no_std`입니다. Python과
 `adafruit-nrfutil`은 PC에서 산출물을 만들 때만 사용하며 키보드에는 들어가지 않습니다.
 
@@ -101,7 +121,7 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 | 영역 | 남은 작업 |
 |---|---|
-| 현재 ANSI 후보 | 5 ms 입력 순서와 새 백라이트 곡선을 플래시해 회귀 검증해야 함. 새 곡선은 실기 확인이 남음 |
+| 현재 ANSI 회귀 | USB/BLE, 스위치, sleep/wake, 재연결, 복구 전체 회귀를 반복해야 함. 유선 입력과 1 kHz 백라이트 두 곡선은 확인함 |
 | ISO/JIS/KR | 소프트웨어 빌드는 통과하지만 각 배열의 실물 키보드 검증이 필요함 |
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
@@ -124,8 +144,9 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
   삭제와 기본값 복구.
 - **복구:** 양쪽 독립 1200-baud CDC DFU, 길게 누르는 Fn DFU, UF2 진입과
   Rust ↔ 순정 V2.3.0 복구 경로.
-- **백라이트:** 양쪽 on/off와 0/20/40/60/80/100% 동기화, 10 kHz PWM, 체감 보정
-  곡선, 30초 자동 소등과 첫 키 wake. `Fn+F5`는 감소, `Fn+F6`은 증가.
+- **백라이트:** 양쪽 on/off와 0/20/40/60/80/100% 동기화, 1 kHz PWM,
+  기본 perceptual 곡선과 재현 가능한 linear 비교 빌드, 30초 자동 소등과 첫 키
+  wake. `Fn+F5`는 감소, `Fn+F6`은 증가하며 실물에서 상위 단계 차이는 작았습니다.
 - **전원 동작:** interrupt 기반 idle 스캔과 250 ms 안전 스캔, 측정할 때만 배터리
   divider 활성화, 배터리에서 왼쪽 5분 후 System OFF.
 - **배터리 표기:** 순정 V2.3.0 환산·필터 로직과 `Fn+I` 출력. 완충된 양쪽에서
@@ -135,10 +156,11 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 - **안전한 flash 범위:** SoftDevice, 영구 저장소, 공장 filesystem과 UF2 bootloader
   영역을 보존.
 
+현재 5 ms ANSI 펌웨어는 유선 입력과 양쪽 1 kHz 백라이트 제어를 확인했습니다.
 이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,
 물리 스위치, NocFree Link, 백라이트 동기화·소등, 전원 wake, 양쪽 DFU와 순정
-복구를 실기에서 통과했습니다. 이 결과가 현재 산출물의 실기 검증을
-대체하지는 않습니다. 최신 인계 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
+복구를 실기에서 통과했습니다. 현재 산출물에서는 전체 회귀를 다시 수행하지 않았습니다.
+최신 인계 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
 ## 기본 단축키
 

@@ -6,11 +6,12 @@ license = "MIT"
 publish = false
 
 [features]
-default = ["layout-ansi"]
+default = ["layout-ansi", "backlight-perceptual"]
 layout-ansi = []
 layout-iso = []
 layout-jis = []
 layout-kr = []
+backlight-perceptual = []
 ble-host-wake-diagnostic = []
 
 [dependencies]

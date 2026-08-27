@@ -2,6 +2,10 @@
 
 [English](README.md) · [한국어](README_ko.md)
 
+> [!CAUTION]
+> `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
+> 自動検査に合格していますが、**実機では検証されていません**。
+
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)
@@ -20,7 +24,7 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
-| ANSI | 既定ビルド、5 ms 入力順序候補 | 以前の 3 ms は検証済み。現在の 5 ms は未検証 |
+| ANSI | 既定ビルド、5 ms 入力順序・1 kHz perceptual バックライト | 現在の 5 ms ビルドは有線入力と左右バックライトを確認済み。BLE 全回帰は未実施 |
 | ISO | Experimental | 対応実機では未検証 |
 | JIS | Experimental | 対応実機では未検証 |
 | KR | Experimental | 対応実機では未検証 |
@@ -96,6 +100,22 @@ Windows PowerShell ラッパーも利用できます。
 - [左/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [右/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+上記の既定ファイルは実機確認済みの 1 kHz perceptual 曲線を使います。linear
+比較版は次のようにビルドします。
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
+```
+
+再現可能な比較ペアは別ファイルです。
+
+- [Linear 左 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Left.uf2)
+- [Linear 右 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_Right.uf2)
+
+両曲線を ANSI 実機で 1 kHz 動作確認しました。linear は下側のおよそ3段階を
+識別でき、perceptual は duty 間隔を広げましたが、上位の明るさ段階は見た目の差が小さい
+状態です。左右には必ず同じ曲線のペアを使ってください。
+
 キーボード上で動くコードはすべて Rust `no_std` です。Python と
 `adafruit-nrfutil` は PC 上の成果物作成だけに使い、キーボードには入りません。
 
@@ -103,7 +123,7 @@ Windows PowerShell ラッパーも利用できます。
 
 | 分野 | 残作業 |
 |---|---|
-| 現在の ANSI 候補 | 5 ms 入力順序と新しいバックライト曲線をフラッシュして回帰確認。新しい曲線は ANSI 実機で最終確認が必要 |
+| 現在の ANSI 回帰 | USB/BLE、switch、sleep/wake、再接続、復旧の全回帰が必要。有線入力と 1 kHz の両曲線は確認済み |
 | ISO/JIS/KR | ソフトウェアビルドは合格。各配列の実機確認が必要 |
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
@@ -126,9 +146,9 @@ Windows PowerShell ラッパーも利用できます。
   削除、既定値復元。
 - **復旧:** 左右独立 1200-baud CDC DFU、長押し Fn DFU、UF2 起動、
   Rust ↔ 純正 V2.3.0 の復元経路。
-- **バックライト:** 左右 on/off と 0/20/40/60/80/100% 同期、10 kHz PWM、
-  知覚補正曲線、30秒 idle 消灯、最初のキーで復帰。`Fn+F5` が暗く、
-  `Fn+F6` が明るくなります。
+- **バックライト:** 左右 on/off と 0/20/40/60/80/100% 同期、1 kHz PWM、
+  既定 perceptual 曲線、再現可能な linear 比較ビルド、30秒 idle 消灯、最初の
+  キーで復帰。`Fn+F5` が暗く、`Fn+F6` が明るく、上位段階の見た目の差は小さいです。
 - **電源動作:** interrupt ベース idle scan と 250 ms safety scan、測定時だけ
   battery divider を有効化、バッテリー時は左が5分で System OFF。
 - **バッテリー表示:** 純正 V2.3.0 の換算・filter と `Fn+I` 出力。満充電の左右で
@@ -138,10 +158,11 @@ Windows PowerShell ラッパーも利用できます。
 - **安全な flash 範囲:** SoftDevice、永続保存、純正 filesystem、UF2 bootloader
   領域を保護。
 
+現在の 5 ms ANSI は有線入力と左右の 1 kHz バックライト制御を確認しました。
 以前の ANSI は84キー、Wired/Bluetooth、Windows 11・Android の multi-pairing、
 物理スイッチ、NocFree Link、バックライト同期・消灯、電源 wake、左右 DFU、純正
-復元を実機で確認しました。この結果は現在の成果物の実機検証を
-代替しません。最新状態は [HANDOFF_ja.md](HANDOFF_ja.md) を参照してください。
+復元を実機で確認しました。現在の成果物では全回帰を再実施していません。
+最新状態は [HANDOFF_ja.md](HANDOFF_ja.md) を参照してください。
 
 ## 既定のショートカット
 

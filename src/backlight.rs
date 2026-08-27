@@ -8,7 +8,9 @@ pub enum BacklightCommand {
 }
 
 pub const AUTO_OFF_SECS: u64 = 30;
-pub const BACKLIGHT_PWM_HZ: u32 = 10_000;
+// NocFree &'s backlight input did not reproduce intermediate duty levels at 10 kHz.
+// 1 kHz stays above visible flicker while giving the external circuit time to settle.
+pub const BACKLIGHT_PWM_HZ: u32 = 1_000;
 pub const BACKLIGHT_STATE_VERSION: u8 = 1;
 pub const BACKLIGHT_STATE_BYTES: usize = 4;
 
@@ -55,10 +57,17 @@ impl BacklightState {
 
     pub const fn duty(self, max: u16) -> u16 {
         let active = if self.enabled && !self.timed_out {
-            let percent = self.percent as u32;
-            // Quadratic correction spreads the six user-facing levels by perceived
-            // brightness instead of making the upper linear-duty steps look alike.
-            (max as u32 * percent * percent / 10_000) as u16
+            // Linear remains available for hardware comparison; ANSI defaults to the
+            // perceptual curve because its upper levels were less compressed by eye.
+            #[cfg(not(feature = "backlight-perceptual"))]
+            {
+                (max as u32 * self.percent as u32 / 100) as u16
+            }
+            #[cfg(feature = "backlight-perceptual")]
+            {
+                let percent = self.percent as u32;
+                (max as u32 * percent * percent / 10_000) as u16
+            }
         } else {
             0
         };
@@ -122,16 +131,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn backlight_uses_six_distinct_perceptual_steps() {
+    fn backlight_uses_selected_curve() {
         let mut state = BacklightState::default();
-        assert_eq!(BACKLIGHT_PWM_HZ, 10_000);
+        assert_eq!(BACKLIGHT_PWM_HZ, 1_000);
         state.apply(BacklightCommand::Down);
         let mut duties = [0; 6];
         for duty in &mut duties {
-            *duty = state.duty(100);
+            *duty = state.duty(1_000);
             state.apply(BacklightCommand::Up);
         }
-        assert_eq!(duties, [100, 96, 84, 64, 36, 0]);
+        #[cfg(not(feature = "backlight-perceptual"))]
+        assert_eq!(duties, [1_000, 800, 600, 400, 200, 0]);
+        #[cfg(feature = "backlight-perceptual")]
+        assert_eq!(duties, [1_000, 960, 840, 640, 360, 0]);
         assert!(duties.windows(2).all(|pair| pair[0] > pair[1]));
 
         state = BacklightState::default();
@@ -142,6 +154,9 @@ mod tests {
         state.apply(BacklightCommand::Up);
         assert_eq!(state.duty(100), 100);
         state.apply(BacklightCommand::Toggle);
+        #[cfg(not(feature = "backlight-perceptual"))]
+        assert_eq!(state.duty(100), 80);
+        #[cfg(feature = "backlight-perceptual")]
         assert_eq!(state.duty(100), 96);
         for _ in 0..10 {
             state.apply(BacklightCommand::Up);
@@ -156,6 +171,9 @@ mod tests {
         state.apply(BacklightCommand::Idle);
         assert_eq!(state.duty(1_000), 1_000);
         state.apply(BacklightCommand::Wake);
+        #[cfg(not(feature = "backlight-perceptual"))]
+        assert_eq!(state.duty(1_000), 800);
+        #[cfg(feature = "backlight-perceptual")]
         assert_eq!(state.duty(1_000), 960);
 
         state.apply(BacklightCommand::Toggle);
