@@ -23,7 +23,7 @@ project; it is not an official NocFree firmware release.
 
 | Layout | Current status | Physical validation |
 |---|---|---|
-| ANSI | Default build; 5 ms ordering candidate | Older 3 ms firmware was tested; the current 5 ms build is not yet hardware-tested |
+| ANSI | Default build; 5 ms ordering and linear-backlight candidate | Older 3 ms firmware was tested; the current 5 ms build is not yet hardware-tested |
 | ISO | Experimental | Not tested on matching hardware |
 | JIS | Experimental | Not tested on matching hardware |
 | KR | Experimental | Not tested on matching hardware |
@@ -100,6 +100,22 @@ Committed ANSI UF2 files:
 - [Left/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [Right/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+Those canonical files use visible linear 20% backlight steps. Build the
+perceptual comparison with:
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve perceptual
+```
+
+The reproducible B pair is stored separately:
+
+- [Perceptual left UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Left.uf2)
+- [Perceptual right UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Right.uf2)
+
+Both A/B pairs are hardware-unverified. Flash a matching pair only: test both
+canonical linear files first, then both perceptual files. Never mix curves
+between halves.
+
 All keyboard firmware is Rust `no_std`. Python and `adafruit-nrfutil` run only
 on the build computer and are not installed on the keyboard.
 
@@ -107,7 +123,7 @@ on the build computer and are not installed on the keyboard.
 
 | Area | Remaining work |
 |---|---|
-| Current ANSI candidate | Flash and regression-test the 5 ms ordering window and new backlight curve; the new curve still needs hardware confirmation |
+| Current ANSI candidates | Flash and regression-test the 5 ms ordering window, latest shared PCA9555 scanning, and both linear/perceptual backlight pairs |
 | ISO/JIS/KR | Software builds pass, but every layout still needs a matching physical keyboard test |
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |
@@ -132,8 +148,9 @@ are in [ROADMAP.md](ROADMAP.md). Detailed experiment records belong in
 - **Recovery:** independent 1200-baud CDC DFU on both halves, held Fn shortcuts,
   UF2 bootloader entry, and Rust ↔ stock V2.3.0 restoration paths.
 - **Backlight:** synchronized on/off and 0/20/40/60/80/100% settings on both
-  halves, 10 kHz PWM, a perceptual duty curve, 30-second idle off, and first-key
-  wake. The direction is `Fn+F5` down and `Fn+F6` up.
+  halves, 10 kHz PWM, visible linear default steps, an optional reproducible
+  perceptual A/B curve, 30-second idle off, and first-key wake. The direction
+  is `Fn+F5` down and `Fn+F6` up.
 - **Power behavior:** interrupt-driven idle scanning with a 250 ms safety scan,
   battery-divider activation only while measuring, and left System OFF after
   five minutes on battery.

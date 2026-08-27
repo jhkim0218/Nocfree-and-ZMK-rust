@@ -24,7 +24,7 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
-| ANSI | 既定ビルド、5 ms 入力順序候補 | 以前の 3 ms は検証済み。現在の 5 ms は未検証 |
+| ANSI | 既定ビルド、5 ms 入力順序・linear バックライト候補 | 以前の 3 ms は検証済み。現在の 5 ms は未検証 |
 | ISO | Experimental | 対応実機では未検証 |
 | JIS | Experimental | 対応実機では未検証 |
 | KR | Experimental | 対応実機では未検証 |
@@ -100,6 +100,21 @@ Windows PowerShell ラッパーも利用できます。
 - [左/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [右/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+上記の既定ファイルは見やすい linear 20% バックライト段階を使います。知覚補正の
+比較版は次のようにビルドします。
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve perceptual
+```
+
+再現可能な B ペアは別ファイルです。
+
+- [Perceptual 左 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Left.uf2)
+- [Perceptual 右 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Right.uf2)
+
+A/B の両方とも実機未検証です。まず linear の左右ペア、次に perceptual の
+左右ペアを試してください。左右で異なる曲線を混在させないでください。
+
 キーボード上で動くコードはすべて Rust `no_std` です。Python と
 `adafruit-nrfutil` は PC 上の成果物作成だけに使い、キーボードには入りません。
 
@@ -107,7 +122,7 @@ Windows PowerShell ラッパーも利用できます。
 
 | 分野 | 残作業 |
 |---|---|
-| 現在の ANSI 候補 | 5 ms 入力順序と新しいバックライト曲線をフラッシュして回帰確認。新しい曲線は ANSI 実機で最終確認が必要 |
+| 現在の ANSI 候補 | 5 ms 入力順序、最新の共通 PCA9555 scan、linear/perceptual バックライト両ペアの実機回帰確認 |
 | ISO/JIS/KR | ソフトウェアビルドは合格。各配列の実機確認が必要 |
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
@@ -131,8 +146,8 @@ Windows PowerShell ラッパーも利用できます。
 - **復旧:** 左右独立 1200-baud CDC DFU、長押し Fn DFU、UF2 起動、
   Rust ↔ 純正 V2.3.0 の復元経路。
 - **バックライト:** 左右 on/off と 0/20/40/60/80/100% 同期、10 kHz PWM、
-  知覚補正曲線、30秒 idle 消灯、最初のキーで復帰。`Fn+F5` が暗く、
-  `Fn+F6` が明るくなります。
+  見やすい既定 linear 段階、再現可能な perceptual A/B 曲線、30秒 idle 消灯、
+  最初のキーで復帰。`Fn+F5` が暗く、`Fn+F6` が明るくなります。
 - **電源動作:** interrupt ベース idle scan と 250 ms safety scan、測定時だけ
   battery divider を有効化、バッテリー時は左が5分で System OFF。
 - **バッテリー表示:** 純正 V2.3.0 の換算・filter と `Fn+I` 出力。満充電の左右で

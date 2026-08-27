@@ -55,7 +55,16 @@ impl BacklightState {
 
     pub const fn duty(self, max: u16) -> u16 {
         let active = if self.enabled && !self.timed_out {
-            (max as u32 * self.percent as u32 / 100) as u16
+            // Linear is the visible default; the optional curve exists only for ANSI A/B testing.
+            #[cfg(not(feature = "backlight-perceptual"))]
+            {
+                (max as u32 * self.percent as u32 / 100) as u16
+            }
+            #[cfg(feature = "backlight-perceptual")]
+            {
+                let percent = self.percent as u32;
+                (max as u32 * percent * percent / 10_000) as u16
+            }
         } else {
             0
         };
@@ -119,7 +128,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn backlight_uses_visible_linear_steps() {
+    fn backlight_uses_selected_curve() {
         let mut state = BacklightState::default();
         assert_eq!(BACKLIGHT_PWM_HZ, 10_000);
         state.apply(BacklightCommand::Down);
@@ -128,7 +137,10 @@ mod tests {
             *duty = state.duty(100);
             state.apply(BacklightCommand::Up);
         }
+        #[cfg(not(feature = "backlight-perceptual"))]
         assert_eq!(duties, [100, 80, 60, 40, 20, 0]);
+        #[cfg(feature = "backlight-perceptual")]
+        assert_eq!(duties, [100, 96, 84, 64, 36, 0]);
         assert!(duties.windows(2).all(|pair| pair[0] > pair[1]));
 
         state = BacklightState::default();
@@ -139,7 +151,10 @@ mod tests {
         state.apply(BacklightCommand::Up);
         assert_eq!(state.duty(100), 100);
         state.apply(BacklightCommand::Toggle);
+        #[cfg(not(feature = "backlight-perceptual"))]
         assert_eq!(state.duty(100), 80);
+        #[cfg(feature = "backlight-perceptual")]
+        assert_eq!(state.duty(100), 96);
         for _ in 0..10 {
             state.apply(BacklightCommand::Up);
         }
@@ -153,7 +168,10 @@ mod tests {
         state.apply(BacklightCommand::Idle);
         assert_eq!(state.duty(1_000), 1_000);
         state.apply(BacklightCommand::Wake);
+        #[cfg(not(feature = "backlight-perceptual"))]
         assert_eq!(state.duty(1_000), 800);
+        #[cfg(feature = "backlight-perceptual")]
+        assert_eq!(state.duty(1_000), 960);
 
         state.apply(BacklightCommand::Toggle);
         state.apply(BacklightCommand::Idle);

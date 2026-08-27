@@ -1,32 +1,48 @@
-# Gates: recover KR input and backlight
+# Gates: current ANSI firmware and reproducible backlight A/B pair
 
-OWNS: GATES.md, src/backlight.rs, src/pca9555.rs, src/scanner.rs, src/keymap/kr.rs, firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Left.uf2, firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Right.uf2
+OWNS: Cargo.toml, src/backlight.rs, tools/build_release.py, tools/test_documentation.py, tools/test_nocfree_uf2.py, firmware/**, README.md, README_ko.md, README_ja.md, GATES.md
 
-Scope: restore a visible default backlight level, make KR key scanning follow the official port limits, prevent one failed expander read from suppressing every key, and publish verified KR artifacts on develop.
+Scope: make the latest develop source, documentation, tests, and ANSI artifacts agree on a visible linear default while publishing a reproducible perceptual-curve A/B pair for physical ANSI testing.
 
-- [x] G1: KR decoding uses the official right-side 0x22/P1 seven-bit limit and the selected extra 0x21/P0 inputs exactly once
-  EVIDENCE: scanner::tests::kr_scan_matches_official_port_limits passed; subsequent automated launches were intermittently denied by local Windows policy after compilation
+- [x] G0: this ledger states executable outcomes that can fail
+  CHECK: node C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs GATES.md
+  EXPECT: LINT OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=WARN  G8: title states a number that nothing measures: "the committed source, documentation, and ANSI comparison UF2 files are pushed to origin/develop"  [unmeasured-number] | LINT OK (2 warning(s))
 
-- [x] G2: one failed PCA9555 port read is released safely without discarding successful key ports
-  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-kr input_reads_isolate_failed_ports && echo PCA9555 fault isolation verification passed
-  EXPECT: PCA9555 fault isolation verification passed
-  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=fd81366c96b4/39 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 3.60s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-d343baa66fb7bba1.exe)
+- [x] G1: host tests prove distinct linear-default and perceptual-candidate duty sequences
+  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi backlight_uses_selected_curve && cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi,backlight-perceptual backlight_uses_selected_curve && echo Backlight A-B host verification passed
+  EXPECT: Backlight A-B host verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 0.30s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-bdb99773bed8c535.exe)
 
-- [x] G3: the default backlight again drives the hardware-tested linear 20 percent level while off remains fully off
-  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-kr backlight_uses_visible_linear_steps && echo Backlight visibility verification passed
-  EXPECT: Backlight visibility verification passed
-  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=fd81366c96b4/39 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 3.75s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-d343baa66fb7bba1.exe)
+- [x] G2: source, portable builder, artifact names, and three README editions agree on the two backlight curves
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_backlight_contract tools.test_documentation.DocumentationTests.test_backlight_ab_build_contract && echo Backlight A-B contract verification passed
+  EXPECT: Backlight A-B contract verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 2 tests in 0.001s | OK
 
-- [x] G4: both KR and ANSI host-side library suites pass
-  EVIDENCE: direct host test executables passed KR 76/76 and ANSI 74/74; Cargo's first launch of newly linked executables was intermittently denied by local Windows policy
+- [x] G3: the perceptual ANSI comparison pair passes host and ARM checks and packages successfully
+  CHECK: python -B tools/build_release.py --layout ANSI --backlight-curve perceptual
+  EXPECT: NocFree ANSI perceptual backlight release verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.017s | OK
 
-- [x] G5: ARM release builds compile both KR halves and regenerate both KR UF2 artifacts
-  EVIDENCE: central and right cargo release builds exited 0 for thumbv7em-none-eabihf with layout-kr; llvm-objcopy and tools/nocfree_uf2.py regenerated both files; the wrapper's Clippy step was unavailable because local Windows policy denied clippy-driver.exe
+- [x] G4: the default latest-source ANSI pair passes host and ARM checks and packages successfully
+  CHECK: python -B tools/build_release.py --layout ANSI
+  EXPECT: NocFree ANSI release verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.032s | OK
 
-- [x] G6: both generated KR UF2 files are valid nRF52833 application images bounded to 0x27000..0x64fff
-  CHECK: python -B tools/test_nocfree_uf2.py && echo KR UF2 boundary verification passed
-  EXPECT: KR UF2 boundary verification passed
-  EVIDENCE: exit=0; shell=C:\Windows\system32\cmd.exe; cwd=D:\etc\Nocfree-and-ZMK-rust; path=fd81366c96b4/39 entries; output=Ran 5 tests in 0.102s | OK
+- [x] G5: canonical and A/B ANSI UF2 pairs are valid nRF52833 applications inside the protected partition
+  CHECK: python -B tools/test_nocfree_uf2.py && echo ANSI A-B UF2 verification passed
+  EXPECT: ANSI A-B UF2 verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 5 tests in 0.008s | OK
 
-- [x] G7: the committed fix and generated KR artifacts are pushed to origin/develop
-  EVIDENCE: git push updated origin/develop from 238c671 to 1441001; git ls-remote confirmed local and remote SHA 1441001b5b4662854edc561c99e4dae26a0e99a6
+- [x] G6: the complete Python repository, documentation, and artifact contract suite passes
+  CHECK: python -B -m unittest discover -s tools -p test_*.py && echo Full Python contract verification passed
+  EXPECT: Full Python contract verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.016s | OK
+
+- [x] G7: README editions identify both A/B candidates as hardware-unverified and provide exact flash-test guidance
+  CHECK: python -B -m unittest tools.test_documentation.DocumentationTests.test_hardware_validation_disclosure && echo Hardware disclosure verification passed
+  EXPECT: Hardware disclosure verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 1 test in 0.000s | OK
+
+- [ ] G8: the committed source, documentation, and ANSI comparison firmware are pushed to origin/develop
+  EVIDENCE: pending

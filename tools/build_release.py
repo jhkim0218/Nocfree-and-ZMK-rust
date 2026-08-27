@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ARM_TARGET = "thumbv7em-none-eabihf"
 LAYOUTS = ("ANSI", "ISO", "JIS", "KR")
+BACKLIGHT_CURVES = ("linear", "perceptual")
 
 
 def run(*command: str) -> None:
@@ -43,16 +44,21 @@ def llvm_objcopy() -> Path:
     return path
 
 
-def artifact_paths(layout: str, half: str) -> tuple[Path, Path, Path]:
+def artifact_paths(
+    layout: str, half: str, backlight_curve: str = "linear"
+) -> tuple[Path, Path, Path]:
     directory = ROOT / "firmware"
-    if layout == "ANSI":
+    if layout == "ANSI" and backlight_curve == "linear":
         return (
             directory / f"NocFree_Rust_{half}.bin",
             directory / f"NocFree_And_Rust_ZMK_Based_ANSI_{half}.uf2",
             directory / f"NocFree_Rust_{half}_DFU.zip",
         )
     directory /= "experimental"
-    stem = f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_{half}"
+    if layout == "ANSI":
+        stem = f"NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_{half}"
+    else:
+        stem = f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_{half}"
     return (
         directory / f"{stem}.bin",
         directory / f"{stem}.uf2",
@@ -60,9 +66,21 @@ def artifact_paths(layout: str, half: str) -> tuple[Path, Path, Path]:
     )
 
 
-def build_layout(layout: str, host: str, objcopy: Path, nrfutil: str) -> None:
-    feature = f"layout-{layout.lower()}"
-    features = ("--no-default-features", "--features", feature)
+def build_layout(
+    layout: str,
+    host: str,
+    objcopy: Path,
+    nrfutil: str,
+    backlight_curve: str = "linear",
+) -> None:
+    selected_features = [f"layout-{layout.lower()}"]
+    if backlight_curve == "perceptual":
+        selected_features.append("backlight-perceptual")
+    features = (
+        "--no-default-features",
+        "--features",
+        ",".join(selected_features),
+    )
     run(
         "cargo",
         "test",
@@ -101,7 +119,7 @@ def build_layout(layout: str, host: str, objcopy: Path, nrfutil: str) -> None:
         )
 
         elf = target_directory / binary
-        binary_path, uf2_path, dfu_path = artifact_paths(layout, half)
+        binary_path, uf2_path, dfu_path = artifact_paths(layout, half, backlight_curve)
         binary_path.parent.mkdir(parents=True, exist_ok=True)
         run(str(objcopy), "-O", "binary", str(elf), str(binary_path))
         run(
@@ -126,7 +144,8 @@ def build_layout(layout: str, host: str, objcopy: Path, nrfutil: str) -> None:
             "0xFFFE",
             str(dfu_path),
         )
-    print(f"NocFree {layout} release verification passed", flush=True)
+    curve_label = "" if backlight_curve == "linear" else " perceptual backlight"
+    print(f"NocFree {layout}{curve_label} release verification passed", flush=True)
 
 
 def main() -> None:
@@ -136,7 +155,14 @@ def main() -> None:
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--layout", choices=LAYOUTS, default="ANSI")
     selection.add_argument("--all-layouts", action="store_true")
+    parser.add_argument(
+        "--backlight-curve", choices=BACKLIGHT_CURVES, default="linear"
+    )
     arguments = parser.parse_args()
+    if arguments.backlight_curve != "linear" and (
+        arguments.all_layouts or arguments.layout != "ANSI"
+    ):
+        parser.error("the perceptual backlight comparison is available only for ANSI")
 
     for command in ("cargo", "rustc"):
         if shutil.which(command) is None:
@@ -157,7 +183,7 @@ def main() -> None:
     objcopy = llvm_objcopy()
     layouts = LAYOUTS if arguments.all_layouts else (arguments.layout,)
     for layout in layouts:
-        build_layout(layout, host, objcopy, nrfutil)
+        build_layout(layout, host, objcopy, nrfutil, arguments.backlight_curve)
     run(
         sys.executable,
         "-B",

@@ -22,7 +22,7 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
-| ANSI | 기본 빌드, 5 ms 입력 순서 후보 | 이전 3 ms 펌웨어는 검증했지만 현재 5 ms 빌드는 실기 미검증 |
+| ANSI | 기본 빌드, 5 ms 입력 순서·linear 백라이트 후보 | 이전 3 ms 펌웨어는 검증했지만 현재 5 ms 빌드는 실기 미검증 |
 | ISO | Experimental | 해당 실물에서 미검증 |
 | JIS | Experimental | 해당 실물에서 미검증 |
 | KR | Experimental | 해당 실물에서 미검증 |
@@ -98,6 +98,21 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 - [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
 
+위 기본 파일은 눈에 보이는 linear 20% 백라이트 단계를 사용합니다. 체감 보정 비교용
+펌웨어는 다음과 같이 빌드합니다.
+
+```text
+python3 -B tools/build_release.py --layout ANSI --backlight-curve perceptual
+```
+
+재현 가능한 B 펌웨어는 별도 파일로 저장됩니다.
+
+- [Perceptual 왼쪽 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Left.uf2)
+- [Perceptual 오른쪽 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Perceptual_Backlight_Experimental_Right.uf2)
+
+두 A/B 펌웨어 모두 실물 미검증 상태입니다. 먼저 linear 좌우 한 쌍을 함께 검사한
+다음 perceptual 좌우 한 쌍을 검사하십시오. 좌우에 서로 다른 곡선을 섞으면 안 됩니다.
+
 키보드에서 실행되는 코드는 모두 Rust `no_std`입니다. Python과
 `adafruit-nrfutil`은 PC에서 산출물을 만들 때만 사용하며 키보드에는 들어가지 않습니다.
 
@@ -105,7 +120,7 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 | 영역 | 남은 작업 |
 |---|---|
-| 현재 ANSI 후보 | 5 ms 입력 순서와 새 백라이트 곡선을 플래시해 회귀 검증해야 함. 새 곡선은 실기 확인이 남음 |
+| 현재 ANSI 후보 | 5 ms 입력 순서, 최신 공용 PCA9555 스캔과 linear/perceptual 백라이트 두 쌍을 플래시해 회귀 검증해야 함 |
 | ISO/JIS/KR | 소프트웨어 빌드는 통과하지만 각 배열의 실물 키보드 검증이 필요함 |
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
@@ -128,8 +143,9 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
   삭제와 기본값 복구.
 - **복구:** 양쪽 독립 1200-baud CDC DFU, 길게 누르는 Fn DFU, UF2 진입과
   Rust ↔ 순정 V2.3.0 복구 경로.
-- **백라이트:** 양쪽 on/off와 0/20/40/60/80/100% 동기화, 10 kHz PWM, 체감 보정
-  곡선, 30초 자동 소등과 첫 키 wake. `Fn+F5`는 감소, `Fn+F6`은 증가.
+- **백라이트:** 양쪽 on/off와 0/20/40/60/80/100% 동기화, 10 kHz PWM, 눈에
+  보이는 기본 linear 단계와 재현 가능한 perceptual A/B 곡선, 30초 자동 소등과
+  첫 키 wake. `Fn+F5`는 감소, `Fn+F6`은 증가.
 - **전원 동작:** interrupt 기반 idle 스캔과 250 ms 안전 스캔, 측정할 때만 배터리
   divider 활성화, 배터리에서 왼쪽 5분 후 System OFF.
 - **배터리 표기:** 순정 V2.3.0 환산·필터 로직과 `Fn+I` 출력. 완충된 양쪽에서

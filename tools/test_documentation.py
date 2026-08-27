@@ -109,11 +109,26 @@ class DocumentationTests(unittest.TestCase):
         backlight = read("src/backlight.rs")
         keymap = read("src/keymap.rs")
         self.assertIn("BACKLIGHT_PWM_HZ: u32 = 10_000", backlight)
+        self.assertIn('feature = "backlight-perceptual"', backlight)
+        self.assertIn("self.percent as u32 / 100", backlight)
         self.assertIn("percent * percent / 10_000", backlight)
         self.assertIn("Action::Key(0x3e) => Action::BacklightDown", keymap)
         self.assertIn("Action::Key(0x3f) => Action::BacklightUp", keymap)
         for binary in ("src/bin/central.rs", "src/bin/right.rs"):
             self.assertIn("pwm.set_period(BACKLIGHT_PWM_HZ)", read(binary))
+
+    def test_backlight_ab_build_contract(self) -> None:
+        cargo = read("Cargo.toml")
+        builder = read("tools/build_release.py")
+        self.assertIn("backlight-perceptual = []", cargo)
+        self.assertIn("--backlight-curve", builder)
+        self.assertIn("backlight-perceptual", builder)
+        self.assertIn("ANSI_Perceptual_Backlight_Experimental", builder)
+        for path in DOCUMENT_FAMILIES["README"]:
+            document = read(path)
+            self.assertIn("--backlight-curve perceptual", document)
+            self.assertIn("ANSI_Perceptual_Backlight_Experimental_Left.uf2", document)
+            self.assertIn("ANSI_Perceptual_Backlight_Experimental_Right.uf2", document)
 
     def test_portable_build_contract(self) -> None:
         builder = read("tools/build_release.py")
@@ -154,9 +169,9 @@ class DocumentationTests(unittest.TestCase):
 
     def test_hardware_validation_disclosure(self) -> None:
         required = {
-            "README.md": ("current 5 ms build is not yet hardware-tested", "new curve still needs hardware confirmation"),
-            "README_ko.md": ("현재 5 ms 빌드는 실기 미검증", "새 곡선은 실기 확인이 남음"),
-            "README_ja.md": ("現在の 5 ms は未検証", "新しい曲線は ANSI 実機で最終確認が必要"),
+            "README.md": ("current 5 ms build is not yet hardware-tested", "Both A/B pairs are hardware-unverified"),
+            "README_ko.md": ("현재 5 ms 빌드는 실기 미검증", "두 A/B 펌웨어 모두 실물 미검증"),
+            "README_ja.md": ("現在の 5 ms は未検証", "A/B の両方とも実機未検証"),
         }
         for path, phrases in required.items():
             document = read(path)
