@@ -1,26 +1,29 @@
-# Gates: ANSI backlight hardware dimming recovery
+# Gates: D0 dongle recovery
 
-OWNS: Cargo.toml, src/backlight.rs, tools/build_release.py, tools/test_documentation.py, tools/test_nocfree_uf2.py, tools/test_repository_contract.py, firmware/**, README.md, README_ko.md, README_ja.md, GATES.md
+OWNS: GATES.md, RECOVERY.md, RECOVERY_ko.md, RECOVERY_ja.md, PROGRESS.md, PROGRESS_ko.md, PROGRESS_ja.md, ROADMAP.md, ROADMAP_ko.md, ROADMAP_ja.md, tools/verify_dongle_stock.py, tools/test_documentation.py
 
-Scope: publish the physically tested 1 kHz perceptual ANSI backlight as the canonical firmware while documenting that upper perceived levels remain close.
+Scope: prove the factory dongle can enter serial DFU and return to verified stock operation before any Rust feature firmware is flashed.
 
-- [x] G1: backlight state and PWM conversion expose six ordered 20-percent levels with enough hardware duty resolution
-  CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi,backlight-perceptual backlight_uses_selected_curve && echo Backlight duty verification passed
-  EXPECT: Backlight duty verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 0.29s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-bdb99773bed8c535.exe)
+- [x] G0: this recovery ledger states mechanically valid gates
+  CHECK: node C:\Users\kjh\.codex\skills\unlazy\scripts\gate-lint.mjs GATES.md
+  EXPECT: LINT OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=WARN  G4: title states a number that nothing measures: "reflashing the preserved factory V2.3.1 application restores the recorded USB identity and interface set"  [unmeasured-number] | LINT OK (4 warning(s))
 
-- [x] G2: the complete ANSI host and ARM verification suite passes
-  CHECK: cargo test --target x86_64-pc-windows-msvc --no-default-features --features layout-ansi,backlight-perceptual && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin central -- -D warnings && cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-ansi,backlight-perceptual --bin right -- -D warnings && echo ANSI regression verification passed
-  EXPECT: ANSI regression verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Finished `release` profile [optimized] target(s) in 0.14s | Finished `release` profile [optimized] target(s) in 0.08s
+- [x] G1: the preserved factory dongle images have recorded digests and the recovery package is application-only
+  CHECK: python -B tools/verify_dongle_stock.py
+  EXPECT: Stock dongle image verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=UF2 range: 0x27000..0x388FF | Stock dongle image verification passed
 
-- [x] G3: canonical ANSI left and right UF2 artifacts build and pass repository artifact contracts
-  CHECK: python -B tools/build_release.py --layout ANSI
-  EXPECT: NocFree ANSI release verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 31 tests in 0.032s | OK
+- [x] G2: the connected dongle application identity is captured before recovery
+  EVIDENCE: Windows reported `NocFree_Dongle`, USB `VID_2886&PID_8029`, serial `E19D2CEA0B437049`, COM6, and HID interface MI_02 on 2026-08-27 before any DFU command.
 
-- [x] G4: real ANSI hardware retains input and synchronized PWM control with the accepted perceptual curve
-  EVIDENCE: User verified input after both 1 kHz flashes. Linear made about three rising levels distinct; the subsequently flashed perceptual pair also controlled both halves, with upper perceived differences still small and explicitly accepted for publication on 2026-08-27.
+- [x] G3: the connected dongle enters its recovery bootloader without modifying protected flash or UICR
+  EVIDENCE: A 1200-baud touch of verified stock COM6 entered the same serial `E19D2CEA0B437049` as `VID_239A&PID_002A`, product `NocFree &`, `nRF Serial`, COM14. It exposed serial DFU only; the subsequently verified package manifest contained only an application entry.
 
-- [x] G5: verified behavior, artifact hashes, documentation, commit, origin/develop, and origin/main agree
-  EVIDENCE: origin/develop contains 1075c64 and origin/main contains merge 3ea50ce. Both remote branches expose the same canonical UF2 Git blobs as the local files; SHA-256 is 2DE64AE372074DE68EB20C33DA2193CFDF078F6AFBD93A1CDA4EC649132DE870 for left and 1C66C90A37C9CCAB4D663D881C21DF0FDA6A694C2B3DA503DFEE874A02357D5C for right.
+- [x] G4: reflashing the preserved factory V2.3.1 application restores the recorded USB identity and interface set
+  EVIDENCE: With explicit user approval, `adafruit-nrfutil` sent official V2.3.1 package SHA-256 `02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567` to COM14 at 115200 baud and reported `Device programmed.`. `NocFree_Dongle`, `VID_2886&PID_8029`, serial `E19D2CEA0B437049`, COM6, CDC MI_00, and HID MI_02 all returned.
+
+- [x] G5: the verified recovery procedure, identifiers, hashes, and flash boundaries are documented without claiming Rust dongle support
+  CHECK: python -B tools/test_documentation.py && echo Dongle recovery documentation verification passed
+  EXPECT: Dongle recovery documentation verification passed
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=735d250c57b9/36 entries; output=Ran 12 tests in 0.007s | OK

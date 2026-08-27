@@ -31,6 +31,15 @@ profile을 선택하면 꺼졌습니다. 빨간 10% 이하 점멸은 배터리�
 30초 양쪽 소등이 과거 이미지에서 통과했습니다. USB 전원 여부와 무관한 소등 경로도
 검증했습니다.
 
+## 동글 D0 복구
+
+2026-08-27 순정 동글은 `NocFree_Dongle`, `VID_2886&PID_8029`, serial
+`E19D2CEA0B437049`, COM6, HID `MI_02`로 확인됐습니다. 1200-baud touch 뒤
+`VID_239A&PID_002A`, `NocFree &`, `nRF Serial`, COM14인 serial DFU로 진입했고,
+공식 V2.3.1 application-only 패키지 전송 뒤 원래 USB identity와 interface가 모두
+복구됐습니다. Rust 동글 기능 firmware는 아직 올리지 않았습니다. 양쪽이 Rust라
+순정 ESB 입력은 이번 D0 범위에서 확인하지 못했습니다.
+
 ## Split P3
 
 초기 reconnect 실패는 불필요한 ATT MTU 교환 단계에서 포착됐습니다. P3.1은 표준
@@ -80,4 +89,5 @@ P3.3은 nRF52833의 허용 최대인 +8 dBm을 양쪽 split 연결에 적용했�
 7. 그 뒤에만 문서·산출물 해시를 확정하고 commit/push.
 
 Quick Text, 추가 조명 효과, 전원 설정 UI, firmware updater, ZMK Studio는 현재
-필수 범위가 아닙니다. 공장 USB dongle/2.4 GHz는 별도의 큰 미구현 항목입니다.
+필수 범위가 아닙니다. USB dongle/2.4 GHz는 D0 복구만 완료됐고 실제 Rust 입력 경로는
+아직 별도의 큰 미구현 항목입니다.

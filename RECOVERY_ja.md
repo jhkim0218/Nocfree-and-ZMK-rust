@@ -56,6 +56,25 @@ factory 左 SHA-256 は
 `A3FF612B94E9CE0C12BEFD9FF19ECDE5D6E4DB964C0345E432B71ED7A2C5BC91`、右は
 `E1F851906B3E35117B8A8AAC09E5C8273D75921F64D1D3B1496E60A53D3E1C66` です。
 
+## 検証済み dongle serial-DFU round trip
+
+2026-08-27 に factory dongle の application-only recovery を確認しました。
+application baseline は `NocFree_Dongle`、`VID_2886&PID_8029`、serial
+`E19D2CEA0B437049`、CDC `MI_00`、HID `MI_02` です。application CDC を1200 baudで
+open/closeすると UF2 disk ではなく、`VID_239A&PID_002A`、product `NocFree &`、
+`nRF Serial` の serial-only bootloader に入ります。COM6からCOM14へ変わったため、
+COM番号を固定せず serial と VID/PID を確認します。
+
+使用した repository 外の official V2.3.1 application-only package
+`D:\study\nocfree\official_v2_3_1\dongle.zip` の SHA-256 は
+`02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567` です。
+`softdevice_req=0x0123` で、bootloader、SoftDevice、UICR を含みません。user承認後の
+115200-baud転送は `Device programmed.` で完了し、元のUSB identityとinterfaceが
+すべて戻りました。
+
+左右が Rust firmware のため factory ESB key input は未確認です。この結果が証明する
+のは dongle recovery と USB identity であり、factory radio compatibility ではありません。
+
 予期しない側が消える、役割・配列・hash が違う、目標 parent が戻らない、key が
 押されたまま、発熱、app と bootloader の両方が見えない場合は直ちに停止します。
 その後は反対側に触れません。自動 build は実機 flash の許可ではなく、必ず user の

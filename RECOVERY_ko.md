@@ -69,6 +69,24 @@ serial DFU는 확인된 `PID_002A` 포트에서만 실행합니다. `adafruit-nr
 순정 왼쪽 SHA-256은 `A3FF612B94E9CE0C12BEFD9FF19ECDE5D6E4DB964C0345E432B71ED7A2C5BC91`,
 오른쪽은 `E1F851906B3E35117B8A8AAC09E5C8273D75921F64D1D3B1496E60A53D3E1C66`입니다.
 
+## 검증된 동글 serial-DFU 왕복
+
+2026-08-27 순정 동글의 application-only 복구를 확인했습니다. 앱 기준선은
+`NocFree_Dongle`, `VID_2886&PID_8029`, serial `E19D2CEA0B437049`, CDC `MI_00`,
+HID `MI_02`입니다. 앱 CDC를 1200 baud로 열고 닫으면 UF2 디스크가 아니라
+`VID_239A&PID_002A`, 제품명 `NocFree &`, `nRF Serial`인 serial 전용 bootloader로
+진입합니다. 시험 중 COM6에서 COM14로 바뀌었으므로 COM 번호를 고정하면 안 됩니다.
+
+사용한 공식 V2.3.1 application-only 패키지는 저장소 밖의
+`D:\study\nocfree\official_v2_3_1\dongle.zip`이며 SHA-256은
+`02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567`입니다.
+manifest는 `softdevice_req=0x0123`이고 bootloader/SoftDevice/UICR를 포함하지 않습니다.
+사용자 승인 뒤 COM14에 115200 baud로 전송해 `Device programmed.`를 확인했고,
+원래 제품명·VID/PID·serial·CDC·HID가 모두 돌아왔습니다.
+
+양쪽 키보드가 Rust firmware라 순정 ESB 입력은 확인할 수 없었습니다. 이번 결과는
+동글 복구와 USB identity를 증명하며 순정 무선 프로토콜 호환을 증명하지 않습니다.
+
 예상하지 않은 반쪽이 사라지거나 역할/배열/hash가 다르거나, 목표 parent가 돌아오지
 않거나, 키가 고착되거나, 발열 또는 앱/bootloader 모두 미탐지 상태가 되면 즉시
 중단하고 다른 반쪽을 건드리지 않습니다. 자동 빌드는 실물 flash를 허가하지 않으며

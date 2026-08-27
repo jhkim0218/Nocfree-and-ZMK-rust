@@ -42,25 +42,22 @@ right Rust images.
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
 | P1 | Charging awareness | Charging and fully charged are distinct from discharge percentage | VBUS/charger state is not incorporated | Charging/full states are correct and voltage under charge does not falsely imply 100% |
 | P1 | Backlight effects/settings | Static control, automatic behavior, and documented breathing support | Toggle and 20% static steps only | Selected effects work on both halves and persist if exposed in Link |
-| P2 | Factory 2.4 GHz dongle | Left, right, and optional numpad communicate through the USB receiver | 2.4G switch position intentionally disables output | Dongle pairing, reconnect, input ordering, latency, recovery, and coexistence pass |
+| P2 | USB dongle / 2.4 GHz | `RIGHT -> LEFT -> dongle -> PC`, with left authoritative | D0 stock serial-DFU recovery is complete; 2.4G switch position still disables output | Dongle USB HID, dedicated link, pairing, reconnect, input ordering, latency, and coexistence pass |
 | P2 | NocFree Link completeness | Battery, lighting, power settings, macros/Quick Text, and updater-related paths | Keymap and hotkeys work; other paths are partial or absent | Each advertised Link screen completes without timeout and survives reboot |
 | Out of ANSI scope | Numpad | Separate stock-supported component | Not supported by this 84-key ANSI project | Track separately if project scope expands |
 
 ## Next execution order
 
-1. P4.1 expose and measure sequence gaps, queue overflow, clock drift, and real
-   source-to-arrival BLE jitter.
-2. P4.2 run 10,000+ end-to-end transitions through scanner, split, ordering,
-   report, and USB/BLE queues; eliminate silent loss or prove reconciliation.
-3. P4.3 repeat Wired, Windows 11 Bluetooth, Android, reconnect-edge, and both
-   1200-baud recovery checks. Retain 5 ms only if measurements support it.
-4. Compare right 0/+4/+8 dBm range, security, reconnect time, and current under
-   the same conditions; choose the lowest reliable value.
-5. Continue P5 long-running sleep/wake, reconnect, convergence, and per-half
-   power measurement before dongle work.
-
-Keep snapshot transport for now. Add per-key events only if measured same-scan
-ordering proves snapshots insufficient.
+1. **D1:** build a dongle-only Rust USB keyboard/consumer HID image while
+   retaining the proven serial-DFU recovery path.
+2. **D2:** prototype a dedicated LEFT-to-dongle BLE link with synthetic absolute
+   keyboard reports; keep the three host profiles separate.
+3. **D3:** route real left-owned keyboard and consumer reports through the
+   physical 2.4G switch position and release every old output on transitions.
+4. **D4:** test reconnect, sleep/wake, dongle unplug, mode switching, stuck-key
+   prevention, latency, and another stock/Rust recovery round trip.
+5. **D5 only if measured need exists:** investigate S140 Radio Timeslot and ESB
+   for lower latency or factory-protocol compatibility.
 
 ## LED work
 

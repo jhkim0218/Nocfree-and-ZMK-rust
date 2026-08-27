@@ -108,6 +108,38 @@ The known stock files are outside this repository:
 | Left | `D:\study\nocfree\NocFree_and_V2.3.0_Left_ANSI.uf2` | `A3FF612B94E9CE0C12BEFD9FF19ECDE5D6E4DB964C0345E432B71ED7A2C5BC91` |
 | Right | `D:\study\nocfree\NocFree_and_V2.3.0_Right_ANSI.uf2` | `E1F851906B3E35117B8A8AAC09E5C8273D75921F64D1D3B1496E60A53D3E1C66` |
 
+## Verified dongle serial-DFU round trip
+
+The factory dongle completed an application-only recovery on 2026-08-27.
+Its application baseline was `NocFree_Dongle`, `VID_2886&PID_8029`, serial
+`E19D2CEA0B437049`, CDC interface `MI_00`, and HID interface `MI_02`.
+
+Opening and closing its application CDC at 1200 baud entered a serial-only
+bootloader: `VID_239A&PID_002A`, product `NocFree &`, and interface
+`nRF Serial`. Unlike the left/right UF2 recovery, the dongle did not expose a
+mass-storage volume. COM numbers changed from COM6 to COM14 during this test;
+identify the serial and VID/PID instead of hard-coding either number.
+
+The restored official V2.3.1 package is outside this repository:
+
+| File | SHA-256 | Contents |
+|---|---|---|
+| `D:\study\nocfree\official_v2_3_1\dongle.zip` | `02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567` | application only, `softdevice_req=0x0123` |
+
+Its application binary SHA-256 is
+`5E3AD6CE64F41DB164A83A5FAB88C28F7C92E0EDFBC7DCF99B9D23EC3C9010CD`
+and its verified UF2 range is `0x27000..0x388ff`. After the user approved the
+deployment, this command completed with `Device programmed.`:
+
+```text
+adafruit-nrfutil dfu serial --package D:\study\nocfree\official_v2_3_1\dongle.zip --port COM14 --baudrate 115200
+```
+
+The original product, VID/PID, serial, CDC, and HID interfaces all returned.
+Factory ESB key input was not tested because both keyboard halves run Rust
+firmware; this proves dongle recovery and USB identity, not factory-radio
+compatibility.
+
 ## Stop immediately if
 
 - the wrong half disappears;

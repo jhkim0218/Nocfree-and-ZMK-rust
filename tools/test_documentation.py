@@ -188,6 +188,29 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("LAST_BITMAP_USAGE", descriptor)
         self.assertIn("KEY_BITMAP_BITS", descriptor)
 
+    def test_dongle_recovery_contract(self) -> None:
+        recovery_tokens = (
+            "NocFree_Dongle",
+            "VID_2886&PID_8029",
+            "E19D2CEA0B437049",
+            "VID_239A&PID_002A",
+            "02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567",
+            "softdevice_req=0x0123",
+            "Device programmed.",
+        )
+        for path in DOCUMENT_FAMILIES["RECOVERY"]:
+            document = read(path)
+            for token in recovery_tokens:
+                self.assertIn(token, document, f"{path}: {token}")
+        for path in DOCUMENT_FAMILIES["ROADMAP"]:
+            document = read(path)
+            for phase in ("D1", "D2", "D3", "D4", "D5"):
+                self.assertIn(phase, document, f"{path}: {phase}")
+        for path in DOCUMENT_FAMILIES["PROGRESS"]:
+            document = read(path)
+            self.assertIn("D0", document, path)
+            self.assertIn("E19D2CEA0B437049", document, path)
+
 
 if __name__ == "__main__":
     unittest.main()

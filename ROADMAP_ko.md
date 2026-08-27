@@ -40,25 +40,22 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P1 | 배터리 표시 경로 | `Fn+I`와 NocFree Link에서 유효한 정보 표시 | `Fn+I` 동작, Link는 `0xff`, BLE Battery Service 없음 | `Fn+I`/Link/BLE 값 일치, 오른쪽 단절을 0%로 오표시하지 않음 |
 | P1 | 충전 상태 인식 | 방전 잔량과 충전/완충 상태 구분 | VBUS/charger 상태를 잔량 계산에 반영하지 않음 | 충전/완충 표시가 맞고 충전 전압을 100%로 오판하지 않음 |
 | P1 | 백라이트 효과/설정 | 정적 제어, 자동 동작, 공식 문서의 breathing 지원 | toggle과 20% 정적 단계만 지원 | 선택 효과가 양쪽에서 동작하고 Link 제공 시 재부팅 후 보존 |
-| P2 | 공장 2.4 GHz 동글 | 왼쪽·오른쪽·선택적 numpad가 USB receiver와 통신 | 2.4G 스위치 위치에서 안전하게 출력 차단 | 동글 pairing/reconnect/입력 순서/latency/recovery/coexistence 통과 |
+| P2 | USB 동글 / 2.4 GHz | 왼쪽이 상태를 소유하는 `오른쪽 -> 왼쪽 -> 동글 -> PC` | D0 순정 serial-DFU 복구 완료, 2.4G 스위치는 아직 출력 차단 | 동글 USB HID, 전용 링크, pairing/reconnect/입력 순서/latency/coexistence 통과 |
 | P2 | NocFree Link 완성도 | 배터리, 조명, 전원 설정, macro/Quick Text, updater 관련 경로 | keymap/hotkey 외에는 부분 또는 미구현 | 노출된 각 Link 화면이 timeout 없이 동작하고 재부팅 후 보존 |
 | ANSI 범위 밖 | Numpad | 순정의 별도 지원 장치 | 이 84키 ANSI 프로젝트에서는 미지원 | 범위를 넓힐 때 별도 추적 |
 
 ## 다음 진행 순서
 
-1. **P4.1 측정:** sequence gap, queue overflow, clock drift와 실제 BLE
-   source-to-arrival jitter를 진단으로 노출하고 책상 거리·재연결 뒤 값을 기록합니다.
-2. **P4.2 end-to-end:** scanner, split, 정렬, report, USB/BLE queue 전체에
-   10,000회 이상 press/release를 통과시키고 조용한 유실을 없애거나 복구를 증명합니다.
-3. **P4.3 실기:** Wired, Windows 11 Bluetooth, Android, 재연결 직후와 양쪽
-   1200-baud 복구를 반복합니다. 측정이 뒷받침할 때만 5 ms를 유지합니다.
-4. **P3.3 비교:** 같은 거리·간섭에서 오른쪽 0/+4/+8 dBm의 재연결 시간, RSSI,
-   보안 실패, 해제, 전류를 비교해 가장 낮은 안정 출력을 선택합니다.
-5. **P5:** 그 뒤 장시간 sleep/wake, 재연결, 백라이트 수렴과 좌우 개별 전류를
-   측정하고 나서 동글로 넘어갑니다.
-
-개별 키 event 전송은 같은 scan 내부 snapshot 한계가 실제 측정에서 재현될 때만
-도입합니다. 지금 미리 구조를 키우지 않습니다.
+1. **D1:** 검증된 serial-DFU 복구를 유지하면서 동글 전용 Rust USB
+   keyboard/consumer HID를 만듭니다.
+2. **D2:** 합성 절대 키 상태로 왼쪽→동글 전용 BLE 링크를 검증하고 기존
+   `Fn+1/2/3` host profile과 동글 bond를 분리합니다.
+3. **D3:** 실제 왼쪽 기준 keyboard/consumer report를 물리 2.4G 스위치에 연결하고
+   출력 전환 때 이전 경로의 모든 키를 release합니다.
+4. **D4:** 재연결, sleep/wake, 동글 분리, 모드 전환, stuck key, latency와
+   순정/Rust 복구 왕복을 검증합니다.
+5. **D5 선택:** 측정 결과 더 낮은 latency나 순정 프로토콜 호환이 필요할 때만
+   S140 Radio Timeslot과 ESB를 조사합니다.
 
 ## 물리 스위치 옆 LED
 
