@@ -140,6 +140,35 @@ Factory ESB key input was not tested because both keyboard halves run Rust
 firmware; this proves dongle recovery and USB identity, not factory-radio
 compatibility.
 
+## Verified Rust D1 dongle recovery
+
+The radio-free D1 application completed a separate recovery round trip on
+2026-08-27. Its Windows 11 identity is `NocFree Rust Dongle`,
+`USB\VID_2886&PID_8029\RUST-DONGLE`, with keyboard, consumer-control, and CDC
+COM5 interfaces. It intentionally sends no HID reports.
+
+Opening COM5 at 1200 baud writes the D1 `0x57` recovery marker. This enters the
+preserved factory UF2/CDC bootloader, not the stock application's serial-only
+path: `USB\VID_239A&PID_0029\E19D2CEA0B437049`, CDC COM11, plus UF2 mass
+storage. COM values are observations, not stable identifiers.
+
+With explicit user approval, the following application-only package was sent
+through COM11 and `adafruit-nrfutil` reported `Device programmed.`:
+
+| Item | SHA-256 |
+|---|---|
+| Hardware-tested D1 ZIP | `2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362` |
+| Tested and committed application BIN | `B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648` |
+| Current regenerated repository ZIP | `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223` |
+
+`adafruit-nrfutil` changes ZIP timestamps when regenerating the package. The
+repository tests verify that the current ZIP contains the same tested BIN and
+the same application-only manifest.
+
+The same D1 product, keyboard, consumer control, and COM5 returned, and no
+bootloader node remained. This proves D1 application recovery; it does not
+prove any left-to-dongle radio link or 2.4 GHz key input.
+
 ## Stop immediately if
 
 - the wrong half disappears;

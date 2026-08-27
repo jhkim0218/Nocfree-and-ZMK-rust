@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use core::panic::PanicInfo;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use embassy_futures::join::{join, join4};
@@ -25,8 +26,8 @@ use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
-    cdc_recovery, enable_usb_power_events, reboot_to_bootloader, softdevice_config,
-    update_usb_power,
+    cdc_recovery, enable_usb_power_events, panic_reboot_to_bootloader, reboot_to_bootloader,
+    softdevice_config, update_usb_power,
 };
 use nocfree_and_rust::scanner::Half;
 use nocfree_and_rust::split_ble::{SplitServer, SplitServerEvent, SplitServiceEvent};
@@ -51,6 +52,11 @@ bind_interrupts!(struct Irqs {
     TWISPI0 => twim::InterruptHandler<TWISPI0>;
     SAADC => saadc::InterruptHandler;
 });
+
+#[panic_handler]
+fn panic_to_bootloader(_info: &PanicInfo) -> ! {
+    panic_reboot_to_bootloader()
+}
 
 static KEY_STATE: KeyState<32> = KeyState::new();
 static BONDS: BondStore = BondStore::new();

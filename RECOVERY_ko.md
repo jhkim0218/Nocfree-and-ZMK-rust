@@ -87,6 +87,30 @@ manifest는 `softdevice_req=0x0123`이고 bootloader/SoftDevice/UICR를 포함�
 양쪽 키보드가 Rust firmware라 순정 ESB 입력은 확인할 수 없었습니다. 이번 결과는
 동글 복구와 USB identity를 증명하며 순정 무선 프로토콜 호환을 증명하지 않습니다.
 
+## 검증된 Rust D1 동글 복구
+
+2026-08-27 무선 코드를 제외한 D1 앱도 별도의 복구 왕복을 통과했습니다. Windows 11
+identity는 `NocFree Rust Dongle`, `USB\VID_2886&PID_8029\RUST-DONGLE`이며
+keyboard, consumer-control, CDC COM5를 노출하고 HID report는 의도적으로 보내지 않습니다.
+
+COM5를 1200 baud로 열면 D1의 `0x57` 복구 marker가 기록됩니다. 이 경로는 순정 앱의
+serial-only bootloader가 아니라 보존된 공장 UF2/CDC bootloader
+`USB\VID_239A&PID_0029\E19D2CEA0B437049`, CDC COM11, UF2 저장장치로 진입했습니다.
+COM 번호는 실측값일 뿐 고정 식별자가 아닙니다.
+
+사용자 승인 뒤 당시 SHA-256
+`2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362`인 D1 ZIP을
+COM11로 전송해
+`Device programmed.`를 확인했습니다. 같은 D1 제품, keyboard, consumer-control,
+COM5가 복귀하고 bootloader node는 사라졌습니다. 이는 D1 앱 복구만 증명하며
+왼쪽→동글 무선 링크나 2.4 GHz 키 입력을 증명하지 않습니다.
+
+검증·저장된 application BIN은
+`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`입니다. 현재
+저장소 DFU ZIP은 재생성 timestamp 때문에
+`FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223`이지만,
+자동 테스트는 내부 BIN과 application-only manifest가 같음을 확인합니다.
+
 예상하지 않은 반쪽이 사라지거나 역할/배열/hash가 다르거나, 목표 parent가 돌아오지
 않거나, 키가 고착되거나, 발열 또는 앱/bootloader 모두 미탐지 상태가 되면 즉시
 중단하고 다른 반쪽을 건드리지 않습니다. 자동 빌드는 실물 flash를 허가하지 않으며

@@ -2,6 +2,7 @@
 #![no_std]
 
 use core::cell::RefCell;
+use core::panic::PanicInfo;
 use core::slice;
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
@@ -38,8 +39,9 @@ use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
-    cdc_recovery, enable_usb_power_events, key_wake_ready, reboot_application,
-    reboot_to_bootloader, softdevice_config, try_system_off, update_usb_power, usb_power_detected,
+    cdc_recovery, enable_usb_power_events, key_wake_ready, panic_reboot_to_bootloader,
+    reboot_application, reboot_to_bootloader, softdevice_config, try_system_off, update_usb_power,
+    usb_power_detected,
 };
 use nocfree_and_rust::power_policy::{DEEP_SLEEP_PREP_MS, DEEP_SLEEP_SECS, should_system_off};
 use nocfree_and_rust::report::{Command, ReportEngine};
@@ -83,6 +85,11 @@ bind_interrupts!(struct Irqs {
     TWISPI0 => twim::InterruptHandler<TWISPI0>;
     SAADC => saadc::InterruptHandler;
 });
+
+#[panic_handler]
+fn panic_to_bootloader(_info: &PanicInfo) -> ! {
+    panic_reboot_to_bootloader()
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BleControl {

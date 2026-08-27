@@ -209,7 +209,19 @@ class DocumentationTests(unittest.TestCase):
         for path in DOCUMENT_FAMILIES["PROGRESS"]:
             document = read(path)
             self.assertIn("D0", document, path)
+            self.assertIn("D1", document, path)
             self.assertIn("E19D2CEA0B437049", document, path)
+            self.assertIn("RUST-DONGLE", document, path)
+        d1_tokens = (
+            "NocFree Rust Dongle",
+            "RUST-DONGLE",
+            "VID_239A&PID_0029",
+            "2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362",
+        )
+        for path in DOCUMENT_FAMILIES["RECOVERY"]:
+            document = read(path)
+            for token in d1_tokens:
+                self.assertIn(token, document, f"{path}: {token}")
 
 
 if __name__ == "__main__":

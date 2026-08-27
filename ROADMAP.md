@@ -19,6 +19,7 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
 | Rust left ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Rust right ANSI | 95,232 | `0x27000..0x329FF` |
+| Rust dongle D1 | 28,672 | `0x27000..0x2A7FF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -42,15 +43,15 @@ right Rust images.
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
 | P1 | Charging awareness | Charging and fully charged are distinct from discharge percentage | VBUS/charger state is not incorporated | Charging/full states are correct and voltage under charge does not falsely imply 100% |
 | P1 | Backlight effects/settings | Static control, automatic behavior, and documented breathing support | Toggle and 20% static steps only | Selected effects work on both halves and persist if exposed in Link |
-| P2 | USB dongle / 2.4 GHz | `RIGHT -> LEFT -> dongle -> PC`, with left authoritative | D0 stock serial-DFU recovery is complete; 2.4G switch position still disables output | Dongle USB HID, dedicated link, pairing, reconnect, input ordering, latency, and coexistence pass |
+| P2 | USB dongle / 2.4 GHz | `RIGHT -> LEFT -> dongle -> PC`, with left authoritative | D1 radio-free USB keyboard/consumer/CDC and recovery are complete; 2.4G switch still disables output | Dedicated link, pairing, real HID input, reconnect, input ordering, latency, and coexistence pass |
 | P2 | NocFree Link completeness | Battery, lighting, power settings, macros/Quick Text, and updater-related paths | Keymap and hotkeys work; other paths are partial or absent | Each advertised Link screen completes without timeout and survives reboot |
 | Out of ANSI scope | Numpad | Separate stock-supported component | Not supported by this 84-key ANSI project | Track separately if project scope expands |
 
 ## Next execution order
 
-1. **D1:** build a dongle-only Rust USB keyboard/consumer HID image while
-   retaining the proven serial-DFU recovery path.
-2. **D2:** prototype a dedicated LEFT-to-dongle BLE link with synthetic absolute
+1. **D1 complete:** radio-free dongle USB keyboard/consumer/CDC enumeration and
+   factory UF2/CDC recovery round trip pass on Windows 11.
+2. **D2 next:** prototype a dedicated LEFT-to-dongle BLE link with synthetic absolute
    keyboard reports; keep the three host profiles separate.
 3. **D3:** route real left-owned keyboard and consumer reports through the
    physical 2.4G switch position and release every old output on transitions.

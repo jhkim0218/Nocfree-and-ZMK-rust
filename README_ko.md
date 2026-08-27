@@ -3,8 +3,9 @@
 [English](README.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
-> 통과하지만 **실물 하드웨어에서 검증되지 않았습니다**.
+> `develop` 브랜치는 개발 중인 작업을 포함합니다. D1 동글의 USB·복구 기반은
+> 실물에서 확인했지만 무선 입력 링크는 미구현입니다. 완성되거나 안정된 2.4 GHz
+> 배포판으로 사용하면 안 됩니다.
 
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
@@ -17,8 +18,8 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 >   왼쪽·오른쪽 파일을 섞으면 안 됩니다.
 > - NocFree &에는 외부 리셋 버튼이 없습니다. 플래시 전에 [RECOVERY_ko.md](RECOVERY_ko.md)를
 >   읽고 양쪽 DFU 및 순정 V2.3.0 복구 방법을 확인하십시오.
-> - 공장 USB 동글/2.4 GHz 입력은 구현되지 않았습니다. 왼쪽 스위치의 2.4G
->   위치에서는 의도적으로 아무 입력도 출력하지 않습니다.
+> - D1은 무선 코드가 없는 Rust 동글 USB·복구 기반만 제공합니다. 실제 2.4 GHz
+>   키보드 입력은 미구현이므로 왼쪽 스위치의 2.4G 위치는 계속 무출력입니다.
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
@@ -48,6 +49,10 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 USB 전원은 스위치를 우회하므로 USB 연결 중에는 OFF여도 오른쪽 보드가 켜집니다.
 왼쪽 USB가 없는 Wired 모드는 HID 출력만 없을 뿐 키보드 전원을 끄지 않습니다.
 
+D1 동글은 Windows 11에서 `NocFree Rust Dongle`이라는 keyboard,
+consumer-control, CDC 복합 장치로 열거됩니다. 왼쪽→동글 전용 링크가 구현될
+때까지 의도적으로 HID report를 전송하지 않습니다.
+
 처음 사용할 때는 다음 순서를 권장합니다.
 
 1. [RECOVERY_ko.md](RECOVERY_ko.md)를 읽고 좌우 펌웨어를 구분합니다.
@@ -76,6 +81,12 @@ Windows, macOS 또는 Linux에서 ANSI를 빌드하고 검사합니다.
 python3 -B tools/build_release.py --layout ANSI
 ```
 
+별도의 ANSI D1 동글 이미지는 다음 명령으로 빌드합니다.
+
+```text
+python3 -B tools/build_release.py --layout ANSI --dongle
+```
+
 Experimental 배열은 `ISO`, `JIS`, `KR`을 지정하고, 네 배열 전체는 다음과 같이
 빌드합니다.
 
@@ -97,6 +108,15 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 - [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+- [D1 동글 UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2)
+- [D1 동글 serial-DFU 패키지](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1_DFU.zip)
+
+D1 동글 빌드는 의도적으로 무선 코드를 포함하지 않습니다. application-only
+산출물은 공장 SoftDevice, filesystem, UICR, UF2 bootloader를 보존합니다. 실물
+검증된 application BIN SHA-256은
+`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`입니다. 저장소에
+포함된 DFU ZIP은 `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223`이며,
+재생성하면 ZIP timestamp만 바뀌고 내부의 검증된 BIN은 동일합니다.
 
 위 기본 파일은 실물에서 확인한 1 kHz perceptual 곡선을 사용합니다. linear 비교용
 펌웨어는 다음과 같이 빌드합니다.
@@ -126,7 +146,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
 | 상태 LED | 방전된 장치에서 빨간 저전압 표시 확인, 순정과 같은 충전/완충 표시 구현 |
-| 공장 2.4 GHz/동글 | USB 수신기, 외부 nRF24L01, ESB, 동글 페어링과 별도 숫자패드 통신 미구현 |
+| 공장 2.4 GHz/동글 | D1 USB keyboard/consumer/CDC 열거와 복구 완료. 외부 nRF24L01 통신, 왼쪽→동글 링크, 페어링, 입력, 별도 숫자패드 통신은 미구현 |
 | NocFree Link 부가 기능 | 배터리 표시는 unavailable이며 Quick Text 저장·삭제·실행 미구현 |
 | 기타 도구 | 공장 updater와 ZMK Studio 호환은 미구현이며 현재 프로젝트 필수 범위가 아님 |
 | 플랫폼 범위 | Bluetooth host는 Windows 11과 Android만 검증. macOS, iOS, Linux와 세 번째 host는 미검증 |
@@ -155,6 +175,9 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   USB 양쪽에서 읽을 수 있는 최근 split 이벤트 32개.
 - **안전한 flash 범위:** SoftDevice, 영구 저장소, 공장 filesystem과 UF2 bootloader
   영역을 보존.
+- **동글 D1 기반:** 무선 코드 없는 keyboard/consumer/CDC USB 열거,
+  application-only 산출물과 실물 1200-baud UF2/CDC 복구 왕복. D1은 의도적으로
+  키 report를 출력하지 않음.
 
 현재 5 ms ANSI 펌웨어는 유선 입력과 양쪽 1 kHz 백라이트 제어를 확인했습니다.
 이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,

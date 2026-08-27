@@ -3,8 +3,9 @@
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> The `develop` branch contains work in progress. Its firmware artifacts pass
-> automated checks but have **not been verified on physical hardware**.
+> The `develop` branch contains work in progress. The D1 dongle USB and recovery
+> shell is hardware-verified, but its wireless input link is not implemented.
+> Do not treat the branch as a complete or stable 2.4 GHz release.
 
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
@@ -18,8 +19,9 @@ project; it is not an official NocFree firmware release.
 >   and right files or files from different builds.
 > - NocFree & has no external reset button. Read [RECOVERY.md](RECOVERY.md)
 >   before flashing so both halves can always return to DFU or stock V2.3.0.
-> - Factory USB-dongle/2.4 GHz input is not implemented. The left 2.4G switch
->   position intentionally produces no output.
+> - D1 provides a radio-free Rust dongle USB/recovery shell only. Actual 2.4 GHz
+>   keyboard input is not implemented, so the left 2.4G switch still produces
+>   no output.
 
 | Layout | Current status | Physical validation |
 |---|---|---|
@@ -50,6 +52,10 @@ USB power bypasses this switch, so the right board remains powered with USB
 connected even when the switch is OFF. Wired mode without left-side USB has no
 HID output, but it does not power the keyboard off.
 
+The D1 dongle enumerates on Windows 11 as `NocFree Rust Dongle` with keyboard,
+consumer-control, and CDC interfaces. It intentionally sends no HID reports
+until the dedicated left-to-dongle link is implemented.
+
 For first use:
 
 1. Read [RECOVERY.md](RECOVERY.md) and identify the left and right firmware.
@@ -78,6 +84,12 @@ Build and verify ANSI on Windows, macOS, or Linux:
 python3 -B tools/build_release.py --layout ANSI
 ```
 
+Build the separate ANSI D1 dongle image with:
+
+```text
+python3 -B tools/build_release.py --layout ANSI --dongle
+```
+
 Use `ISO`, `JIS`, or `KR` for an experimental layout, or build all four:
 
 ```text
@@ -99,6 +111,15 @@ Committed ANSI UF2 files:
 
 - [Left/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [Right/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+- [D1 dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2)
+- [D1 dongle serial-DFU package](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1_DFU.zip)
+
+The D1 dongle build is intentionally radio-free. Its application-only artifacts
+preserve the factory SoftDevice, filesystem, UICR, and UF2 bootloader. The
+hardware-tested application BIN SHA-256 is
+`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`.
+The committed DFU ZIP is `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223`;
+regenerating it changes ZIP timestamps but not the tested embedded BIN.
 
 Those canonical files use the physically tested 1 kHz perceptual curve. Build
 the linear comparison with:
@@ -128,7 +149,7 @@ on the build computer and are not installed on the keyboard.
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |
 | Status LEDs | Verify red low-battery behavior on a discharged unit and implement factory-equivalent charging/full indications |
-| Factory 2.4 GHz/dongle | USB receiver, external nRF24L01, ESB link, dongle pairing, and separate numpad communication are not implemented |
+| Factory 2.4 GHz/dongle | D1 USB keyboard/consumer/CDC enumeration and recovery are complete; external nRF24L01 communication, left-to-dongle link, pairing, input, and separate numpad communication are not implemented |
 | NocFree Link extras | Battery display returns unavailable; Quick Text storage/deletion/execution is not implemented |
 | Other tools | Factory updater and ZMK Studio compatibility are not implemented and are not current project requirements |
 | Platform coverage | Bluetooth host testing covers Windows 11 and Android only; macOS, iOS, Linux, and a third host remain untested |
@@ -160,6 +181,9 @@ are in [ROADMAP.md](ROADMAP.md). Detailed experiment records belong in
   low-battery logic, and 32 in-memory split events readable from either USB port.
 - **Safe flash layout:** application images preserve the SoftDevice, persistent
   storage, factory filesystem, and UF2 bootloader regions.
+- **Dongle D1 foundation:** radio-free keyboard/consumer/CDC USB enumeration,
+  application-only artifacts, and a hardware-verified 1200-baud UF2/CDC recovery
+  round trip. D1 deliberately emits no key reports.
 
 The current 5 ms ANSI firmware passed wired input and synchronized 1 kHz
 backlight control on both halves. Previously tested ANSI firmware passed all 84 keys, Wired/Bluetooth output,

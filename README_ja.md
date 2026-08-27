@@ -3,8 +3,9 @@
 [English](README.md) · [한국어](README_ko.md)
 
 > [!CAUTION]
-> `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
-> 自動検査に合格していますが、**実機では検証されていません**。
+> `develop` ブランチには開発中の作業が含まれます。D1 dongle の USB・復旧基盤は
+> 実機確認済みですが、無線入力 link は未実装です。完成・安定した 2.4 GHz
+> release として使用しないでください。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -19,8 +20,8 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 > - NocFree & には外部リセットボタンがありません。フラッシュ前に
 >   [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右の DFU と純正 V2.3.0 への
 >   復元手順を確認してください。
-> - 純正 USB ドングル/2.4 GHz 入力は未実装です。左スイッチの 2.4G 位置は
->   意図的に無出力になります。
+> - D1 は radio-free Rust dongle USB・復旧基盤だけを提供します。実際の
+>   2.4 GHz keyboard input は未実装のため、左の 2.4G 位置は無出力です。
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
@@ -49,6 +50,10 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 右スイッチはバッテリー電源を物理的に制御します。上が OFF、下が ON です。
 USB 電源はスイッチを迂回するため、USB 接続中は OFF でも右基板が動作します。
 左 USB のない Wired モードは HID 出力がないだけで、電源 OFF にはなりません。
+
+D1 dongle は Windows 11 で `NocFree Rust Dongle` の keyboard、
+consumer-control、CDC 複合 device として列挙されます。専用 LEFT-to-dongle
+link の実装までは意図的に HID report を送信しません。
 
 初回は次の順序を推奨します。
 
@@ -79,6 +84,12 @@ Windows、macOS、Linux で ANSI をビルド・検証します。
 python3 -B tools/build_release.py --layout ANSI
 ```
 
+別の ANSI D1 dongle image は次でビルドします。
+
+```text
+python3 -B tools/build_release.py --layout ANSI --dongle
+```
+
 Experimental 配列は `ISO`、`JIS`、`KR` を指定し、4配列すべては次で処理します。
 
 ```text
@@ -99,6 +110,15 @@ Windows PowerShell ラッパーも利用できます。
 
 - [左/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [右/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
+- [D1 dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2)
+- [D1 dongle serial-DFU package](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1_DFU.zip)
+
+D1 dongle build は意図的に radio-free です。application-only 成果物は factory
+SoftDevice、filesystem、UICR、UF2 bootloader を保持します。実機復旧済み DFU
+application BIN の SHA-256 は
+`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648` です。
+収録 DFU ZIP は `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223` で、
+再生成時は ZIP timestamp だけが変わり、検証済み内包 BIN は同一です。
 
 上記の既定ファイルは実機確認済みの 1 kHz perceptual 曲線を使います。linear
 比較版は次のようにビルドします。
@@ -128,7 +148,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
 | 状態 LED | 放電機で赤い低電圧表示を確認し、純正相当の充電/満充電表示を実装 |
-| 純正 2.4 GHz/ドングル | USB 受信機、外部 nRF24L01、ESB、ドングル pairing、別 numpad 通信は未実装 |
+| 純正 2.4 GHz/ドングル | D1 USB keyboard/consumer/CDC 列挙と復旧は完了。外部 nRF24L01 通信、LEFT-to-dongle link、pairing、input、別 numpad 通信は未実装 |
 | NocFree Link 追加機能 | バッテリー表示は unavailable。Quick Text の保存・削除・実行は未実装 |
 | その他のツール | 純正 updater と ZMK Studio は未対応で、現在の必須範囲外 |
 | 対応 platform | Bluetooth host は Windows 11 と Android のみ確認。macOS、iOS、Linux、第3 host は未検証 |
@@ -157,6 +177,9 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   両 USB から読める直近32件の split event。
 - **安全な flash 範囲:** SoftDevice、永続保存、純正 filesystem、UF2 bootloader
   領域を保護。
+- **Dongle D1 基盤:** radio-free keyboard/consumer/CDC USB 列挙、
+  application-only 成果物、実機1200-baud UF2/CDC 復旧往復。D1 は意図的に
+  key report を出力しません。
 
 現在の 5 ms ANSI は有線入力と左右の 1 kHz バックライト制御を確認しました。
 以前の ANSI は84キー、Wired/Bluetooth、Windows 11・Android の multi-pairing、

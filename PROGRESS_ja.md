@@ -38,6 +38,21 @@ serial DFU に入り、official V2.3.1 application-only package 転送後に元�
 identity と interface が戻りました。Rust dongle feature firmware は未導入です。
 左右が Rust のため factory ESB input はこの D0 では未確認です。
 
+## Dongle D1 USB・recovery shell
+
+radio code を除いた Rust D1 は Windows 11 で `NocFree Rust Dongle`、
+`VID_2886&PID_8029`、serial `RUST-DONGLE`、keyboard/consumer HID、CDC COM5
+として正常に列挙されました。D1 は HID writer を保持するだけで report を送らず、
+まだ wireless receiver ではありません。
+
+COM5 の1200-baud touch は同じ hardware serial `E19D2CEA0B437049` の factory
+UF2/CDC bootloader `VID_239A&PID_0029`、COM11、UF2 storage に入りました。
+factory app の serial-only `PID_002A` と異なるのは D1 の `0x57` recovery marker
+による正常動作です。SHA-256
+`2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362` の同じ
+application-only D1 を再送し、keyboard、consumer、COM5 の復帰と bootloader
+終了を確認しました。
+
 ## Split P3
 
 初期 reconnect failure は不要な ATT MTU exchange で発生しました。P3.1 は標準 MTU 23
@@ -82,4 +97,5 @@ long drift、reconnect edge、Android で loss/duplicate/reorder/stuck=0 が必�
 7. その後に docs、artifact hash、commit/push を確定。
 
 Quick Text、追加 lighting effect、power UI、firmware updater、ZMK Studio は必須外です。
-USB dongle/2.4 GHz は D0 recovery のみ完了し、Rust input path は未実装です。
+USB dongle は D1 USB・recovery shell まで完了しましたが、Rust wireless input
+path は未実装です。

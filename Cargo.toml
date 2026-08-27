@@ -6,13 +6,15 @@ license = "MIT"
 publish = false
 
 [features]
-default = ["layout-ansi", "backlight-perceptual"]
+default = ["layout-ansi", "backlight-perceptual", "split-softdevice"]
 layout-ansi = []
 layout-iso = []
 layout-jis = []
 layout-kr = []
 backlight-perceptual = []
 ble-host-wake-diagnostic = []
+split-softdevice = ["dep:nrf-softdevice"]
+standalone-critical-section = ["cortex-m/critical-section-single-core"]
 
 [dependencies]
 embedded-hal-async = "1"
@@ -27,7 +29,7 @@ nrf-softdevice = { path = "vendor/nrf-softdevice", features = [
     "critical-section-impl",
     "nrf52833",
     "s140",
-] }
+], optional = true }
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
 embassy-executor = { version = "0.9", features = [
@@ -70,5 +72,11 @@ bench = false
 [[bin]]
 name = "right"
 path = "src/bin/right.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "dongle"
+path = "src/bin/dongle.rs"
 test = false
 bench = false

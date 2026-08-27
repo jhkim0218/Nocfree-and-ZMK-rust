@@ -18,6 +18,7 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | 순정 2.4 GHz 동글 | 143,872 | `0x27000..0x388FF` |
 | Rust 왼쪽 ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Rust 오른쪽 ANSI | 95,232 | `0x27000..0x329FF` |
+| Rust 동글 D1 | 28,672 | `0x27000..0x2A7FF` |
 
 순정에 별도 동글 이미지가 있다는 점은 공장 2.4 GHz 기능이 세 firmware로 구성된
 시스템임을 보여줍니다. 왼쪽과 오른쪽 Rust 이미지만 바꿔서는 복원할 수 없습니다.
@@ -40,15 +41,15 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P1 | 배터리 표시 경로 | `Fn+I`와 NocFree Link에서 유효한 정보 표시 | `Fn+I` 동작, Link는 `0xff`, BLE Battery Service 없음 | `Fn+I`/Link/BLE 값 일치, 오른쪽 단절을 0%로 오표시하지 않음 |
 | P1 | 충전 상태 인식 | 방전 잔량과 충전/완충 상태 구분 | VBUS/charger 상태를 잔량 계산에 반영하지 않음 | 충전/완충 표시가 맞고 충전 전압을 100%로 오판하지 않음 |
 | P1 | 백라이트 효과/설정 | 정적 제어, 자동 동작, 공식 문서의 breathing 지원 | toggle과 20% 정적 단계만 지원 | 선택 효과가 양쪽에서 동작하고 Link 제공 시 재부팅 후 보존 |
-| P2 | USB 동글 / 2.4 GHz | 왼쪽이 상태를 소유하는 `오른쪽 -> 왼쪽 -> 동글 -> PC` | D0 순정 serial-DFU 복구 완료, 2.4G 스위치는 아직 출력 차단 | 동글 USB HID, 전용 링크, pairing/reconnect/입력 순서/latency/coexistence 통과 |
+| P2 | USB 동글 / 2.4 GHz | 왼쪽이 상태를 소유하는 `오른쪽 -> 왼쪽 -> 동글 -> PC` | D1 무선 코드 없는 USB keyboard/consumer/CDC와 복구 완료, 2.4G 스위치는 아직 출력 차단 | 전용 링크, pairing, 실제 HID 입력, reconnect/입력 순서/latency/coexistence 통과 |
 | P2 | NocFree Link 완성도 | 배터리, 조명, 전원 설정, macro/Quick Text, updater 관련 경로 | keymap/hotkey 외에는 부분 또는 미구현 | 노출된 각 Link 화면이 timeout 없이 동작하고 재부팅 후 보존 |
 | ANSI 범위 밖 | Numpad | 순정의 별도 지원 장치 | 이 84키 ANSI 프로젝트에서는 미지원 | 범위를 넓힐 때 별도 추적 |
 
 ## 다음 진행 순서
 
-1. **D1:** 검증된 serial-DFU 복구를 유지하면서 동글 전용 Rust USB
-   keyboard/consumer HID를 만듭니다.
-2. **D2:** 합성 절대 키 상태로 왼쪽→동글 전용 BLE 링크를 검증하고 기존
+1. **D1 완료:** 무선 코드 없는 동글 USB keyboard/consumer/CDC 열거와 공장
+   UF2/CDC 복구 왕복을 Windows 11에서 확인했습니다.
+2. **D2 다음:** 합성 절대 키 상태로 왼쪽→동글 전용 BLE 링크를 검증하고 기존
    `Fn+1/2/3` host profile과 동글 bond를 분리합니다.
 3. **D3:** 실제 왼쪽 기준 keyboard/consumer report를 물리 2.4G 스위치에 연결하고
    출력 전환 때 이전 경로의 모든 키를 release합니다.

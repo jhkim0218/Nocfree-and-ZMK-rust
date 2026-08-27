@@ -75,6 +75,31 @@ COM番号を固定せず serial と VID/PID を確認します。
 左右が Rust firmware のため factory ESB key input は未確認です。この結果が証明する
 のは dongle recovery と USB identity であり、factory radio compatibility ではありません。
 
+## 検証済み Rust D1 dongle recovery
+
+2026-08-27 に radio-free D1 application も別の recovery round trip を完了しました。
+Windows 11 identity は `NocFree Rust Dongle`、
+`USB\VID_2886&PID_8029\RUST-DONGLE` で、keyboard、consumer-control、CDC COM5
+を列挙し、HID report は意図的に送信しません。
+
+COM5 の1200-baud open は D1 の `0x57` recovery marker を記録します。この経路は
+factory app の serial-only bootloader ではなく、保持された factory UF2/CDC
+bootloader `USB\VID_239A&PID_0029\E19D2CEA0B437049`、CDC COM11、UF2 storage
+へ入りました。COM番号は観測値であり固定識別子ではありません。
+
+user 承認後、当時 SHA-256
+`2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362` の D1 ZIP を
+COM11 に送り、
+`Device programmed.` を確認しました。同じ D1 product、keyboard、consumer、COM5
+が戻り、bootloader node は残りませんでした。これは D1 app recovery の証明であり、
+LEFT-to-dongle radio link や 2.4 GHz input の証明ではありません。
+
+検証・収録 application BIN は
+`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648` です。現在の
+repository DFU ZIP は再生成 timestamp により
+`FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223` ですが、
+test は内包 BIN と application-only manifest が同一であることを確認します。
+
 予期しない側が消える、役割・配列・hash が違う、目標 parent が戻らない、key が
 押されたまま、発熱、app と bootloader の両方が見えない場合は直ちに停止します。
 その後は反対側に触れません。自動 build は実機 flash の許可ではなく、必ず user の

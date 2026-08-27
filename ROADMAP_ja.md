@@ -17,13 +17,13 @@ GPIO、実機で観測した動作だけを根拠にします。工場 UF2 か�
 | P3 | Split reconnect | ATT MTU 23、段階 advertising、+8 dBm、暗号化 | 距離/RSSI/時間/電流を統制して安定確認 |
 | P4 | 左右入力順序 | timestamp、sequence、clock sync、5 ms queue | 長時間 loss/duplicate/reorder/stuck=0 |
 | P5 | Layout | ANSI stable、ISO/JIS/KR Experimental | 各 matching hardware で全キーと復旧を確認 |
-| P6 | USB dongle / 2.4 GHz | D0 serial-DFU recovery 完了、入力は安全な無出力 | USB HID、専用 link、reconnect、ordering、latency を実機確認 |
+| P6 | USB dongle / 2.4 GHz | D1 radio-free USB keyboard/consumer/CDC と recovery 完了、入力は安全な無出力 | 専用 link、実 HID input、reconnect、ordering、latency を実機確認 |
 
 ## 次の実行順序
 
-1. **D1:** 検証済み serial-DFU recovery を維持した dongle-only Rust USB
-   keyboard/consumer HID。
-2. **D2:** synthetic absolute report による LEFT-to-dongle 専用 BLE link。
+1. **D1 完了:** radio-free USB keyboard/consumer/CDC と factory UF2/CDC
+   recovery round trip を Windows 11 で確認。
+2. **D2 次:** synthetic absolute report による LEFT-to-dongle 専用 BLE link。
    `Fn+1/2/3` host profile と dongle bond は分離する。
 3. **D3:** 物理 2.4G switch に実 report を接続し、mode切替時に旧出力を全 release。
 4. **D4:** reconnect、sleep/wake、unplug、stuck key、latency、stock/Rust round trip。
