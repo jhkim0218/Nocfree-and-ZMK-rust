@@ -336,6 +336,26 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_scan_matches_official_port_limits() {
+        assert_eq!(Half::Right.row_counts(), [8, 8, 8, 7, 8, 8]);
+
+        let released = [u16::MAX; EXPANDER_COUNT];
+        let mut unused_right_bit = released;
+        unused_right_bit[1] &= !(1 << 15);
+        assert_eq!(decode_pressed(Half::Right, unused_right_bit), 0);
+
+        for extra in 0..EXTRA_RIGHT_KEYS {
+            let mut words = released;
+            words[3] &= !(1 << extra);
+            assert_eq!(
+                decode_pressed(Half::Right, words),
+                1_u64 << (RIGHT_KEY_COUNT - EXTRA_RIGHT_KEYS + extra)
+            );
+        }
+    }
+
     #[test]
     fn first_idle_observation_does_not_skip_debounce() {
         let mut debounce = Debouncer::<1>::default();

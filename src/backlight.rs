@@ -55,10 +55,7 @@ impl BacklightState {
 
     pub const fn duty(self, max: u16) -> u16 {
         let active = if self.enabled && !self.timed_out {
-            let percent = self.percent as u32;
-            // Quadratic correction spreads the six user-facing levels by perceived
-            // brightness instead of making the upper linear-duty steps look alike.
-            (max as u32 * percent * percent / 10_000) as u16
+            (max as u32 * self.percent as u32 / 100) as u16
         } else {
             0
         };
@@ -122,7 +119,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn backlight_uses_six_distinct_perceptual_steps() {
+    fn backlight_uses_visible_linear_steps() {
         let mut state = BacklightState::default();
         assert_eq!(BACKLIGHT_PWM_HZ, 10_000);
         state.apply(BacklightCommand::Down);
@@ -131,7 +128,7 @@ mod tests {
             *duty = state.duty(100);
             state.apply(BacklightCommand::Up);
         }
-        assert_eq!(duties, [100, 96, 84, 64, 36, 0]);
+        assert_eq!(duties, [100, 80, 60, 40, 20, 0]);
         assert!(duties.windows(2).all(|pair| pair[0] > pair[1]));
 
         state = BacklightState::default();
@@ -142,7 +139,7 @@ mod tests {
         state.apply(BacklightCommand::Up);
         assert_eq!(state.duty(100), 100);
         state.apply(BacklightCommand::Toggle);
-        assert_eq!(state.duty(100), 96);
+        assert_eq!(state.duty(100), 80);
         for _ in 0..10 {
             state.apply(BacklightCommand::Up);
         }
@@ -156,7 +153,7 @@ mod tests {
         state.apply(BacklightCommand::Idle);
         assert_eq!(state.duty(1_000), 1_000);
         state.apply(BacklightCommand::Wake);
-        assert_eq!(state.duty(1_000), 960);
+        assert_eq!(state.duty(1_000), 800);
 
         state.apply(BacklightCommand::Toggle);
         state.apply(BacklightCommand::Idle);
