@@ -52,7 +52,9 @@ Profile 1/2/3 short presses select bonds and long presses enter pairing.
 three seconds boots left UF2; `Fn+0` held three seconds boots right UF2 while
 split is working. `Fn+Esc` restarts left and is not DFU.
 
-The left physical switch selects Wired, unimplemented 2.4G safe-off, or BLE.
+The left physical switch selects Wired, supported Rust 2.4G dongle output, or
+BLE. ANSI passed physical pairing, input, reconnect-after-idle, and recovery;
+ISO/JIS/KR require matching-keyboard tests.
 The right switch is physical power. BLE host hardware testing was performed
 only on Windows 11 and Android. It is multi-pairing, not simultaneous output.
 
@@ -85,8 +87,10 @@ Use `python` in place of `python3` if appropriate.
 5. Complete charging/full and other factory LED states only from evidence.
 6. Test ISO/JIS/KR only on matching physical keyboards. JIS extended usages
    and larger right scan count are software-covered but not hardware-proven.
-7. Factory dongle/2.4 GHz remains unimplemented. Quick Text, extra lighting
-   effects, updater compatibility, and ZMK Studio are not required scope.
+7. Factory ESB/nRF24 2.4 GHz remains unsupported. Rust 2.4G uses the universal
+   dongle and is ANSI hardware-verified; ISO/JIS/KR hardware tests remain required.
+   Quick Text, extra lighting effects, updater compatibility, and ZMK Studio are
+   not required scope.
 
 ## Regression invariants
 

@@ -10,7 +10,7 @@
 
 - 저장소: `https://github.com/jhkim0218/Nocfree-and-ZMK-rust.git`
 - 원본: `https://github.com/NocFreeKB/NocFree-and-zmk`
-- 기본 배열: ANSI 37+47키. ISO/JIS/KR은 Experimental·실물 미검증
+- 기본 배열: ANSI 37+47키. 모든 배열에서 공용 Rust 2.4G 동글을 지원하지만 ISO/JIS/KR은 실물 미검증
 - 왼쪽만 USB/BLE host HID이며 오른쪽은 암호화 split으로 입력 전달
 - 앱 영역 `0x27000..0x64fff`, 양쪽 독립 1200-baud 복구와 순정 왕복 보존
 - BLE host 실기 범위는 Windows 11과 Android뿐임
@@ -37,15 +37,16 @@ profile을 선택하면 꺼졌습니다. 빨간 10% 이하 점멸은 배터리�
 `E19D2CEA0B437049`, COM6, HID `MI_02`로 확인됐습니다. 1200-baud touch 뒤
 `VID_239A&PID_002A`, `NocFree &`, `nRF Serial`, COM14인 serial DFU로 진입했고,
 공식 V2.3.1 application-only 패키지 전송 뒤 원래 USB identity와 interface가 모두
-복구됐습니다. Rust 동글 기능 firmware는 아직 올리지 않았습니다. 양쪽이 Rust라
-순정 ESB 입력은 이번 D0 범위에서 확인하지 못했습니다.
+복구됐습니다. 이 D0 절차는 순정 패키지만 올린 것이므로 현재 Rust 키보드와의 순정 ESB
+호환을 뜻하지 않습니다. 양쪽이 Rust라 순정 ESB 입력은 이번 D0 범위에서 확인하지 못했습니다.
 
 ## ANSI Rust 2.4G 동글 — 실기 검증 완료
 
 ANSI 왼쪽/오른쪽과 동글은 custom BLE 링크로 연결되어 keyboard와 consumer HID report를
 전송합니다. 동글 재연결, 빠른 양쪽 입력과 modifier, BLE→2.4G 복귀, 각 장치의
 1200-baud 복구 왕복까지 통과했습니다. ISO/JIS/KR 동글 이미지는 빌드되지만 해당 배열
-실기 검증은 남아 있습니다.
+실기 검증은 남아 있습니다. ANSI는 2.4G에서 6분 이상 idle 뒤에도 동글을 다시 꽂지 않고
+재연결되는 것을 확인했습니다.
 
 ## Split P3
 

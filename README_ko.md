@@ -3,8 +3,8 @@
 [English](README.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> `main` 브랜치에는 공용 동글 이미지를 포함한 실기 검증 ANSI 2.4G 세트가 있습니다.
-> ISO/JIS/KR 실기 검증은 아직 남아 있습니다.
+> 공용 동글 이미지 기반 Rust 2.4G를 지원합니다. ANSI 세트는 실기 검증됐고,
+> ISO/JIS/KR은 반드시 대응 실물 키보드에서 테스트해야 합니다.
 
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
@@ -17,16 +17,16 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 >   배열 Left·Right 한 쌍과 하나의 공용 Dongle UF2를 사용합니다.
 > - NocFree &에는 외부 리셋 버튼이 없습니다. 플래시 전에 [RECOVERY_ko.md](RECOVERY_ko.md)를
 >   읽고 양쪽 DFU 및 순정 V2.3.0 복구 방법을 확인하십시오.
-> - Experimental Rust 동글/2.4 GHz 모드는 순정 ESB, 순정 updater, 외부 nRF24L01 경로,
+> - 지원되는 Rust 동글/2.4 GHz 모드는 순정 ESB, 순정 updater, 외부 nRF24L01 경로,
 >   numpad와 호환되지 않습니다. ANSI 세트는 페어링·입력·재연결·모드 전환·복구
->   실기를 통과했고 ISO/JIS/KR은 소프트웨어 검사만 통과했습니다.
+>   실기를 통과했습니다. ISO/JIS/KR은 소프트웨어 검사만 통과했으므로 대응 실물 테스트가 필수입니다.
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
-| ANSI | 기본 빌드, 공용 Rust 동글 UF2 제공 | 공용 이미지로 페어링·양쪽 입력·빠른 입력·재연결·모드 전환·복구 실기 통과 |
-| ISO | Experimental, 공용 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
-| JIS | Experimental, 공용 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
-| KR | Experimental, 공용 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
+| ANSI | 기본 지원 빌드, 공용 Rust 동글 UF2 제공 | 공용 이미지로 페어링·양쪽 입력·빠른 입력·재연결·모드 전환·복구 실기 통과 |
+| ISO | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | 대응 실물 테스트 필수 |
+| JIS | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | 대응 실물 테스트 필수 |
+| KR | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | 대응 실물 테스트 필수 |
 
 ## 먼저 확인할 내용
 
@@ -43,7 +43,7 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 
 | 위치 | 모드 | 동작 |
 |---|---|---|
-| 위 | 2.4G | Experimental 암호화 Rust 동글 출력, 순정 ESB와 호환되지 않음 |
+| 위 | 2.4G | 지원되는 암호화 Rust 동글 출력, 순정 ESB와 호환되지 않음 |
 | 가운데 | Wired | 왼쪽 USB 포트로 USB HID 출력 |
 | 아래 | Bluetooth | 왼쪽에서 Bluetooth HID 출력 |
 
@@ -79,7 +79,7 @@ Windows, macOS 또는 Linux에서 ANSI를 빌드하고 검사합니다.
 python3 -B tools/build_release.py --layout ANSI
 ```
 
-Experimental 배열은 `ISO`, `JIS`, `KR`을 지정하고, 네 배열 전체는 다음과 같이
+ANSI 이외 배열은 `ISO`, `JIS`, `KR`을 지정하고, 네 배열 전체는 다음과 같이
 빌드합니다.
 
 ```text
@@ -153,7 +153,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   Windows 특수키와 암호화 BLE split 전송.
 - **USB/Bluetooth HID:** 물리 스위치 출력 선택, BLE 자동 재연결, CCCD 상태 저장,
   선택 상태가 유지되는 페어링 슬롯 3개.
-- **Experimental Rust 동글:** 배열별 USB 수신기 펌웨어, 별도 암호화 bond,
+- **Rust 2.4G 동글:** 배열별 USB 수신기 펌웨어, 별도 암호화 bond,
   순번이 있는 절대 report와 연결 해제 시 전체 키 release.
 - **NocFree Link:** 8×84 키맵, 실행 가능한 hotkey 16개, CRC가 있는 flash 저장,
   삭제와 기본값 복구.
@@ -227,12 +227,12 @@ R-L-R 입력을 검사해야 합니다. 컴파일 성공만으로 안전한 값�
 timeout, ATT MTU 23, 단계식 미연결 광고와 +8 dBm TX 출력을 사용합니다. 복구는
 개선됐지만 거리·전력·장시간 동작은 위 미검증 목록에 남아 있습니다.
 
-### Experimental Rust 동글
+### Rust 2.4G 동글
 
 2.4G 스위치 위치에서는 순정 ESB 대신 Rust 동글 service를 광고합니다. 동글은
 7.5 ms interval로 연결해 암호화를 요청하고, 순번이 있는 절대 HID report를 구독하며,
 연결이 끊기면 모든 키를 release합니다. 최초에는 bond가 없는 키보드·동글끼리 자동
-pairing하므로 주변의 다른 Experimental 장치는 꺼두십시오. 키보드는 2.4G 모드에서
+pairing하므로 주변의 다른 Rust 2.4G 장치는 꺼두십시오. 키보드는 2.4G 모드에서
 `Fn+1`을 1초 눌러 동글 bond를 지웁니다. 동글 CDC를 2400 baud로 열면 동글 bond를
 지우고 재시작하며, 1200 baud는 UF2 복구에 사용합니다.
 

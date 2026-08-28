@@ -49,7 +49,7 @@ COM numbers are not stable. Match the port's `DEVPKEY_Device_Parent` instead.
 |---|---|
 | Rust left | `USB\VID_2886&PID_8029\RUST-LEFT` |
 | Rust right | `USB\VID_1D50&PID_615E\RUST-RIGHT` |
-| Experimental Rust dongle | `USB\VID_239A&PID_80D8\RUST-DONGLE` |
+| Rust 2.4G dongle | `USB\VID_239A&PID_80D8\RUST-DONGLE` |
 | stock left | `USB\VID_2886&PID_8029\52CF50988BD1E6EE` |
 | stock right | `USB\VID_239A&PID_80D8\D82A03513BB02626` |
 | UF2 CDC left | `USB\VID_239A&PID_0029\52CF50988BD1E6EE` |
@@ -81,8 +81,8 @@ file:
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`
 - `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`
 
-The universal dongle bootloader and application recovery path passed ANSI physical
-verification. ISO, JIS, and KR require matching-keyboard verification. Never copy
+The supported universal Rust 2.4G dongle bootloader and application recovery path
+passed ANSI physical verification. ISO, JIS, and KR require matching-keyboard verification. Never copy
 a mismatched keyboard layout or role. A current serial DFU package can be sent
 only to a verified `PID_002A` bootloader port:
 

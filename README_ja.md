@@ -3,8 +3,8 @@
 [English](README.md) · [한국어](README_ko.md)
 
 > [!CAUTION]
-> `main` ブランチには共通 dongle image を含む実機検証済みの ANSI 2.4G 一式があります。
-> ISO/JIS/KR の実機検証はまだ残っています。
+> 共通 dongle image による Rust 2.4G をサポートします。ANSI 一式は実機検証済みで、
+> ISO/JIS/KR は必ず対応する実機 keyboard で試験してください。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -19,16 +19,16 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 > - NocFree & には外部リセットボタンがありません。フラッシュ前に
 >   [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右の DFU と純正 V2.3.0 への
 >   復元手順を確認してください。
-> - Experimental Rust ドングル/2.4 GHz モードは純正 ESB、純正 updater、外部 nRF24L01 経路、
+> - サポートされる Rust ドングル/2.4 GHz モードは純正 ESB、純正 updater、外部 nRF24L01 経路、
 >   numpad と互換性がありません。ANSI 一式は pairing・入力・再接続・モード切替・
->   復旧の実機検証に合格し、ISO/JIS/KR はソフトウェア検査のみ合格しています。
+>   復旧の実機検証に合格しました。ISO/JIS/KR はソフトウェア検査のみなので対応実機試験が必須です。
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
-| ANSI | 既定ビルド、共通 Rust ドングル UF2 あり | 共通 image で pairing・左右入力・高速入力・再接続・モード切替・復旧を実機確認済み |
-| ISO | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
-| JIS | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
-| KR | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
+| ANSI | 既定のサポート build、共通 Rust ドングル UF2 あり | 共通 image で pairing・左右入力・高速入力・再接続・モード切替・復旧を実機確認済み |
+| ISO | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
+| JIS | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
+| KR | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
 
 ## 最初に確認すること
 
@@ -45,7 +45,7 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 
 | 位置 | モード | 動作 |
 |---|---|---|
-| 上 | 2.4G | Experimental 暗号化 Rust ドングル出力。純正 ESB 非互換 |
+| 上 | 2.4G | サポートされる暗号化 Rust ドングル出力。純正 ESB 非互換 |
 | 中央 | Wired | 左 USB ポートから USB HID を出力 |
 | 下 | Bluetooth | 左側から Bluetooth HID を出力 |
 
@@ -82,7 +82,7 @@ Windows、macOS、Linux で ANSI をビルド・検証します。
 python3 -B tools/build_release.py --layout ANSI
 ```
 
-Experimental 配列は `ISO`、`JIS`、`KR` を指定し、4配列すべては次で処理します。
+ANSI 以外の配列は `ISO`、`JIS`、`KR` を指定し、4配列すべては次で処理します。
 
 ```text
 python3 -B tools/build_release.py --all-layouts
@@ -155,7 +155,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   Windows 特殊キー、暗号化 BLE split。
 - **USB/Bluetooth HID:** 物理スイッチによる出力選択、BLE 自動再接続、CCCD
   状態保存、選択状態を保持する3つの pairing slot。
-- **Experimental Rust ドングル:** 配列別 USB 受信機、別暗号化 bond、順番付き
+- **Rust 2.4G ドングル:** 配列別 USB 受信機、別暗号化 bond、順番付き
   絶対 report、切断時の全キー release。
 - **NocFree Link:** 8×84 keymap、実行可能な16 hotkey、CRC 付き flash 保存、
   削除、既定値復元。
@@ -229,7 +229,7 @@ host と bond 済みの slot を選び、切替のたびに Windows device を�
 timeout、ATT MTU 23、段階式 advertising、+8 dBm TX を使います。復帰は改善
 しましたが、距離・電力・長期動作は上記の未検証項目に残っています。
 
-### Experimental Rust ドングル
+### Rust 2.4G ドングル
 
 2.4G 位置では純正 ESB の代わりに Rust ドングル service を advertising します。
 ドングルは 7.5 ms 間隔で暗号化接続し、順番付き絶対 HID report を購読し、切断時に

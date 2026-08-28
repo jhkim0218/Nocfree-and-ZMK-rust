@@ -2,7 +2,7 @@
 
 [English](HANDOFF_en.md) · [한국어](HANDOFF.md) · [日本語](HANDOFF_ja.md)
 
-마지막 갱신: 2026-08-25 (Asia/Seoul)
+마지막 갱신: 2026-08-28 (Asia/Seoul)
 
 이 문서는 다른 AI나 작업자가 대화 기록 없이 현재 상태를 이어가기 위한 기준
 문서입니다. 먼저 `git status`, 양쪽 USB 부모 ID, 산출물 해시를 확인하십시오.
@@ -98,7 +98,8 @@ hotkey는 구현·실기 검증됐습니다.
 ### 물리 스위치
 
 - 왼쪽 P0.15/P0.17은 pull-up active-low 모드 감지 입력
-- 위 2.4G: transport 미구현이므로 USB/BLE 출력 모두 비활성
+- 위 2.4G: 지원되는 공용 Rust 동글 출력. ANSI는 페어링·입력·idle 뒤 재연결·복구를
+  실기 검증했고 ISO/JIS/KR은 대응 실물 테스트가 필수
 - 가운데 Wired: USB HID 출력
 - 아래 Bluetooth: BLE HID 출력
 - 두 핀이 동시에 low인 전환 순간에는 이전 모드를 유지하고, 20 ms 안정 위치만 적용

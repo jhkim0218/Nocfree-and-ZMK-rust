@@ -10,7 +10,7 @@
 
 - repository: `https://github.com/jhkim0218/Nocfree-and-ZMK-rust.git`
 - original: `https://github.com/NocFreeKB/NocFree-and-zmk`
-- default は ANSI 37+47。ISO/JIS/KR は Experimental・実機未検証
+- default は ANSI 37+47。全配列で共通 Rust 2.4G dongle をサポートするが、ISO/JIS/KR は実機未検証
 - 左だけが USB/BLE host HID、右は encrypted split input
 - app `0x27000..0x64fff`、左右独立1200-baud recovery と factory round trip を維持
 - BLE host 実機範囲は Windows 11 と Android のみ
@@ -35,15 +35,16 @@ USB 電源に依存しない timeout は過去 image で通りました。
 `VID_2886&PID_8029`、serial `E19D2CEA0B437049`、COM6、HID `MI_02` でした。
 1200-baud touch で `VID_239A&PID_002A`、`NocFree &`、`nRF Serial`、COM14 の
 serial DFU に入り、official V2.3.1 application-only package 転送後に元の USB
-identity と interface が戻りました。Rust dongle feature firmware は未導入です。
-左右が Rust のため factory ESB input はこの D0 では未確認です。
+identity と interface が戻りました。この D0 手順は official package だけを書いたため、
+現在の Rust keyboard との factory ESB 互換を示しません。左右が Rust のため factory ESB input はこの D0 では未確認です。
 
 ## ANSI Rust 2.4G dongle — 実機検証済み
 
 ANSI の左右と dongle は custom BLE link で接続し、keyboard/consumer HID report を
 送信します。dongle 再接続、高速な左右入力と modifier、BLE→2.4G 復帰、各 device の
 1200-baud recovery round trip を確認しました。ISO/JIS/KR dongle image は build 済み
-ですが、対応 layout の実機検証は未完了です。
+ですが、対応 layout の実機検証は未完了です。ANSI は2.4Gで6分以上 idle 後も dongle の
+再接続なしで reconnect することを確認しました。
 
 ## Split P3
 

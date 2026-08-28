@@ -41,8 +41,9 @@ first-key wake は維持されますが、新 curve は ANSI 実機確認が必�
 初期値は **Windows mode** です。`Fn+M` 1秒で macOS、`Fn+N` 1秒で Windows を保存し、
 短押しは M/N を入力します。`Fn+1/2/3` は短押しで profile 選択、長押しで pairing、
 `Fn+I` 3秒で左右 battery、`Fn+5` 3秒で左 UF2、`Fn+0` 3秒で右 UF2、`Fn+Esc` は
-左 restart です。左 switch は Wired / 未実装2.4G安全無出力 / BLE、右は power です。
-BLE host 実機試験は Windows 11 と Android のみです。
+左 restart です。左 switch は Wired / サポート済み Rust 2.4G dongle 出力 / BLE、右は
+power です。ANSI は pairing・input・idle 後 reconnect・recovery を実機確認済みで、
+ISO/JIS/KR は対応実機試験が必須です。BLE host 実機試験は Windows 11 と Android のみです。
 
 ## Portable build
 
@@ -59,7 +60,8 @@ BIN/UF2/DFU package、contract test を行います。PowerShell script は wrap
 4. battery の実測電圧・電流・完全放電 log を得てから threshold を変更。
 5. charging/full など LED state は evidence に基づいて追加。
 6. ISO/JIS/KR は matching hardware だけで試験。
-7. factory dongle/2.4 GHz は未実装。Quick Text、追加 effect、updater、ZMK Studio は必須外。
+7. factory ESB/nRF24 の2.4 GHzは未対応。Rust 2.4G は共通 dongle を使い ANSI 実機確認済みで、
+   ISO/JIS/KR の実機試験は残る。Quick Text、追加 effect、updater、ZMK Studio は必須外。
 
 flash boundary、左右独立 recovery、left authoritative state、ANSI HID shape を必ず
 維持します。関連 test を省略して成功と報告せず、機能ごとに test、docs、artifact、

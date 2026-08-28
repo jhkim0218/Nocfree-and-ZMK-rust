@@ -3,8 +3,8 @@
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> The `main` branch includes the hardware-verified ANSI 2.4G trio with the universal
-> dongle image. ISO/JIS/KR hardware testing remains outstanding.
+> Rust 2.4G is supported through the universal dongle image. The ANSI trio is
+> hardware-verified; ISO, JIS, and KR require matching-keyboard tests.
 
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
@@ -18,17 +18,17 @@ project; it is not an official NocFree firmware release.
 >   uses the one universal Dongle UF2 with any matching-layout Left and Right pair.
 > - NocFree & has no external reset button. Read [RECOVERY.md](RECOVERY.md)
 >   before flashing so both halves can always return to DFU or stock V2.3.0.
-> - The experimental Rust dongle/2.4 GHz mode is not compatible with the factory ESB
->   protocol, factory updater, external nRF24L01 path, or numpad. It has passed
->   software checks only for ISO, JIS, and KR. The ANSI trio has passed the
+> - The supported Rust dongle/2.4 GHz mode is not compatible with the factory ESB
+>   protocol, factory updater, external nRF24L01 path, or numpad. ISO, JIS, and KR
+>   have passed software checks but still require matching-keyboard tests. The ANSI trio has passed the
 >   physical pairing, input, reconnect, mode-switch, and recovery checks.
 
 | Layout | Current status | Physical validation |
 |---|---|---|
-| ANSI | Default build; universal Rust dongle UF2 available | Universal image passed physical pairing, both-half input, rapid input, reconnect, mode-switch, and recovery checks |
-| ISO | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
-| JIS | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
-| KR | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
+| ANSI | Default supported build; universal Rust dongle UF2 available | Universal image passed physical pairing, both-half input, rapid input, reconnect, mode-switch, and recovery checks |
+| ISO | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
+| JIS | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
+| KR | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
 
 ## Start here
 
@@ -45,7 +45,7 @@ The left physical switch selects the output:
 
 | Position | Mode | Behavior |
 |---|---|---|
-| Top | 2.4G | Experimental encrypted Rust dongle output; not factory-ESB compatible |
+| Top | 2.4G | Supported encrypted Rust dongle output; not factory-ESB compatible |
 | Middle | Wired | USB HID from the left port |
 | Bottom | Bluetooth | Bluetooth HID from the left half |
 
@@ -82,7 +82,7 @@ Build and verify ANSI on Windows, macOS, or Linux:
 python3 -B tools/build_release.py --layout ANSI
 ```
 
-Use `ISO`, `JIS`, or `KR` for an experimental layout, or build all four:
+Use `ISO`, `JIS`, or `KR` for a non-ANSI layout, or build all four:
 
 ```text
 python3 -B tools/build_release.py --all-layouts
@@ -156,7 +156,7 @@ are in [ROADMAP.md](ROADMAP.md). Detailed experiment records belong in
   Korean Windows special keys, and encrypted BLE split transport.
 - **USB and Bluetooth HID:** physical output selection, automatic BLE
   reconnection, persisted CCCD state, and three persistent pairing slots.
-- **Experimental Rust dongle:** layout-matched USB receiver firmware, a separate
+- **Rust 2.4G dongle:** layout-matched USB receiver firmware, a separate
   encrypted bond, absolute sequenced reports, and release-on-disconnect behavior.
 - **NocFree Link:** 8 × 84 keymaps, 16 executable hotkeys, CRC-protected flash
   persistence, deletion, and default restoration through `link.nocfree.com`.
@@ -238,7 +238,7 @@ advertising, and configured +8 dBm TX power. These settings improved recovery,
 but their range, power, and long-run behavior are still listed above as
 unverified.
 
-### Experimental Rust dongle
+### Rust 2.4G dongle
 
 The 2.4G switch position advertises the Rust dongle service instead of factory ESB. The dongle connects at a 7.5 ms interval, requests encryption, subscribes to
 absolute sequenced HID reports, and releases all keys on disconnect. First use

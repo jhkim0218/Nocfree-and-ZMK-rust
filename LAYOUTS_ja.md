@@ -12,6 +12,9 @@
 | JIS | `src/keymap/jis.rs` | 37 | 48 | `electricdoc187` の `jis-custom` scan map | Experimental・Rust 実機未検証 |
 | KR | `src/keymap/kr.rs` | 39 | 50 | 公式 updater/product と `0x21/P0` | Experimental・実機未検証 |
 
+全配列はサポートされる共通 Rust 2.4G Dongle UF2 を使います。ANSI は2.4Gの実機
+検証に合格しましたが、ISO/JIS/KR は必ず対応する実機 keyboard で試験してください。
+
 共通動作は `src/keymap.rs` にあり、物理キー数、座標変換、HID usage、Fn 位置、
 PCA9555 address だけを各配列 module が所有します。保存される NocFree Link
 keymap は version、layout ID、key count、CRC を持つため、別配列の記録を誤って
@@ -49,7 +52,8 @@ ANSI は `firmware`、他は `firmware/experimental` に出力されます。同
 まず ANSI の matching pair を右、左の順で更新し、84キー、両 Fn、Wired USB、
 Windows 11 BLE reconnect、backlight 同期と新しい明るさ曲線、`Fn+5`/`Fn+0`
 復旧、NocFree Link の変更と再起動後保存を確認します。その回帰が完了してから、
-各実機を所有する協力者が ISO、JIS、KR を試します。
+各実機を所有する協力者が ISO、JIS、KR を試します。この3配列はまず Left だけを
+flash して Wired input を確認し、その後に共通 dongle を pairing してください。
 
 参照: <https://github.com/NocFreeKB/NocFree-and-zmk>、
 <https://github.com/electricdoc187/NocFree-and-zmk/tree/jis-custom>、
