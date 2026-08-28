@@ -71,7 +71,7 @@ class ExperimentalArtifactTests(unittest.TestCase):
     def test_layout_uf2_pairs_stay_inside_the_application_partition(self) -> None:
         directory = ROOT / "firmware" / "experimental"
         paths = sorted(directory.glob("*.uf2"))
-        self.assertEqual(len(paths), 8)
+        self.assertEqual(len(paths), 12)
         for layout in ("ISO", "JIS", "KR"):
             for half in ("Left", "Right"):
                 expected = (
@@ -83,6 +83,11 @@ class ExperimentalArtifactTests(unittest.TestCase):
             self.assertIn(
                 directory
                 / f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}.uf2",
+                paths,
+            )
+        for layout in ("ANSI", "ISO", "JIS", "KR"):
+            self.assertIn(
+                directory / f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_Dongle.uf2",
                 paths,
             )
         for path in paths:

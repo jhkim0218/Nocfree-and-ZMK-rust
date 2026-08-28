@@ -29,6 +29,22 @@ long-hold 後に継続し、bonded profile 選択で停止しました。赤10%�
 backlight の絶対状態同期、右再起動後の収束、10回 toggle、右 key wake、30秒両側消灯、
 USB 電源に依存しない timeout は過去 image で通りました。
 
+## Dongle D0 recovery
+
+2026-08-27 の factory dongle baseline は `NocFree_Dongle`、
+`VID_2886&PID_8029`、serial `E19D2CEA0B437049`、COM6、HID `MI_02` でした。
+1200-baud touch で `VID_239A&PID_002A`、`NocFree &`、`nRF Serial`、COM14 の
+serial DFU に入り、official V2.3.1 application-only package 転送後に元の USB
+identity と interface が戻りました。Rust dongle feature firmware は未導入です。
+左右が Rust のため factory ESB input はこの D0 では未確認です。
+
+## ANSI Rust 2.4G dongle — 実機検証済み
+
+ANSI の左右と dongle は custom BLE link で接続し、keyboard/consumer HID report を
+送信します。dongle 再接続、高速な左右入力と modifier、BLE→2.4G 復帰、各 device の
+1200-baud recovery round trip を確認しました。ISO/JIS/KR dongle image は build 済み
+ですが、対応 layout の実機検証は未完了です。
+
 ## Split P3
 
 初期 reconnect failure は不要な ATT MTU exchange で発生しました。P3.1 は標準 MTU 23
@@ -73,4 +89,4 @@ long drift、reconnect edge、Android で loss/duplicate/reorder/stuck=0 が必�
 7. その後に docs、artifact hash、commit/push を確定。
 
 Quick Text、追加 lighting effect、power UI、firmware updater、ZMK Studio は必須外です。
-factory USB dongle/2.4 GHz は独立した大きな未実装項目です。
+ANSI USB dongle の Rust wireless input path は実機検証まで完了しました。

@@ -2,7 +2,7 @@
 
 [English](PROGRESS.md) · [한국어](PROGRESS_ko.md) · [日本語](PROGRESS_ja.md)
 
-Last updated: 2026-08-25 (Asia/Seoul)
+Last updated: 2026-08-28 (Asia/Seoul)
 
 ## Baseline
 
@@ -57,10 +57,34 @@ Last updated: 2026-08-25 (Asia/Seoul)
 | P3 BLE reconnect tuning | Partial | Current P4 right deploys +8 dBm; P3.2 reconnect checks pass, but +8 dBm range/security/power benefit is not controlled or measured |
 | P4 Cross-half ordering | Software candidate; prior 3 ms hardware-tested | Current 5 ms passes the existing reorder model but needs `삼`/Wired/BLE hardware tests; end-to-end queues, real BLE jitter/drift, reconnect-edge load, and Android remain |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
-| D0 Dongle recovery | Pending | Stock dongle recovery is proven before feature firmware is flashed |
-| D1-D4 Rust-native dongle and 2.4G mode | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes HID, reconnect, release, and recovery tests |
+| D0 Dongle recovery | Complete | Official V2.3.1 application-only serial DFU restored the recorded product, VID/PID, serial, CDC, and HID interfaces |
+| Rust-native 2.4G dongle | ANSI hardware-verified | Unified `RIGHT -> LEFT -> dongle -> PC` link, HID input, reconnect, release, mode switching, and recovery pass on the ANSI set |
 | P7 Layout architecture | Software-complete | Shared behavior and separate ANSI/ISO/JIS/KR modules pass host and ARM checks |
 | P8 Layout variants | Experimental artifacts built | ISO/JIS/KR mappings come from verified sources but remain Rust hardware-unverified until matching devices are tested |
+
+## D0 dongle recovery — complete
+
+- Baseline: `NocFree_Dongle`, `VID_2886&PID_8029`, serial
+  `E19D2CEA0B437049`, COM6, and HID interface `MI_02`.
+- A 1200-baud touch entered serial DFU as `VID_239A&PID_002A`, `NocFree &`,
+  `nRF Serial`, COM14. The dongle does not expose an UF2 mass-storage volume.
+- The user approved flashing the official V2.3.1 application-only package with
+  SHA-256 `02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567`.
+- `adafruit-nrfutil` reported `Device programmed.` and the complete application
+  baseline returned. No Rust dongle feature firmware has been flashed.
+- Factory ESB input remains untested because both halves run Rust firmware.
+
+## ANSI Rust 2.4G dongle — hardware-verified
+
+- The left/right ANSI keyboard halves and dongle pair through the custom BLE
+  link and send keyboard and consumer HID reports to the host.
+- Dongle replug reconnects automatically. Fast cross-half input and modifiers
+  showed no observed lag, dropped reports, or stuck keys.
+- Switching from host BLE back to 2.4G restores the dongle path.
+- Each device completed a 1200-baud recovery round trip and returned to its
+  application.
+- ISO, JIS, and KR dongle images build successfully but require matching-layout
+  hardware testing.
 
 ## P7/P8 layout variants — software-complete, hardware pending
 

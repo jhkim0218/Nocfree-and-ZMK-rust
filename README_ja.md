@@ -4,7 +4,8 @@
 
 > [!CAUTION]
 > `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
-> 自動検査に合格していますが、**実機では検証されていません**。
+> 自動検査に合格し、ANSI 2.4G キーボード/ドングル一式だけ実機検証済みです。
+> ISO/JIS/KR は Experimental 状態です。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -14,20 +15,21 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 > [!IMPORTANT]
 > - ファームウェアの**既定は Windows モード**です。macOS モードは `Fn+M`、
 >   Windows へ戻す場合は `Fn+N` をそれぞれ1秒間長押しします。
-> - キーボードの左右と配列に一致するファイルだけをフラッシュしてください。
->   異なるビルドや配列の左右ファイルを混在させないでください。
+> - ハードウェア役割と配列に一致するファイルだけを使用してください。ドングル
+>   モードには同一ビルド・同一配列の Left、Right、Dongle の3ファイルが必要です。
 > - NocFree & には外部リセットボタンがありません。フラッシュ前に
 >   [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右の DFU と純正 V2.3.0 への
 >   復元手順を確認してください。
-> - 純正 USB ドングル/2.4 GHz 入力は未実装です。左スイッチの 2.4G 位置は
->   意図的に無出力になります。
+> - Experimental Rust ドングル/2.4 GHz モードは純正 ESB、純正 updater、外部 nRF24L01 経路、
+>   numpad と互換性がありません。ANSI 一式は pairing・入力・再接続・モード切替・
+>   復旧の実機検証に合格し、ISO/JIS/KR はソフトウェア検査のみ合格しています。
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
-| ANSI | 既定ビルド、5 ms 入力順序・1 kHz perceptual バックライト | 現在の 5 ms ビルドは有線入力と左右バックライトを確認済み。BLE 全回帰は未実施 |
-| ISO | Experimental | 対応実機では未検証 |
-| JIS | Experimental | 対応実機では未検証 |
-| KR | Experimental | 対応実機では未検証 |
+| ANSI | 既定ビルド、対応 Rust ドングル UF2 あり | キーボード・ドングルの pairing・入力・再接続・モード切替・復旧を実機確認済み |
+| ISO | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
+| JIS | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
+| KR | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
 
 ## 最初に確認すること
 
@@ -37,12 +39,14 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
   または Bluetooth HID を出力します。
 - **右 (`right`)** は47キーを読み、暗号化 BLE split で左へ送ります。右 USB
   は復旧・診断用であり、キーボード HID は出力しません。
+- **ドングル (`dongle`)** は左と別に bond した暗号化 BLE から絶対 HID 状態を
+  受信し、USB keyboard/consumer HID を出力します。
 
 左の物理スイッチで出力を選択します。
 
 | 位置 | モード | 動作 |
 |---|---|---|
-| 上 | 2.4G | 無出力。純正ドングル通信は未実装 |
+| 上 | 2.4G | Experimental 暗号化 Rust ドングル出力。純正 ESB 非互換 |
 | 中央 | Wired | 左 USB ポートから USB HID を出力 |
 | 下 | Bluetooth | 左側から Bluetooth HID を出力 |
 
@@ -84,6 +88,16 @@ Experimental 配列は `ISO`、`JIS`、`KR` を指定し、4配列すべては�
 ```text
 python3 -B tools/build_release.py --all-layouts
 ```
+
+配列に一致する左右・ドングル一式は次でビルドします。
+
+```text
+python3 -B tools/build_release.py --all-layouts --dongle
+```
+
+ドングル UF2 名は `firmware/experimental` の
+`NocFree_And_Rust_ZMK_Based_<LAYOUT>_Experimental_Dongle.uf2` です。ANSI は実機
+検証済みで、ISO/JIS/KR は対応キーボードでの検証が必要です。
 
 Windows PowerShell ラッパーも利用できます。
 
@@ -128,7 +142,8 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
 | 状態 LED | 放電機で赤い低電圧表示を確認し、純正相当の充電/満充電表示を実装 |
-| 純正 2.4 GHz/ドングル | USB 受信機、外部 nRF24L01、ESB、ドングル pairing、別 numpad 通信は未実装 |
+| Experimental Rust ドングル | 全配列別 UF2 がソフトウェア検査に合格し、ANSI は pairing・再接続・入力・latency・BLE/ドングルモード切替・復旧を実機確認。ISO/JIS/KR は対応実機の検証が必要 |
+| 純正 2.4 GHz 互換 | 純正 ESB、外部 nRF24L01、updater、別 numpad 通信は未実装 |
 | NocFree Link 追加機能 | バッテリー表示は unavailable。Quick Text の保存・削除・実行は未実装 |
 | その他のツール | 純正 updater と ZMK Studio は未対応で、現在の必須範囲外 |
 | 対応 platform | Bluetooth host は Windows 11 と Android のみ確認。macOS、iOS、Linux、第3 host は未検証 |
@@ -142,6 +157,8 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   Windows 特殊キー、暗号化 BLE split。
 - **USB/Bluetooth HID:** 物理スイッチによる出力選択、BLE 自動再接続、CCCD
   状態保存、選択状態を保持する3つの pairing slot。
+- **Experimental Rust ドングル:** 配列別 USB 受信機、別暗号化 bond、順番付き
+  絶対 report、切断時の全キー release。
 - **NocFree Link:** 8×84 keymap、実行可能な16 hotkey、CRC 付き flash 保存、
   削除、既定値復元。
 - **復旧:** 左右独立 1200-baud CDC DFU、長押し Fn DFU、UF2 起動、
@@ -213,6 +230,14 @@ host と bond 済みの slot を選び、切替のたびに Windows device を�
 右 split は 1M BLE、暗号化、7.5 ms 接続間隔、latency 30、4秒 supervision
 timeout、ATT MTU 23、段階式 advertising、+8 dBm TX を使います。復帰は改善
 しましたが、距離・電力・長期動作は上記の未検証項目に残っています。
+
+### Experimental Rust ドングル
+
+2.4G 位置では純正 ESB の代わりに Rust ドングル service を advertising します。
+ドングルは 7.5 ms 間隔で暗号化接続し、順番付き絶対 HID report を購読し、切断時に
+全キーを release します。初回 pairing 中は他の Experimental 機を電源 OFF にして
+ください。2.4G モードで `Fn+1` を1秒押すとキーボード側 bond を消去します。
+ドングル CDC の 2400 baud は bond 消去と再起動、1200 baud は UF2 復旧です。
 
 ### 電源、診断、復旧
 

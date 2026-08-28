@@ -77,15 +77,18 @@ class RepositoryContractTests(unittest.TestCase):
         )
 
         hid = read("src/ble_hid.rs")
-        self.assertIn("Some(())", hid)
+        self.assertIn("BleHidServerEvent::DongleSubscribed", hid)
 
-    def test_only_left_exposes_host_hid(self) -> None:
+    def test_only_left_and_dongle_expose_host_hid(self) -> None:
         central = read("src/bin/central.rs")
         right = read("src/bin/right.rs")
+        dongle = read("src/bin/dongle.rs")
         self.assertIn("HidWriter", central)
         self.assertNotIn("HidWriter", right)
+        self.assertIn("HidWriter", dongle)
         self.assertIn("CdcAcmClass", central)
         self.assertIn("CdcAcmClass", right)
+        self.assertIn("CdcAcmClass", dongle)
 
     def test_left_exposes_nocfree_link_and_uses_its_persisted_keymap(self) -> None:
         central = read("src/bin/central.rs")

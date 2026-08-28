@@ -426,8 +426,9 @@ Set-StrictMode -Version Latest
 4. `src/scanner.rs`, `src/pca9555.rs`, `src/hardware_scanner.rs`
 5. `src/bin/central.rs`
 6. `src/bin/right.rs`, `src/split_protocol.rs`, `src/split_ble.rs`
-7. `src/platform.rs`, `src/bond_store.rs`, `src/bond_record.rs`
-8. `tools/build-release.ps1`, `tools/test_*.py`, `RECOVERY.md`
+7. `src/bin/dongle.rs`, `src/usb_descriptor.rs`
+8. `src/platform.rs`, `src/bond_store.rs`, `src/bond_record.rs`
+9. `tools/build_release.py`, `tools/test_*.py`, `RECOVERY.md`
 
 `vendor/nrf-softdevice`와 macro는 upstream
 `b0ac850c0a5a05b8a5aef4f752b48115755b8542`의 로컬 사본입니다.

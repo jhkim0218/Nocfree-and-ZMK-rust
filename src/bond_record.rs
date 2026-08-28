@@ -1,5 +1,6 @@
 pub const PROFILE_COUNT: usize = 3;
 pub const SPLIT_BOND_SLOT: u8 = PROFILE_COUNT as u8;
+pub const DONGLE_BOND_SLOT: u8 = SPLIT_BOND_SLOT + 1;
 pub const SYS_ATTR_CAPACITY: usize = 62;
 pub const RECORD_BYTES: usize = 128;
 pub const STORAGE_START: u32 = 0x65000;
@@ -7,6 +8,7 @@ pub const STORAGE_END: u32 = 0x6d000;
 pub const PAGE_SIZE: u32 = 0x1000;
 pub const SETTINGS_PAGE: u8 = 5;
 pub const SPLIT_PAGE: u8 = 6;
+pub const DONGLE_PAGE: u8 = 4;
 
 const BOND_MAGIC: [u8; 4] = *b"NFB1";
 const SETTINGS_MAGIC: [u8; 4] = *b"NFS1";
@@ -27,7 +29,7 @@ pub struct BondRecord {
 }
 
 pub fn encode_bond(profile: u8, record: &BondRecord) -> [u8; RECORD_BYTES] {
-    assert!(profile <= SPLIT_BOND_SLOT);
+    assert!(profile <= DONGLE_BOND_SLOT);
     assert!((record.sys_attr_len as usize) <= SYS_ATTR_CAPACITY);
     let mut bytes = [0xff; RECORD_BYTES];
     bytes[0..4].copy_from_slice(&BOND_MAGIC);
@@ -130,6 +132,10 @@ mod tests {
             decode_bond(SPLIT_BOND_SLOT, &encode_bond(SPLIT_BOND_SLOT, &record)),
             Some(record)
         );
+        assert_eq!(
+            decode_bond(DONGLE_BOND_SLOT, &encode_bond(DONGLE_BOND_SLOT, &record)),
+            Some(record)
+        );
     }
 
     #[test]
@@ -154,6 +160,7 @@ mod tests {
         assert_eq!(PROFILE_COUNT, 3);
         assert_eq!(STORAGE_START + SETTINGS_PAGE as u32 * PAGE_SIZE, 0x6a000);
         assert_eq!(STORAGE_START + SPLIT_PAGE as u32 * PAGE_SIZE, 0x6b000);
+        assert_eq!(STORAGE_START + DONGLE_PAGE as u32 * PAGE_SIZE, 0x69000);
         assert_eq!(STORAGE_START + (SPLIT_PAGE as u32 + 1) * PAGE_SIZE, 0x6c000);
         assert!(STORAGE_START + (SPLIT_PAGE as u32 + 1) * PAGE_SIZE < STORAGE_END);
     }

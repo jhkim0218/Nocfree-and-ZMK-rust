@@ -7,22 +7,19 @@ use embassy_sync::channel::{Channel, TrySendError};
 
 pub use crate::output_policy::OutputMode;
 use crate::output_policy::{releases, routes};
+pub use crate::report::ReportFrame;
 use crate::report::{KEY_BITMAP_BYTES, KeyboardReport};
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct ReportFrame {
-    pub keyboard: KeyboardReport,
-    pub consumer: u16,
-}
 
 pub struct OutputRouter {
     latest: Mutex<CriticalSectionRawMutex, Cell<ReportFrame>>,
     usb_queue: Channel<CriticalSectionRawMutex, ReportFrame, 16>,
     ble_queue: Channel<CriticalSectionRawMutex, ReportFrame, 16>,
+    dongle_queue: Channel<CriticalSectionRawMutex, ReportFrame, 16>,
     mode: AtomicU8,
     usb_connected: AtomicBool,
     release_usb: AtomicBool,
     release_ble: AtomicBool,
+    release_dongle: AtomicBool,
 }
 
 impl Default for OutputRouter {
@@ -44,10 +41,12 @@ impl OutputRouter {
             })),
             usb_queue: Channel::new(),
             ble_queue: Channel::new(),
+            dongle_queue: Channel::new(),
             mode: AtomicU8::new(OutputMode::Auto as u8),
             usb_connected: AtomicBool::new(false),
             release_usb: AtomicBool::new(false),
             release_ble: AtomicBool::new(false),
+            release_dongle: AtomicBool::new(false),
         }
     }
 
@@ -55,6 +54,7 @@ impl OutputRouter {
         self.latest.lock(|latest| latest.set(frame));
         Self::enqueue_latest(&self.usb_queue, frame);
         Self::enqueue_latest(&self.ble_queue, frame);
+        Self::enqueue_latest(&self.dongle_queue, frame);
     }
 
     pub fn republish(&self) {
@@ -64,6 +64,7 @@ impl OutputRouter {
     pub fn send_transient(&self, frame: ReportFrame) {
         Self::enqueue_latest(&self.usb_queue, frame);
         Self::enqueue_latest(&self.ble_queue, frame);
+        Self::enqueue_latest(&self.dongle_queue, frame);
     }
 
     pub fn set_mode(&self, mode: OutputMode) {
@@ -89,6 +90,10 @@ impl OutputRouter {
         self.routes().1
     }
 
+    pub fn should_send_dongle(&self) -> bool {
+        self.routes().2
+    }
+
     pub fn take_usb_release(&self) -> bool {
         self.release_usb.swap(false, Ordering::AcqRel)
     }
@@ -97,12 +102,20 @@ impl OutputRouter {
         self.release_ble.swap(false, Ordering::AcqRel)
     }
 
+    pub fn take_dongle_release(&self) -> bool {
+        self.release_dongle.swap(false, Ordering::AcqRel)
+    }
+
     pub async fn wait_usb(&self) -> ReportFrame {
         self.usb_queue.receive().await
     }
 
     pub async fn wait_ble(&self) -> ReportFrame {
         self.ble_queue.receive().await
+    }
+
+    pub async fn wait_dongle(&self) -> ReportFrame {
+        self.dongle_queue.receive().await
     }
 
     pub fn synchronize_usb(&self) {
@@ -115,29 +128,39 @@ impl OutputRouter {
         Self::enqueue_latest(&self.ble_queue, self.latest.lock(Cell::get));
     }
 
-    fn routes(&self) -> (bool, bool) {
+    pub fn synchronize_dongle(&self) {
+        self.dongle_queue.clear();
+        Self::enqueue_latest(&self.dongle_queue, self.latest.lock(Cell::get));
+    }
+
+    fn routes(&self) -> (bool, bool, bool) {
         let mode = match self.mode.load(Ordering::Acquire) {
             value if value == OutputMode::Usb as u8 => OutputMode::Usb,
             value if value == OutputMode::Ble as u8 => OutputMode::Ble,
             value if value == OutputMode::Disabled as u8 => OutputMode::Disabled,
+            value if value == OutputMode::Dongle as u8 => OutputMode::Dongle,
             _ => OutputMode::Auto,
         };
         routes(mode, self.usb_connected.load(Ordering::Acquire))
     }
 
-    fn mark_releases(&self, previous: (bool, bool), current: (bool, bool)) {
-        let (release_usb, release_ble) = releases(previous, current);
+    fn mark_releases(&self, previous: (bool, bool, bool), current: (bool, bool, bool)) {
+        let (release_usb, release_ble, release_dongle) = releases(previous, current);
         if release_usb {
             self.release_usb.store(true, Ordering::Release);
         }
         if release_ble {
             self.release_ble.store(true, Ordering::Release);
         }
+        if release_dongle {
+            self.release_dongle.store(true, Ordering::Release);
+        }
     }
 
     fn synchronize(&self) {
         self.usb_queue.clear();
         self.ble_queue.clear();
+        self.dongle_queue.clear();
         self.republish();
     }
 
