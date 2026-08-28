@@ -3,8 +3,8 @@
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> The `develop` branch contains work in progress. Its firmware artifacts pass automated checks;
-> only the ANSI 2.4G keyboard/dongle trio has physical verification; ISO/JIS/KR remain experimental.
+> The `main` branch includes the hardware-verified ANSI 2.4G trio; `develop` may
+> contain work in progress. ISO/JIS/KR artifacts pass automated checks only and remain experimental.
 
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
@@ -57,8 +57,8 @@ HID output, but it does not power the keyboard off.
 For first use:
 
 1. Read [RECOVERY.md](RECOVERY.md) and identify the left and right firmware.
-2. Build or download the matching UF2 pair.
-3. Flash one half at a time, then confirm both halves over Wired USB.
+2. Build or download matching-layout Left and Right UF2s, plus its Dongle UF2 for 2.4G.
+3. Flash one keyboard half at a time, confirm both halves over Wired USB, then pair the dongle.
 4. Test Bluetooth, the physical switches, DFU shortcuts, and rapid alternating
    left/right input before relying on the firmware.
 
@@ -107,7 +107,7 @@ creates BIN/UF2/serial-DFU artifacts, and verifies their address and contents.
 ANSI output is stored under `firmware`; experimental layouts are stored under
 `firmware/experimental`.
 
-Committed ANSI UF2 files:
+Committed ANSI keyboard and [dongle UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2):
 
 - [Left/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [Right/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
@@ -135,7 +135,7 @@ on the build computer and are not installed on the keyboard.
 
 | Area | Remaining work |
 |---|---|
-| Current ANSI regression | Repeat the complete USB/BLE, switch, sleep/wake, reconnect, and recovery matrix; wired input and both 1 kHz backlight curves have been checked |
+| Current ANSI regression | Repeat the complete USB/BLE, switch, sleep/wake, reconnect, and recovery matrix; wired input, both 1 kHz backlight curves, and the dongle path have been checked |
 | ISO/JIS/KR | Software builds pass, but every layout still needs a matching physical keyboard test |
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |

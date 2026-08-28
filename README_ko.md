@@ -3,9 +3,8 @@
 [English](README.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
-> 통과했고 ANSI 2.4G 키보드/동글 세트만 실기 검증을 통과했습니다. ISO/JIS/KR은
-> Experimental 상태입니다.
+> `main` 브랜치에는 실기 검증된 ANSI 2.4G 세트가 포함되며, `develop`에는 개발 중인
+> 작업이 있을 수 있습니다. ISO/JIS/KR 산출물은 자동 검사만 통과한 Experimental 상태입니다.
 
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
@@ -55,8 +54,8 @@ USB 전원은 스위치를 우회하므로 USB 연결 중에는 OFF여도 오른
 처음 사용할 때는 다음 순서를 권장합니다.
 
 1. [RECOVERY_ko.md](RECOVERY_ko.md)를 읽고 좌우 펌웨어를 구분합니다.
-2. 같은 빌드의 UF2 두 개를 빌드하거나 내려받습니다.
-3. 한쪽씩 플래시한 뒤 Wired USB에서 양쪽 입력을 먼저 확인합니다.
+2. 같은 배열 Left·Right UF2와 2.4G용 Dongle UF2를 함께 빌드하거나 내려받습니다.
+3. 키보드는 한쪽씩 플래시하고 Wired USB에서 양쪽 입력을 확인한 뒤 동글을 페어링합니다.
 4. Bluetooth, 물리 스위치, DFU 단축키와 빠른 좌우 교차 입력을 확인합니다.
 
 ## 빌드와 펌웨어
@@ -107,7 +106,7 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 검증을 수행합니다. ANSI 산출물은 `firmware`, Experimental 배열은
 `firmware/experimental`에 저장됩니다.
 
-저장소에 포함된 ANSI UF2:
+저장소에 포함된 ANSI 키보드와 [동글 UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2):
 
 - [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
@@ -135,7 +134,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 
 | 영역 | 남은 작업 |
 |---|---|
-| 현재 ANSI 회귀 | USB/BLE, 스위치, sleep/wake, 재연결, 복구 전체 회귀를 반복해야 함. 유선 입력과 1 kHz 백라이트 두 곡선은 확인함 |
+| 현재 ANSI 회귀 | USB/BLE, 스위치, sleep/wake, 재연결, 복구 전체 회귀를 반복해야 함. 유선 입력, 1 kHz 백라이트 두 곡선, 동글 경로는 확인함 |
 | ISO/JIS/KR | 소프트웨어 빌드는 통과하지만 각 배열의 실물 키보드 검증이 필요함 |
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |

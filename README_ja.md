@@ -3,9 +3,8 @@
 [English](README.md) · [한국어](README_ko.md)
 
 > [!CAUTION]
-> `develop` ブランチには開発中の作業が含まれます。ファームウェア成果物は
-> 自動検査に合格し、ANSI 2.4G キーボード/ドングル一式だけ実機検証済みです。
-> ISO/JIS/KR は Experimental 状態です。
+> `main` ブランチには実機検証済みの ANSI 2.4G 一式が含まれ、`develop` には開発中の
+> 作業が含まれる場合があります。ISO/JIS/KR 成果物は自動検査のみ合格の Experimental 状態です。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -57,8 +56,8 @@ USB 電源はスイッチを迂回するため、USB 接続中は OFF でも右�
 初回は次の順序を推奨します。
 
 1. [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右のファームウェアを確認します。
-2. 同じビルドの UF2 ペアをビルドまたはダウンロードします。
-3. 片側ずつフラッシュし、まず Wired USB で左右入力を確認します。
+2. 同じ配列の Left・Right UF2 と 2.4G 用 Dongle UF2 をまとめてビルドまたはダウンロードします。
+3. キーボードは片側ずつフラッシュし、Wired USB で左右入力を確認してから dongle を pairing します。
 4. Bluetooth、物理スイッチ、DFU ショートカット、高速な左右交互入力を
    確認します。
 
@@ -109,7 +108,7 @@ Windows PowerShell ラッパーも利用できます。
 内容の検証を行います。ANSI は `firmware`、Experimental 配列は
 `firmware/experimental` に出力されます。
 
-リポジトリ収録の ANSI UF2:
+リポジトリ収録の ANSI キーボードと [dongle UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2):
 
 - [左/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [右/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
@@ -137,7 +136,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 
 | 分野 | 残作業 |
 |---|---|
-| 現在の ANSI 回帰 | USB/BLE、switch、sleep/wake、再接続、復旧の全回帰が必要。有線入力と 1 kHz の両曲線は確認済み |
+| 現在の ANSI 回帰 | USB/BLE、switch、sleep/wake、再接続、復旧の全回帰が必要。有線入力、1 kHz の両曲線、dongle 経路は確認済み |
 | ISO/JIS/KR | ソフトウェアビルドは合格。各配列の実機確認が必要 |
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
