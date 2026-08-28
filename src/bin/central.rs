@@ -335,6 +335,7 @@ async fn run_deep_sleep() -> ! {
                 BONDS.is_pairing(),
                 key_wake_ready(31),
                 OUTPUT.should_send_ble(),
+                OUTPUT.should_send_dongle(),
                 cfg!(feature = "ble-host-wake-diagnostic"),
             ) {
                 set_backlight(BacklightCommand::Idle);
@@ -347,6 +348,7 @@ async fn run_deep_sleep() -> ! {
                     BONDS.is_pairing(),
                     key_wake_ready(31),
                     OUTPUT.should_send_ble(),
+                    OUTPUT.should_send_dongle(),
                     cfg!(feature = "ble-host-wake-diagnostic"),
                 ) {
                     try_system_off(31);
