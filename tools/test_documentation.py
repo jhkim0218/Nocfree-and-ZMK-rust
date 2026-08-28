@@ -169,9 +169,9 @@ class DocumentationTests(unittest.TestCase):
 
     def test_hardware_validation_disclosure(self) -> None:
         required = {
-            "README.md": ("current 5 ms build passed wired input", "upper brightness steps remain visually close"),
-            "README_ko.md": ("현재 5 ms 빌드는 유선 입력", "상위 밝기 단계의 체감 차이는 여전히 작음"),
-            "README_ja.md": ("現在の 5 ms ビルドは有線入力", "上位の明るさ段階は見た目の差が小さい"),
+            "README.md": ("ANSI trio has passed", "upper brightness steps remain visually close"),
+            "README_ko.md": ("ANSI 세트는 페어링", "상위 밝기 단계의 체감 차이는 여전히 작음"),
+            "README_ja.md": ("ANSI 一式は pairing", "上位の明るさ段階は見た目の差が小さい"),
         }
         for path, phrases in required.items():
             document = read(path)

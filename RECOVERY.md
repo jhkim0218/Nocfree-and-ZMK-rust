@@ -79,10 +79,11 @@ file:
 
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`
-- `firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Dongle.uf2`
+- `firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2`
 
-The dongle bootloader and application recovery path are software-built but not
-yet physically verified. Never copy a mismatched layout or role. A current serial DFU package can be sent
+The ANSI dongle bootloader and application recovery path passed physical
+verification. ISO, JIS, and KR require their matching layout-named Dongle UF2
+and matching-keyboard verification. Never copy a mismatched layout or role. A current serial DFU package can be sent
 only to a verified `PID_002A` bootloader port:
 
 ```text

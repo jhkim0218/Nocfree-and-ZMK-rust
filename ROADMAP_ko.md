@@ -40,7 +40,7 @@ firmware를 비교합니다. 바이너리 크기 차이만으로 기능 존재�
 | P1 | 배터리 표시 경로 | `Fn+I`와 NocFree Link에서 유효한 정보 표시 | `Fn+I` 동작, Link는 `0xff`, BLE Battery Service 없음 | `Fn+I`/Link/BLE 값 일치, 오른쪽 단절을 0%로 오표시하지 않음 |
 | P1 | 충전 상태 인식 | 방전 잔량과 충전/완충 상태 구분 | VBUS/charger 상태를 잔량 계산에 반영하지 않음 | 충전/완충 표시가 맞고 충전 전압을 100%로 오판하지 않음 |
 | P1 | 백라이트 효과/설정 | 정적 제어, 자동 동작, 공식 문서의 breathing 지원 | toggle과 20% 정적 단계만 지원 | 선택 효과가 양쪽에서 동작하고 Link 제공 시 재부팅 후 보존 |
-| Experimental | Rust USB 동글 | 왼쪽의 병합 report를 배열별 USB receiver로 전달 | 암호화 BLE service, 전용 bond, 순번이 있는 절대 report, disconnect release, USB HID, KR 동글 UF2가 소프트웨어 검사 통과. 순정 ESB/nRF24/numpad는 범위 밖 | KR 세 파일로 pairing/reconnect/입력 순서/latency/recovery/coexistence 실기 통과 |
+| Experimental | Rust USB 동글 | 왼쪽의 병합 report를 배열별 USB receiver로 전달 | 암호화 BLE service, 전용 bond, 순번이 있는 절대 report, disconnect release, USB HID와 모든 배열별 동글 UF2가 소프트웨어 검사를 통과했고 ANSI 세트는 실기까지 통과. 순정 ESB/nRF24/numpad는 범위 밖 | ISO/JIS/KR 세 파일로 pairing/reconnect/입력 순서/latency/recovery/coexistence 실기 통과 |
 | P2 | NocFree Link 완성도 | 배터리, 조명, 전원 설정, macro/Quick Text, updater 관련 경로 | keymap/hotkey 외에는 부분 또는 미구현 | 노출된 각 Link 화면이 timeout 없이 동작하고 재부팅 후 보존 |
 | ANSI 범위 밖 | Numpad | 순정의 별도 지원 장치 | 이 84키 ANSI 프로젝트에서는 미지원 | 범위를 넓힐 때 별도 추적 |
 

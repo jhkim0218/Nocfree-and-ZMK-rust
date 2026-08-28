@@ -17,7 +17,7 @@ GPIO、実機で観測した動作だけを根拠にします。工場 UF2 か�
 | P3 | Split reconnect | ATT MTU 23、段階 advertising、+8 dBm、暗号化 | 距離/RSSI/時間/電流を統制して安定確認 |
 | P4 | 左右入力順序 | timestamp、sequence、clock sync、5 ms queue | 長時間 loss/duplicate/reorder/stuck=0 |
 | P5 | Layout | ANSI stable、ISO/JIS/KR Experimental | 各 matching hardware で全キーと復旧を確認 |
-| Experimental | Rust USB dongle / 2.4G | 暗号化 BLE、専用 bond、絶対 report、切断 release、USB HID、KR dongle UF2 は software 検査合格。純正 ESB/nRF24/numpad は対象外 | KR 3ファイルで pairing・再接続・順序・latency・復旧・共存を実機確認 |
+| Experimental | Rust USB dongle / 2.4G | 暗号化 BLE、専用 bond、絶対 report、切断 release、USB HID、全配列別 dongle UF2 は software 検査合格。ANSI 一式は実機確認済み。純正 ESB/nRF24/numpad は対象外 | ISO/JIS/KR の3ファイルで pairing・再接続・順序・latency・復旧・共存を実機確認 |
 
 ## Battery
 

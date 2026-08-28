@@ -43,9 +43,10 @@ Windows の COM 番号は固定ではありません。parent instance ID の
 左右の volume 名は同じなので、消えた CDC と反対側 application の存在も確認します。
 左は `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`、右は
 `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` のみをコピーします。
-Experimental KR ドングルは
-`firmware/experimental/NocFree_And_Rust_ZMK_Based_KR_Experimental_Dongle.uf2` を使います。
-ドングル bootloader と app 復旧は実機未検証です。
+Experimental ANSI ドングルは
+`firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2` を使います。
+ANSI ドングルの bootloader と app 復旧は実機確認済みです。ISO/JIS/KR は同一配列名の
+Dongle UF2 と対応キーボードで検証してください。
 
 serial DFU は確認済み `PID_002A` port だけで実行します。`adafruit-nrfutil` は
 過去に `No data received on serial port` と表示しながら exit 0 を返したため、
