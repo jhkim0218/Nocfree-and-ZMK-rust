@@ -19,7 +19,6 @@ All images use nRF52833 family ID `0x621E937A` and start at application address
 | Stock 2.4 GHz dongle | 143,872 | `0x27000..0x388FF` |
 | Rust left ANSI | 162,304 | `0x27000..0x3ACFF` |
 | Rust right ANSI | 95,232 | `0x27000..0x329FF` |
-| Rust dongle D1 | 28,672 | `0x27000..0x2A7FF` |
 
 The separate stock dongle image confirms that factory 2.4 GHz support is a
 three-firmware system. It cannot be restored by changing only the left and
@@ -43,22 +42,25 @@ right Rust images.
 | P1 | Battery output paths | `Fn+I` and NocFree Link expose useful battery information | `Fn+I` works; Link returns `0xff`; no standard BLE Battery Service | `Fn+I`, Link, and BLE report consistent values; a missing right half is not shown as 0% |
 | P1 | Charging awareness | Charging and fully charged are distinct from discharge percentage | VBUS/charger state is not incorporated | Charging/full states are correct and voltage under charge does not falsely imply 100% |
 | P1 | Backlight effects/settings | Static control, automatic behavior, and documented breathing support | Toggle and 20% static steps only | Selected effects work on both halves and persist if exposed in Link |
-| P2 | USB dongle / 2.4 GHz | `RIGHT -> LEFT -> dongle -> PC`, with left authoritative | D1 radio-free USB keyboard/consumer/CDC and recovery are complete; 2.4G switch still disables output | Dedicated link, pairing, real HID input, reconnect, input ordering, latency, and coexistence pass |
+| Experimental | Rust USB dongle | Left sends merged reports to a layout-matched USB receiver | Encrypted BLE service, dedicated bonds, absolute sequenced reports, disconnect release, USB HID, and all layout-matched dongle UF2s pass software checks; the ANSI trio also passed hardware tests. Factory ESB/nRF24/numpad are out of scope | ISO/JIS/KR matching trios pass pairing, reconnect, input ordering, latency, recovery, and coexistence on hardware |
 | P2 | NocFree Link completeness | Battery, lighting, power settings, macros/Quick Text, and updater-related paths | Keymap and hotkeys work; other paths are partial or absent | Each advertised Link screen completes without timeout and survives reboot |
 | Out of ANSI scope | Numpad | Separate stock-supported component | Not supported by this 84-key ANSI project | Track separately if project scope expands |
 
 ## Next execution order
 
-1. **D1 complete:** radio-free dongle USB keyboard/consumer/CDC enumeration and
-   factory UF2/CDC recovery round trip pass on Windows 11.
-2. **D2 next:** prototype a dedicated LEFT-to-dongle BLE link with synthetic absolute
-   keyboard reports; keep the three host profiles separate.
-3. **D3:** route real left-owned keyboard and consumer reports through the
-   physical 2.4G switch position and release every old output on transitions.
-4. **D4:** test reconnect, sleep/wake, dongle unplug, mode switching, stuck-key
-   prevention, latency, and another stock/Rust recovery round trip.
-5. **D5 only if measured need exists:** investigate S140 Radio Timeslot and ESB
-   for lower latency or factory-protocol compatibility.
+1. P4.1 expose and measure sequence gaps, queue overflow, clock drift, and real
+   source-to-arrival BLE jitter.
+2. P4.2 run 10,000+ end-to-end transitions through scanner, split, ordering,
+   report, and USB/BLE queues; eliminate silent loss or prove reconciliation.
+3. P4.3 repeat Wired, Windows 11 Bluetooth, Android, reconnect-edge, and both
+   1200-baud recovery checks. Retain 5 ms only if measurements support it.
+4. Compare right 0/+4/+8 dBm range, security, reconnect time, and current under
+   the same conditions; choose the lowest reliable value.
+5. Continue P5 long-running sleep/wake, reconnect, convergence, and per-half
+   power measurement before dongle work.
+
+Keep snapshot transport for now. Add per-key events only if measured same-scan
+ordering proves snapshots insufficient.
 
 ## LED work
 

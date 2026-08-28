@@ -168,10 +168,7 @@ pub fn advertisement_has_split_service(mut data: &[u8]) -> bool {
         }
         let data_type = rest[0];
         let value = &rest[1..length];
-        if matches!(data_type, 0x06 | 0x07)
-            && value
-                .chunks_exact(SERVICE_UUID_LE.len())
-                .any(|uuid| uuid == SERVICE_UUID_LE)
+        if matches!(data_type, 0x06 | 0x07) && value.as_chunks::<16>().0.contains(&SERVICE_UUID_LE)
         {
             return true;
         }

@@ -1,5 +1,6 @@
 use core::fmt::{self, Write};
 use core::mem;
+use core::panic::PanicInfo;
 
 use embassy_futures::join::join;
 use embassy_nrf::pac;
@@ -14,7 +15,8 @@ use nrf_softdevice::{SocEvent, raw};
 
 use crate::split_diagnostics::{SplitDiagnosticLog, SplitDiagnosticRole, SplitDiagnostics};
 
-pub fn panic_reboot_to_bootloader() -> ! {
+#[panic_handler]
+fn panic_to_bootloader(_info: &PanicInfo) -> ! {
     unsafe {
         let _ = raw::sd_power_gpregret_clr(0, 0xff);
         let _ = raw::sd_power_gpregret_set(0, 0x57);

@@ -5,7 +5,7 @@
 NocFree & has no external reset button. Do not short undocumented PCB pads or
 assume that reconnecting power is equivalent to a reset-pin double tap. The
 Rust firmware deliberately keeps an independent 1200-baud recovery path on
-each half, in addition to role-specific Fn shortcuts.
+each half and the experimental dongle, in addition to role-specific Fn shortcuts.
 
 ## Protected flash ranges
 
@@ -13,7 +13,9 @@ each half, in addition to role-specific Fn shortcuts.
 |---|---|---|
 | `0x00000..0x26fff` | MBR + S140 7.3.0 | Preserve |
 | `0x27000..0x64fff` | Rust application | Writable |
-| `0x65000..0x69fff` | BLE host profiles | Persisted data |
+| `0x65000..0x67fff` | BLE host profiles | Persisted data |
+| `0x68000..0x68fff` | reserved | Preserve |
+| `0x69000..0x69fff` | dedicated dongle bond | Persisted data |
 | `0x6a000..0x6afff` | selected profile/settings | Persisted data |
 | `0x6b000..0x6bfff` | split bond | Persisted data |
 | `0x6c000..0x6cfff` | Link keymap/hotkeys | Persisted data |
@@ -21,12 +23,14 @@ each half, in addition to role-specific Fn shortcuts.
 | `0x74000..0x7ffff` | Adafruit UF2 bootloader/metadata | Preserve |
 
 The build and UF2 round-trip tests reject applications crossing `0x65000`.
-Always use a Left artifact on the left and a Right artifact on the right.
+Always match Left, Right, and Dongle artifacts to their exact roles and layout.
 
 ## Recovery entry points
 
 - Left Rust CDC opened/touched at 1200 baud: independent left UF2 entry.
 - Right Rust CDC opened/touched at 1200 baud: independent right UF2 entry.
+- Dongle Rust CDC opened/touched at 1200 baud: independent dongle UF2 entry.
+- Dongle Rust CDC opened/touched at 2400 baud: clear its dongle bond and restart.
 - Hold `Fn+5` for three seconds: left UF2 entry.
 - Hold `Fn+0` for three seconds: right UF2 entry, only while split works.
 - `Fn+Esc`: restarts the left application; it is not DFU.
@@ -45,6 +49,7 @@ COM numbers are not stable. Match the port's `DEVPKEY_Device_Parent` instead.
 |---|---|
 | Rust left | `USB\VID_2886&PID_8029\RUST-LEFT` |
 | Rust right | `USB\VID_1D50&PID_615E\RUST-RIGHT` |
+| Experimental Rust dongle | `USB\VID_239A&PID_80D8\RUST-DONGLE` |
 | stock left | `USB\VID_2886&PID_8029\52CF50988BD1E6EE` |
 | stock right | `USB\VID_239A&PID_80D8\D82A03513BB02626` |
 | UF2 CDC left | `USB\VID_239A&PID_0029\52CF50988BD1E6EE` |
@@ -74,8 +79,11 @@ file:
 
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`
 - `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`
+- `firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2`
 
-Never copy a mismatched layout or half. A current serial DFU package can be sent
+The ANSI dongle bootloader and application recovery path passed physical
+verification. ISO, JIS, and KR require their matching layout-named Dongle UF2
+and matching-keyboard verification. Never copy a mismatched layout or role. A current serial DFU package can be sent
 only to a verified `PID_002A` bootloader port:
 
 ```text
@@ -139,35 +147,6 @@ The original product, VID/PID, serial, CDC, and HID interfaces all returned.
 Factory ESB key input was not tested because both keyboard halves run Rust
 firmware; this proves dongle recovery and USB identity, not factory-radio
 compatibility.
-
-## Verified Rust D1 dongle recovery
-
-The radio-free D1 application completed a separate recovery round trip on
-2026-08-27. Its Windows 11 identity is `NocFree Rust Dongle`,
-`USB\VID_2886&PID_8029\RUST-DONGLE`, with keyboard, consumer-control, and CDC
-COM5 interfaces. It intentionally sends no HID reports.
-
-Opening COM5 at 1200 baud writes the D1 `0x57` recovery marker. This enters the
-preserved factory UF2/CDC bootloader, not the stock application's serial-only
-path: `USB\VID_239A&PID_0029\E19D2CEA0B437049`, CDC COM11, plus UF2 mass
-storage. COM values are observations, not stable identifiers.
-
-With explicit user approval, the following application-only package was sent
-through COM11 and `adafruit-nrfutil` reported `Device programmed.`:
-
-| Item | SHA-256 |
-|---|---|
-| Hardware-tested D1 ZIP | `2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362` |
-| Tested and committed application BIN | `B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648` |
-| Current regenerated repository ZIP | `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223` |
-
-`adafruit-nrfutil` changes ZIP timestamps when regenerating the package. The
-repository tests verify that the current ZIP contains the same tested BIN and
-the same application-only manifest.
-
-The same D1 product, keyboard, consumer control, and COM5 returned, and no
-bootloader node remained. This proves D1 application recovery; it does not
-prove any left-to-dongle radio link or 2.4 GHz key input.
 
 ## Stop immediately if
 

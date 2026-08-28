@@ -40,19 +40,12 @@ profile을 선택하면 꺼졌습니다. 빨간 10% 이하 점멸은 배터리�
 복구됐습니다. Rust 동글 기능 firmware는 아직 올리지 않았습니다. 양쪽이 Rust라
 순정 ESB 입력은 이번 D0 범위에서 확인하지 못했습니다.
 
-## 동글 D1 USB·복구 기반
+## ANSI Rust 2.4G 동글 — 실기 검증 완료
 
-무선 코드를 제외한 Rust D1이 Windows 11에서 `NocFree Rust Dongle`,
-`VID_2886&PID_8029`, serial `RUST-DONGLE`로 열거됐습니다. keyboard와
-consumer-control HID, CDC COM5가 모두 정상입니다. D1은 HID writer를 보관만 하고
-report를 보내지 않으므로 아직 무선 수신기로 동작하지 않습니다.
-
-COM5 1200-baud touch는 같은 하드웨어 serial `E19D2CEA0B437049`의 공장 UF2/CDC
-bootloader `VID_239A&PID_0029`, COM11, UF2 저장장치로 진입했습니다. 순정 앱의
-serial-only `PID_002A`와 다른 것은 D1의 `0x57` 복구 marker에 따른 정상 동작입니다.
-SHA-256 `2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362`인
-동일 application-only D1 DFU를 재전송했고, keyboard·consumer·COM5와 부트로더
-종료를 확인했습니다.
+ANSI 왼쪽/오른쪽과 동글은 custom BLE 링크로 연결되어 keyboard와 consumer HID report를
+전송합니다. 동글 재연결, 빠른 양쪽 입력과 modifier, BLE→2.4G 복귀, 각 장치의
+1200-baud 복구 왕복까지 통과했습니다. ISO/JIS/KR 동글 이미지는 빌드되지만 해당 배열
+실기 검증은 남아 있습니다.
 
 ## Split P3
 
@@ -103,5 +96,4 @@ P3.3은 nRF52833의 허용 최대인 +8 dBm을 양쪽 split 연결에 적용했�
 7. 그 뒤에만 문서·산출물 해시를 확정하고 commit/push.
 
 Quick Text, 추가 조명 효과, 전원 설정 UI, firmware updater, ZMK Studio는 현재
-필수 범위가 아닙니다. USB dongle은 D1 USB·복구 기반까지 완료됐지만 실제 Rust 무선
-입력 경로는 아직 별도의 큰 미구현 항목입니다.
+필수 범위가 아닙니다. ANSI USB dongle 2.4G 입력 경로는 실기 검증까지 완료됐습니다.

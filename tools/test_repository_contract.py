@@ -20,18 +20,9 @@ class RepositoryContractTests(unittest.TestCase):
     def test_dfu_uses_softdevice_system_calls(self) -> None:
         platform = read("src/platform.rs")
         cargo = read("Cargo.toml")
-        central = read("src/bin/central.rs")
-        right = read("src/bin/right.rs")
-        dongle = read("src/bin/dongle.rs")
         self.assertIn("sd_power_gpregret_clr(0, 0xff)", platform)
         self.assertIn("sd_power_gpregret_set(0, 0x57)", platform)
-        self.assertNotIn("#[panic_handler]", platform)
-        self.assertIn("panic_reboot_to_bootloader()", central)
-        self.assertIn("panic_reboot_to_bootloader()", right)
-        self.assertIn("pac::POWER", dongle)
-        self.assertIn("Gpregret(0x57)", dongle)
-        for binary in (central, right, dongle):
-            self.assertIn("#[panic_handler]", binary)
+        self.assertIn("#[panic_handler]", platform)
         self.assertNotIn("panic-halt", cargo)
         self.assertNotIn("pac::POWER", platform)
 
@@ -86,7 +77,7 @@ class RepositoryContractTests(unittest.TestCase):
         )
 
         hid = read("src/ble_hid.rs")
-        self.assertIn("Some(())", hid)
+        self.assertIn("BleHidServerEvent::DongleSubscribed", hid)
 
     def test_only_left_and_dongle_expose_host_hid(self) -> None:
         central = read("src/bin/central.rs")
@@ -98,31 +89,6 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("CdcAcmClass", central)
         self.assertIn("CdcAcmClass", right)
         self.assertIn("CdcAcmClass", dongle)
-
-    def test_d1_dongle_is_radio_free_and_keeps_serial_recovery(self) -> None:
-        cargo = read("Cargo.toml")
-        dongle = read("src/bin/dongle.rs")
-        builder = read("tools/build_release.py")
-        self.assertIn('usb_config.product = Some("NocFree Rust Dongle")', dongle)
-        self.assertIn('usb_config.serial_number = Some("RUST-DONGLE")', dongle)
-        self.assertIn("HardwareVbusDetect::new(Irqs)", dongle)
-        self.assertIn("Gpregret(0x57)", dongle)
-        self.assertNotIn("nrf_softdevice", dongle)
-        self.assertNotIn("RADIO", dongle)
-        self.assertIn("let _writers = (keyboard, consumer);", dongle)
-        self.assertNotIn(".write(", dongle)
-        self.assertIn('split-softdevice = ["dep:nrf-softdevice"]', cargo)
-        self.assertIn(
-            'standalone-critical-section = ["cortex-m/critical-section-single-core"]',
-            cargo,
-        )
-        self.assertIn('optional = true', cargo)
-        self.assertIn("standalone-critical-section", builder)
-        self.assertIn('("nrf_softdevice", "sd_ble", "sd_radio")', builder)
-        self.assertIn('symbol_addresses.get("RADIO")', builder)
-        self.assertIn('symbol_addresses.get("DefaultHandler")', builder)
-        self.assertIn('parser.add_argument("--dongle", action="store_true")', builder)
-        self.assertIn('"0x0123"', builder)
 
     def test_left_exposes_nocfree_link_and_uses_its_persisted_keymap(self) -> None:
         central = read("src/bin/central.rs")
@@ -147,10 +113,7 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn(f"layout-{layout} = []", cargo)
             self.assertTrue((ROOT / "src" / "keymap" / f"{layout}.rs").is_file())
             self.assertIn(f'mod {layout};', selector)
-        self.assertIn(
-            'default = ["layout-ansi", "backlight-perceptual", "split-softdevice"]',
-            cargo,
-        )
+        self.assertIn('default = ["layout-ansi", "backlight-perceptual"]', cargo)
         self.assertIn('(\"ANSI\", \"ISO\", \"JIS\", \"KR\")', build)
         self.assertIn('directory /= "experimental"', build)
         self.assertIn("LAYOUT_ID", read("src/link_keymap.rs"))

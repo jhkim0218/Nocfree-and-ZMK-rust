@@ -27,6 +27,12 @@ impl KeyboardReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ReportFrame {
+    pub keyboard: KeyboardReport,
+    pub consumer: u16,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Command {
     #[default]
     None,

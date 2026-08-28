@@ -2,7 +2,6 @@
 #![no_std]
 
 use core::cell::RefCell;
-use core::panic::PanicInfo;
 use core::slice;
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
@@ -30,8 +29,9 @@ use nocfree_and_rust::backlight::{
 };
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
-use nocfree_and_rust::ble_hid::BleHidServer;
-use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
+use nocfree_and_rust::ble_hid::{BleHidServer, BleHidServerEvent};
+use nocfree_and_rust::bond_store::{BondStore, DongleSecurity, SplitSecurity, run_storage};
+use nocfree_and_rust::dongle_protocol::{DongleReport, SERVICE_UUID_LE as DONGLE_UUID_LE};
 use nocfree_and_rust::hardware_scanner::{self, KeyState, KeyUpdate};
 use nocfree_and_rust::keymap::PRODUCT_NAME;
 use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
@@ -39,9 +39,8 @@ use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
 use nocfree_and_rust::pca9555::Pca9555Bus;
 use nocfree_and_rust::platform::{
-    cdc_recovery, enable_usb_power_events, key_wake_ready, panic_reboot_to_bootloader,
-    reboot_application, reboot_to_bootloader, softdevice_config, try_system_off, update_usb_power,
-    usb_power_detected,
+    cdc_recovery, enable_usb_power_events, key_wake_ready, reboot_application,
+    reboot_to_bootloader, softdevice_config, try_system_off, update_usb_power, usb_power_detected,
 };
 use nocfree_and_rust::power_policy::{DEEP_SLEEP_PREP_MS, DEEP_SLEEP_SECS, should_system_off};
 use nocfree_and_rust::report::{Command, ReportEngine};
@@ -86,16 +85,12 @@ bind_interrupts!(struct Irqs {
     SAADC => saadc::InterruptHandler;
 });
 
-#[panic_handler]
-fn panic_to_bootloader(_info: &PanicInfo) -> ! {
-    panic_reboot_to_bootloader()
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BleControl {
     Select(u8),
     Pair(u8),
     Clear,
+    ClearDongle,
     OutputChanged,
 }
 
@@ -117,6 +112,7 @@ static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
 static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
+static DONGLE_SECURITY: DongleSecurity = DongleSecurity::new(&BONDS);
 static SPLIT_DIAGNOSTICS: SplitDiagnostics<DIAGNOSTIC_CAPACITY> = SplitDiagnostics::new();
 static RIGHT_CLOCK: Mutex<CriticalSectionRawMutex, RefCell<Option<ClockSample>>> =
     Mutex::new(RefCell::new(None));
@@ -164,17 +160,17 @@ impl Handler for UsbStatus {
 }
 
 fn set_usb_connected(connected: bool) {
-    let was_enabled = OUTPUT.should_send_ble();
+    let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_usb_connected(connected);
-    if was_enabled != OUTPUT.should_send_ble() {
+    if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
         BLE_CONTROL.signal(BleControl::OutputChanged);
     }
 }
 
 fn set_output_mode(mode: OutputMode) {
-    let was_enabled = OUTPUT.should_send_ble();
+    let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_mode(mode);
-    if was_enabled != OUTPUT.should_send_ble() {
+    if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
         BLE_CONTROL.signal(BleControl::OutputChanged);
     }
 }
@@ -204,8 +200,16 @@ fn apply_key_snapshot(engine: &mut ReportEngine, snapshot: u128) {
             Command::ResetLeft => reboot_application(),
             Command::BootLeft => reboot_to_bootloader(),
             Command::BootRight => SPLIT_COMMAND.signal(COMMAND_BOOTLOADER),
-            Command::ProfileSelect(profile) => BLE_CONTROL.signal(BleControl::Select(profile)),
+            Command::ProfileSelect(profile) if !OUTPUT.should_send_dongle() => {
+                BLE_CONTROL.signal(BleControl::Select(profile))
+            }
+            Command::ProfilePair(_) if OUTPUT.should_send_dongle() => {
+                BLE_CONTROL.signal(BleControl::ClearDongle)
+            }
             Command::ProfilePair(profile) => BLE_CONTROL.signal(BleControl::Pair(profile)),
+            Command::ProfileClear if OUTPUT.should_send_dongle() => {
+                BLE_CONTROL.signal(BleControl::ClearDongle)
+            }
             Command::ProfileClear => BLE_CONTROL.signal(BleControl::Clear),
             Command::OutputUsb => set_output_mode(OutputMode::Usb),
             Command::OutputBle => set_output_mode(OutputMode::Ble),
@@ -215,7 +219,7 @@ fn apply_key_snapshot(engine: &mut ReportEngine, snapshot: u128) {
             Command::BatteryStatus => BATTERY_REQUEST.signal(()),
             Command::SystemSelect(system) => BONDS.set_system(system),
             Command::KeyTap(key) => KEY_TAP.signal(key),
-            Command::None => {}
+            Command::ProfileSelect(_) | Command::None => {}
         }
     }
     if effects.keyboard_changed || effects.consumer_changed {
@@ -530,6 +534,27 @@ async fn notify_ble_reports(connection: &nrf_softdevice::ble::Connection, server
     }
 }
 
+async fn notify_dongle_reports(
+    connection: &nrf_softdevice::ble::Connection,
+    server: &BleHidServer,
+) {
+    let mut sequence = 0_u16;
+    OUTPUT.synchronize_dongle();
+    loop {
+        let mut frame = OUTPUT.wait_dongle().await;
+        if OUTPUT.take_dongle_release() {
+            frame = ReportFrame::default();
+        } else if !OUTPUT.should_send_dongle() {
+            continue;
+        }
+        let report = DongleReport { sequence, frame }.encode();
+        sequence = sequence.wrapping_add(1);
+        if !send_ble_notification(|| server.dongle.notify_report(connection, &report)).await {
+            return;
+        }
+    }
+}
+
 async fn send_ble_notification(mut send: impl FnMut() -> Result<(), NotifyValueError>) -> bool {
     loop {
         match send() {
@@ -548,6 +573,7 @@ fn apply_ble_control(control: BleControl) {
         BleControl::Select(profile) => BONDS.select(profile),
         BleControl::Pair(profile) => BONDS.pair(profile),
         BleControl::Clear => BONDS.clear_selected(),
+        BleControl::ClearDongle => BONDS.clear_dongle_peer(),
         BleControl::OutputChanged => {}
     }
 }
@@ -626,7 +652,64 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
         .full_name("NocFree 3")
         .build();
     static SCAN_RESPONSE: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new().build();
+    static DONGLE_ADVERTISEMENT: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
+        .services_128(ServiceList::Complete, &[DONGLE_UUID_LE])
+        .build();
+    static DONGLE_SCAN_RESPONSE: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
+        .full_name("NocFree Rust Keyboard")
+        .build();
     loop {
+        if OUTPUT.should_send_dongle() {
+            let advertising_config = peripheral::Config {
+                interval: 32, // 20 ms
+                ..Default::default()
+            };
+            let advertising = peripheral::advertise_pairable(
+                softdevice,
+                peripheral::ConnectableAdvertisement::ScannableUndirected {
+                    adv_data: &DONGLE_ADVERTISEMENT,
+                    scan_data: &DONGLE_SCAN_RESPONSE,
+                },
+                &advertising_config,
+                &DONGLE_SECURITY,
+            );
+            let connection = match select(advertising, BLE_CONTROL.wait()).await {
+                Either::First(Ok(connection)) => connection,
+                Either::First(Err(_)) => continue,
+                Either::Second(control) => {
+                    apply_ble_control(control);
+                    continue;
+                }
+            };
+            if !BONDS.accepts_dongle_connection(&connection)
+                || connection.request_security().is_err()
+                || !wait_for_security(&connection).await
+            {
+                disconnect_ble(&connection).await;
+                continue;
+            }
+            let control = match select3(
+                gatt_server::run(&connection, server, |event| {
+                    if event == BleHidServerEvent::DongleSubscribed {
+                        OUTPUT.synchronize_dongle();
+                    }
+                }),
+                notify_dongle_reports(&connection, server),
+                BLE_CONTROL.wait(),
+            )
+            .await
+            {
+                Either3::First(_) | Either3::Second(()) => None,
+                Either3::Third(control) => Some(control),
+            };
+            if let Some(control) = control {
+                disconnect_ble(&connection).await;
+                apply_ble_control(control);
+            }
+            drop(connection);
+            continue;
+        }
         if !OUTPUT.should_send_ble() || !BONDS.selected_connectable() {
             apply_ble_control(BLE_CONTROL.wait().await);
             continue;

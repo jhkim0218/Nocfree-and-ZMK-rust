@@ -38,20 +38,12 @@ serial DFU に入り、official V2.3.1 application-only package 転送後に元�
 identity と interface が戻りました。Rust dongle feature firmware は未導入です。
 左右が Rust のため factory ESB input はこの D0 では未確認です。
 
-## Dongle D1 USB・recovery shell
+## ANSI Rust 2.4G dongle — 実機検証済み
 
-radio code を除いた Rust D1 は Windows 11 で `NocFree Rust Dongle`、
-`VID_2886&PID_8029`、serial `RUST-DONGLE`、keyboard/consumer HID、CDC COM5
-として正常に列挙されました。D1 は HID writer を保持するだけで report を送らず、
-まだ wireless receiver ではありません。
-
-COM5 の1200-baud touch は同じ hardware serial `E19D2CEA0B437049` の factory
-UF2/CDC bootloader `VID_239A&PID_0029`、COM11、UF2 storage に入りました。
-factory app の serial-only `PID_002A` と異なるのは D1 の `0x57` recovery marker
-による正常動作です。SHA-256
-`2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362` の同じ
-application-only D1 を再送し、keyboard、consumer、COM5 の復帰と bootloader
-終了を確認しました。
+ANSI の左右と dongle は custom BLE link で接続し、keyboard/consumer HID report を
+送信します。dongle 再接続、高速な左右入力と modifier、BLE→2.4G 復帰、各 device の
+1200-baud recovery round trip を確認しました。ISO/JIS/KR dongle image は build 済み
+ですが、対応 layout の実機検証は未完了です。
 
 ## Split P3
 
@@ -97,5 +89,4 @@ long drift、reconnect edge、Android で loss/duplicate/reorder/stuck=0 が必�
 7. その後に docs、artifact hash、commit/push を確定。
 
 Quick Text、追加 lighting effect、power UI、firmware updater、ZMK Studio は必須外です。
-USB dongle は D1 USB・recovery shell まで完了しましたが、Rust wireless input
-path は未実装です。
+ANSI USB dongle の Rust wireless input path は実機検証まで完了しました。

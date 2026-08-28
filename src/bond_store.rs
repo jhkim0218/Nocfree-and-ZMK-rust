@@ -9,14 +9,14 @@ use embedded_storage_async::nor_flash::{NorFlash, ReadNorFlash};
 use nrf_softdevice::Flash;
 use nrf_softdevice::ble::security::SecurityHandler;
 use nrf_softdevice::ble::{
-    Connection, EncryptionInfo, IdentityKey, MasterId, SecurityMode, gatt_server,
+    Address, Connection, EncryptionInfo, IdentityKey, MasterId, SecurityMode, gatt_server,
 };
 use nrf_softdevice::raw;
 
 use crate::bond_record::{
-    BondRecord, PAGE_SIZE, PROFILE_COUNT, RECORD_BYTES, SETTINGS_PAGE, SPLIT_BOND_SLOT, SPLIT_PAGE,
-    STORAGE_START, SYS_ATTR_CAPACITY, decode_bond, decode_selected_profile, encode_bond,
-    encode_selected_profile,
+    BondRecord, DONGLE_BOND_SLOT, DONGLE_PAGE, PAGE_SIZE, PROFILE_COUNT, RECORD_BYTES,
+    SETTINGS_PAGE, SPLIT_BOND_SLOT, SPLIT_PAGE, STORAGE_START, SYS_ATTR_CAPACITY, decode_bond,
+    decode_selected_profile, encode_bond, encode_selected_profile,
 };
 use crate::keymap::Action;
 use crate::link_keymap::{LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap};
@@ -40,6 +40,7 @@ struct AlignedKeymap([u8; LINK_KEYMAP_RECORD_BYTES]);
 pub struct BondStore {
     peers: Mutex<CriticalSectionRawMutex, RefCell<[Option<Peer>; PROFILE_COUNT]>>,
     split_peer: Mutex<CriticalSectionRawMutex, RefCell<Option<Peer>>>,
+    dongle_peer: Mutex<CriticalSectionRawMutex, RefCell<Option<Peer>>>,
     keymap: Mutex<CriticalSectionRawMutex, RefCell<LinkKeymap>>,
     selected: AtomicU8,
     dirty_pages: AtomicU8,
@@ -59,6 +60,7 @@ impl BondStore {
         Self {
             peers: Mutex::new(RefCell::new([None; PROFILE_COUNT])),
             split_peer: Mutex::new(RefCell::new(None)),
+            dongle_peer: Mutex::new(RefCell::new(None)),
             keymap: Mutex::new(RefCell::new(LinkKeymap::new())),
             selected: AtomicU8::new(0),
             dirty_pages: AtomicU8::new(0),
@@ -160,6 +162,24 @@ impl BondStore {
         self.request_save(SPLIT_PAGE);
     }
 
+    pub fn has_dongle_peer(&self) -> bool {
+        self.dongle_peer().is_some()
+    }
+
+    pub fn accepts_dongle_address(&self, address: Address) -> bool {
+        self.dongle_peer()
+            .is_none_or(|peer| peer.peer_id.is_match(address))
+    }
+
+    pub fn accepts_dongle_connection(&self, connection: &Connection) -> bool {
+        self.accepts_dongle_address(connection.peer_address())
+    }
+
+    pub fn clear_dongle_peer(&self) {
+        self.set_dongle_peer(None);
+        self.request_save(DONGLE_PAGE);
+    }
+
     pub fn key_action(&self, layer: u8, raw: usize) -> Action {
         self.keymap.lock(|keymap| {
             let keymap = keymap.borrow();
@@ -211,6 +231,14 @@ impl BondStore {
         self.split_peer.lock(|slot| *slot.borrow_mut() = peer);
     }
 
+    fn dongle_peer(&self) -> Option<Peer> {
+        self.dongle_peer.lock(|peer| *peer.borrow())
+    }
+
+    fn set_dongle_peer(&self, peer: Option<Peer>) {
+        self.dongle_peer.lock(|slot| *slot.borrow_mut() = peer);
+    }
+
     fn request_save(&self, page: u8) {
         self.dirty_pages.fetch_or(1 << page, Ordering::AcqRel);
         self.save_request.signal(());
@@ -222,6 +250,16 @@ pub struct SplitSecurity {
 }
 
 impl SplitSecurity {
+    pub const fn new(store: &'static BondStore) -> Self {
+        Self { store }
+    }
+}
+
+pub struct DongleSecurity {
+    store: &'static BondStore,
+}
+
+impl DongleSecurity {
     pub const fn new(store: &'static BondStore) -> Self {
         Self { store }
     }
@@ -369,6 +407,82 @@ impl SecurityHandler for SplitSecurity {
     }
 }
 
+impl SecurityHandler for DongleSecurity {
+    fn can_bond(&self, connection: &Connection) -> bool {
+        self.store.accepts_dongle_connection(connection)
+    }
+
+    fn on_security_update(&self, connection: &Connection, security_mode: SecurityMode) {
+        if matches!(security_mode, SecurityMode::NoAccess | SecurityMode::Open) {
+            return;
+        }
+        let occupied_by_other_peer = self
+            .store
+            .dongle_peer()
+            .is_some_and(|peer| !peer.peer_id.is_match(connection.peer_address()));
+        if occupied_by_other_peer {
+            let connection = connection.clone();
+            let _ = connection.disconnect();
+        }
+    }
+
+    fn on_bonded(
+        &self,
+        _connection: &Connection,
+        master_id: MasterId,
+        key: EncryptionInfo,
+        peer_id: IdentityKey,
+    ) {
+        self.store.set_dongle_peer(Some(Peer {
+            master_id,
+            key,
+            peer_id,
+            sys_attr_len: 0,
+            sys_attrs: [0; SYS_ATTR_CAPACITY],
+        }));
+        self.store.request_save(DONGLE_PAGE);
+    }
+
+    fn get_key(&self, _connection: &Connection, master_id: MasterId) -> Option<EncryptionInfo> {
+        self.store
+            .dongle_peer()
+            .and_then(|peer| (peer.master_id == master_id).then_some(peer.key))
+    }
+
+    fn get_peripheral_key(&self, connection: &Connection) -> Option<(MasterId, EncryptionInfo)> {
+        self.store.dongle_peer().and_then(|peer| {
+            peer.peer_id
+                .is_match(connection.peer_address())
+                .then_some((peer.master_id, peer.key))
+        })
+    }
+
+    fn save_sys_attrs(&self, connection: &Connection) {
+        let Some(mut peer) = self.store.dongle_peer() else {
+            return;
+        };
+        if !peer.peer_id.is_match(connection.peer_address()) {
+            return;
+        }
+        let Ok(length) = gatt_server::get_sys_attrs(connection, &mut peer.sys_attrs) else {
+            return;
+        };
+        peer.sys_attr_len = length.min(SYS_ATTR_CAPACITY) as u8;
+        self.store.set_dongle_peer(Some(peer));
+        self.store.request_save(DONGLE_PAGE);
+    }
+
+    fn load_sys_attrs(&self, connection: &Connection) {
+        let peer = self.store.dongle_peer();
+        let attrs = peer.as_ref().and_then(|peer| {
+            peer.peer_id
+                .is_match(connection.peer_address())
+                .then_some(&peer.sys_attrs[..peer.sys_attr_len as usize])
+        });
+        let _ = gatt_server::set_sys_attrs(connection, attrs);
+    }
+}
+
 pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
     let mut buffer = AlignedRecord([0; RECORD_BYTES]);
     let mut keymap_buffer = AlignedKeymap([0; LINK_KEYMAP_RECORD_BYTES]);
@@ -400,6 +514,13 @@ pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
         .is_ok()
     {
         store.set_split_peer(decode_bond(SPLIT_BOND_SLOT, &buffer.0).map(peer_from_record));
+    }
+    if flash
+        .read(page_address(DONGLE_PAGE), &mut buffer.0)
+        .await
+        .is_ok()
+    {
+        store.set_dongle_peer(decode_bond(DONGLE_BOND_SLOT, &buffer.0).map(peer_from_record));
     }
     if flash
         .read(page_address(LINK_KEYMAP_PAGE), &mut keymap_buffer.0)
@@ -441,6 +562,11 @@ pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
                     .split_peer
                     .lock(|peer| *peer.borrow())
                     .map(|peer| encode_bond(SPLIT_BOND_SLOT, &record_from_peer(peer)))
+            } else if page == DONGLE_PAGE {
+                store
+                    .dongle_peer
+                    .lock(|peer| *peer.borrow())
+                    .map(|peer| encode_bond(DONGLE_BOND_SLOT, &record_from_peer(peer)))
             } else {
                 store
                     .peers
@@ -514,5 +640,15 @@ mod tests {
 
         assert!(!store.has_split_peer());
         assert_eq!(store.dirty_pages.load(Ordering::Acquire), 1 << SPLIT_PAGE);
+    }
+
+    #[test]
+    fn clearing_dongle_peer_marks_its_dedicated_flash_page_for_erasure() {
+        let store = BondStore::new();
+
+        store.clear_dongle_peer();
+
+        assert!(!store.has_dongle_peer());
+        assert_eq!(store.dirty_pages.load(Ordering::Acquire), 1 << DONGLE_PAGE);
     }
 }

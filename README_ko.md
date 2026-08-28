@@ -3,9 +3,9 @@
 [English](README.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> `develop` 브랜치는 개발 중인 작업을 포함합니다. D1 동글의 USB·복구 기반은
-> 실물에서 확인했지만 무선 입력 링크는 미구현입니다. 완성되거나 안정된 2.4 GHz
-> 배포판으로 사용하면 안 됩니다.
+> `develop` 브랜치는 개발 중인 작업을 포함합니다. 펌웨어 산출물은 자동 검사를
+> 통과했고 ANSI 2.4G 키보드/동글 세트만 실기 검증을 통과했습니다. ISO/JIS/KR은
+> Experimental 상태입니다.
 
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
@@ -14,19 +14,20 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 > [!IMPORTANT]
 > - 펌웨어 **기본값은 Windows 모드**입니다. macOS 모드는 `Fn+M`, Windows
 >   복귀는 `Fn+N`을 각각 1초 동안 누릅니다.
-> - 키보드 좌우와 배열에 맞는 파일만 플래시하십시오. 서로 다른 빌드나 배열의
->   왼쪽·오른쪽 파일을 섞으면 안 됩니다.
+> - 하드웨어 역할과 배열에 맞는 파일만 플래시하십시오. 동글 모드는 같은 빌드의
+>   같은 배열 Left, Right, Dongle 세 파일이 모두 필요합니다.
 > - NocFree &에는 외부 리셋 버튼이 없습니다. 플래시 전에 [RECOVERY_ko.md](RECOVERY_ko.md)를
 >   읽고 양쪽 DFU 및 순정 V2.3.0 복구 방법을 확인하십시오.
-> - D1은 무선 코드가 없는 Rust 동글 USB·복구 기반만 제공합니다. 실제 2.4 GHz
->   키보드 입력은 미구현이므로 왼쪽 스위치의 2.4G 위치는 계속 무출력입니다.
+> - Experimental Rust 동글/2.4 GHz 모드는 순정 ESB, 순정 updater, 외부 nRF24L01 경로,
+>   numpad와 호환되지 않습니다. ANSI 세트는 페어링·입력·재연결·모드 전환·복구
+>   실기를 통과했고 ISO/JIS/KR은 소프트웨어 검사만 통과했습니다.
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
-| ANSI | 기본 빌드, 5 ms 입력 순서·1 kHz perceptual 백라이트 | 현재 5 ms 빌드는 유선 입력과 양쪽 백라이트를 확인했으며 BLE 전체 회귀는 남음 |
-| ISO | Experimental | 해당 실물에서 미검증 |
-| JIS | Experimental | 해당 실물에서 미검증 |
-| KR | Experimental | 해당 실물에서 미검증 |
+| ANSI | 기본 빌드, 대응 Rust 동글 UF2 제공 | 키보드·동글 페어링·입력·재연결·모드 전환·복구 실기 통과 |
+| ISO | Experimental, 대응 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
+| JIS | Experimental, 대응 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
+| KR | Experimental, 대응 Rust 동글 UF2 제공 | 해당 실물에서 미검증 |
 
 ## 먼저 확인할 내용
 
@@ -36,22 +37,20 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
   Bluetooth HID를 출력합니다.
 - **오른쪽(`right`)**은 47키를 스캔해 암호화 BLE split으로 왼쪽에 보냅니다.
   오른쪽 USB는 복구·진단용이며 키보드 HID를 출력하지 않습니다.
+- **동글(`dongle`)**은 왼쪽과 별도로 암호화 bonding한 BLE 링크에서 절대 HID
+  상태를 받아 USB keyboard/consumer HID로 출력합니다.
 
 왼쪽 물리 스위치는 출력 방식을 선택합니다.
 
 | 위치 | 모드 | 동작 |
 |---|---|---|
-| 위 | 2.4G | 출력 없음. 공장 동글 전송은 미구현 |
+| 위 | 2.4G | Experimental 암호화 Rust 동글 출력, 순정 ESB와 호환되지 않음 |
 | 가운데 | Wired | 왼쪽 USB 포트로 USB HID 출력 |
 | 아래 | Bluetooth | 왼쪽에서 Bluetooth HID 출력 |
 
 오른쪽 스위치는 배터리 전원을 물리적으로 제어합니다. 위가 OFF, 아래가 ON입니다.
 USB 전원은 스위치를 우회하므로 USB 연결 중에는 OFF여도 오른쪽 보드가 켜집니다.
 왼쪽 USB가 없는 Wired 모드는 HID 출력만 없을 뿐 키보드 전원을 끄지 않습니다.
-
-D1 동글은 Windows 11에서 `NocFree Rust Dongle`이라는 keyboard,
-consumer-control, CDC 복합 장치로 열거됩니다. 왼쪽→동글 전용 링크가 구현될
-때까지 의도적으로 HID report를 전송하지 않습니다.
 
 처음 사용할 때는 다음 순서를 권장합니다.
 
@@ -81,18 +80,22 @@ Windows, macOS 또는 Linux에서 ANSI를 빌드하고 검사합니다.
 python3 -B tools/build_release.py --layout ANSI
 ```
 
-별도의 ANSI D1 동글 이미지는 다음 명령으로 빌드합니다.
-
-```text
-python3 -B tools/build_release.py --layout ANSI --dongle
-```
-
 Experimental 배열은 `ISO`, `JIS`, `KR`을 지정하고, 네 배열 전체는 다음과 같이
 빌드합니다.
 
 ```text
 python3 -B tools/build_release.py --all-layouts
 ```
+
+배열에 맞는 좌우·동글 세트 전체를 함께 빌드합니다.
+
+```text
+python3 -B tools/build_release.py --all-layouts --dongle
+```
+
+동글 파일 이름은 `firmware/experimental` 아래
+`NocFree_And_Rust_ZMK_Based_<LAYOUT>_Experimental_Dongle.uf2`입니다. ANSI는 실기
+검증을 통과했고 ISO/JIS/KR은 대응 키보드에서 검증해야 합니다.
 
 Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
@@ -108,15 +111,6 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
 - [왼쪽/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [오른쪽/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
-- [D1 동글 UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2)
-- [D1 동글 serial-DFU 패키지](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1_DFU.zip)
-
-D1 동글 빌드는 의도적으로 무선 코드를 포함하지 않습니다. application-only
-산출물은 공장 SoftDevice, filesystem, UICR, UF2 bootloader를 보존합니다. 실물
-검증된 application BIN SHA-256은
-`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`입니다. 저장소에
-포함된 DFU ZIP은 `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223`이며,
-재생성하면 ZIP timestamp만 바뀌고 내부의 검증된 BIN은 동일합니다.
 
 위 기본 파일은 실물에서 확인한 1 kHz perceptual 곡선을 사용합니다. linear 비교용
 펌웨어는 다음과 같이 빌드합니다.
@@ -146,7 +140,8 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
 | 상태 LED | 방전된 장치에서 빨간 저전압 표시 확인, 순정과 같은 충전/완충 표시 구현 |
-| 공장 2.4 GHz/동글 | D1 USB keyboard/consumer/CDC 열거와 복구 완료. 외부 nRF24L01 통신, 왼쪽→동글 링크, 페어링, 입력, 별도 숫자패드 통신은 미구현 |
+| Experimental Rust 동글 | 모든 배열별 UF2가 소프트웨어 검사를 통과했고 ANSI는 pairing·재연결·입력·latency·BLE/동글 모드 전환·복구 실기를 통과. ISO/JIS/KR은 대응 실물 검증 필요 |
+| 순정 2.4 GHz 호환 | 순정 ESB, 외부 nRF24L01, updater 호환과 별도 numpad 통신은 미구현 |
 | NocFree Link 부가 기능 | 배터리 표시는 unavailable이며 Quick Text 저장·삭제·실행 미구현 |
 | 기타 도구 | 공장 updater와 ZMK Studio 호환은 미구현이며 현재 프로젝트 필수 범위가 아님 |
 | 플랫폼 범위 | Bluetooth host는 Windows 11과 Android만 검증. macOS, iOS, Linux와 세 번째 host는 미검증 |
@@ -160,6 +155,8 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   Windows 특수키와 암호화 BLE split 전송.
 - **USB/Bluetooth HID:** 물리 스위치 출력 선택, BLE 자동 재연결, CCCD 상태 저장,
   선택 상태가 유지되는 페어링 슬롯 3개.
+- **Experimental Rust 동글:** 배열별 USB 수신기 펌웨어, 별도 암호화 bond,
+  순번이 있는 절대 report와 연결 해제 시 전체 키 release.
 - **NocFree Link:** 8×84 키맵, 실행 가능한 hotkey 16개, CRC가 있는 flash 저장,
   삭제와 기본값 복구.
 - **복구:** 양쪽 독립 1200-baud CDC DFU, 길게 누르는 Fn DFU, UF2 진입과
@@ -175,9 +172,6 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
   USB 양쪽에서 읽을 수 있는 최근 split 이벤트 32개.
 - **안전한 flash 범위:** SoftDevice, 영구 저장소, 공장 filesystem과 UF2 bootloader
   영역을 보존.
-- **동글 D1 기반:** 무선 코드 없는 keyboard/consumer/CDC USB 열거,
-  application-only 산출물과 실물 1200-baud UF2/CDC 복구 왕복. D1은 의도적으로
-  키 report를 출력하지 않음.
 
 현재 5 ms ANSI 펌웨어는 유선 입력과 양쪽 1 kHz 백라이트 제어를 확인했습니다.
 이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,
@@ -234,6 +228,15 @@ R-L-R 입력을 검사해야 합니다. 컴파일 성공만으로 안전한 값�
 오른쪽 split은 1M BLE, 암호화, 7.5 ms 연결 주기, latency 30, 4초 supervision
 timeout, ATT MTU 23, 단계식 미연결 광고와 +8 dBm TX 출력을 사용합니다. 복구는
 개선됐지만 거리·전력·장시간 동작은 위 미검증 목록에 남아 있습니다.
+
+### Experimental Rust 동글
+
+2.4G 스위치 위치에서는 순정 ESB 대신 Rust 동글 service를 광고합니다. 동글은
+7.5 ms interval로 연결해 암호화를 요청하고, 순번이 있는 절대 HID report를 구독하며,
+연결이 끊기면 모든 키를 release합니다. 최초에는 bond가 없는 키보드·동글끼리 자동
+pairing하므로 주변의 다른 Experimental 장치는 꺼두십시오. 키보드는 2.4G 모드에서
+`Fn+1`을 1초 눌러 동글 bond를 지웁니다. 동글 CDC를 2400 baud로 열면 동글 bond를
+지우고 재시작하며, 1200 baud는 UF2 복구에 사용합니다.
 
 ### 전원, 진단과 복구
 

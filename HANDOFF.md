@@ -383,24 +383,6 @@ clear를 구현했습니다. 최신 이미지 재플래시와 `Fn+Delete` 왕복
 
 자세한 복구 안전 조건은 [RECOVERY.md](RECOVERY.md)에 있습니다.
 
-### 동글 D1 USB·복구 기반
-
-2026-08-27 `develop`에서 무선 코드를 제외한 동글 D1을 실물 검증했습니다.
-
-- 앱: `NocFree Rust Dongle`, `USB\VID_2886&PID_8029\RUST-DONGLE`, CDC COM5
-- Windows 11: keyboard HID, consumer-control HID, CDC 모두 `OK`
-- D1은 HID writer에 report를 쓰지 않으므로 의도적으로 무입력
-- COM5 1200 touch → 같은 칩 serial `E19D2CEA0B437049`의 공장 UF2/CDC
-  `VID_239A&PID_0029`, COM11, UF2 저장장치
-- 실물 전송 당시 D1 ZIP SHA-256
-  `2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362`, 검증된
-  내부 BIN `B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`
-- 현재 재생성된 저장소 ZIP은 timestamp 차이로
-  `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223`; 내부 BIN과
-  manifest 동일성은 자동 테스트로 고정
-- 재전송 뒤 `Device programmed.`, D1/COM5 복귀, bootloader node 0
-- 실제 왼쪽→동글 링크와 키 입력은 D2 이후 범위이며 아직 미구현
-
 ## 10. 사용자 알림 규칙
 
 사용자 키/케이블/브라우저 조작이 필요하면 다음 helper로 Windows 알림을 띄운

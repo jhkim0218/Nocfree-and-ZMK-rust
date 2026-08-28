@@ -169,9 +169,9 @@ class DocumentationTests(unittest.TestCase):
 
     def test_hardware_validation_disclosure(self) -> None:
         required = {
-            "README.md": ("current 5 ms build passed wired input", "upper brightness steps remain visually close"),
-            "README_ko.md": ("현재 5 ms 빌드는 유선 입력", "상위 밝기 단계의 체감 차이는 여전히 작음"),
-            "README_ja.md": ("現在の 5 ms ビルドは有線入力", "上位の明るさ段階は見た目の差が小さい"),
+            "README.md": ("ANSI trio has passed", "upper brightness steps remain visually close"),
+            "README_ko.md": ("ANSI 세트는 페어링", "상위 밝기 단계의 체감 차이는 여전히 작음"),
+            "README_ja.md": ("ANSI 一式は pairing", "上位の明るさ段階は見た目の差が小さい"),
         }
         for path, phrases in required.items():
             document = read(path)
@@ -187,42 +187,5 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("pub const LAST_BITMAP_USAGE: u8 = 0x8a", report)
         self.assertIn("LAST_BITMAP_USAGE", descriptor)
         self.assertIn("KEY_BITMAP_BITS", descriptor)
-
-    def test_dongle_recovery_contract(self) -> None:
-        recovery_tokens = (
-            "NocFree_Dongle",
-            "VID_2886&PID_8029",
-            "E19D2CEA0B437049",
-            "VID_239A&PID_002A",
-            "02C1EE2BB420E374E51AC6B0C0EE7A422796DFDFF0AC2707CA28096A564C0567",
-            "softdevice_req=0x0123",
-            "Device programmed.",
-        )
-        for path in DOCUMENT_FAMILIES["RECOVERY"]:
-            document = read(path)
-            for token in recovery_tokens:
-                self.assertIn(token, document, f"{path}: {token}")
-        for path in DOCUMENT_FAMILIES["ROADMAP"]:
-            document = read(path)
-            for phase in ("D1", "D2", "D3", "D4", "D5"):
-                self.assertIn(phase, document, f"{path}: {phase}")
-        for path in DOCUMENT_FAMILIES["PROGRESS"]:
-            document = read(path)
-            self.assertIn("D0", document, path)
-            self.assertIn("D1", document, path)
-            self.assertIn("E19D2CEA0B437049", document, path)
-            self.assertIn("RUST-DONGLE", document, path)
-        d1_tokens = (
-            "NocFree Rust Dongle",
-            "RUST-DONGLE",
-            "VID_239A&PID_0029",
-            "2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362",
-        )
-        for path in DOCUMENT_FAMILIES["RECOVERY"]:
-            document = read(path)
-            for token in d1_tokens:
-                self.assertIn(token, document, f"{path}: {token}")
-
-
 if __name__ == "__main__":
     unittest.main()

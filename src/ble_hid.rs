@@ -4,6 +4,7 @@ use nrf_softdevice::ble::gatt_server::characteristic::{Attribute, Metadata, Prop
 use nrf_softdevice::ble::gatt_server::{self, RegisterError, WriteOp};
 use nrf_softdevice::ble::{Connection, SecurityMode, Uuid};
 
+use crate::dongle_ble::DongleService;
 use crate::report::KeyboardReport;
 use crate::usb_descriptor::{BLE_HID_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES};
 
@@ -115,27 +116,39 @@ impl HidService {
 
 pub struct BleHidServer {
     pub hid: HidService,
+    pub dongle: DongleService,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BleHidServerEvent {
+    DongleSubscribed,
+    Other,
 }
 
 impl BleHidServer {
     pub fn new(softdevice: &mut Softdevice) -> Result<Self, RegisterError> {
         Ok(Self {
             hid: HidService::new(softdevice)?,
+            dongle: DongleService::new(softdevice)?,
         })
     }
 }
 
 impl gatt_server::Server for BleHidServer {
-    type Event = ();
+    type Event = BleHidServerEvent;
 
     fn on_write(
         &self,
         _connection: &Connection,
-        _handle: u16,
+        handle: u16,
         _operation: WriteOp,
         _offset: usize,
-        _data: &[u8],
+        data: &[u8],
     ) -> Option<Self::Event> {
-        Some(())
+        Some(if self.dongle.notifications_enabled(handle, data) {
+            BleHidServerEvent::DongleSubscribed
+        } else {
+            BleHidServerEvent::Other
+        })
     }
 }

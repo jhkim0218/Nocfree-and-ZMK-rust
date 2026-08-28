@@ -2,7 +2,7 @@
 
 [English](PROGRESS.md) · [한국어](PROGRESS_ko.md) · [日本語](PROGRESS_ja.md)
 
-Last updated: 2026-08-27 (Asia/Seoul)
+Last updated: 2026-08-28 (Asia/Seoul)
 
 ## Baseline
 
@@ -58,8 +58,7 @@ Last updated: 2026-08-27 (Asia/Seoul)
 | P4 Cross-half ordering | Software candidate; prior 3 ms hardware-tested | Current 5 ms passes the existing reorder model but needs `삼`/Wired/BLE hardware tests; end-to-end queues, real BLE jitter/drift, reconnect-edge load, and Android remain |
 | P5 Stability and power | Pending | Long-running wake/reconnect tests pass and left/right power is measured |
 | D0 Dongle recovery | Complete | Official V2.3.1 application-only serial DFU restored the recorded product, VID/PID, serial, CDC, and HID interfaces |
-| D1 Rust dongle USB/recovery shell | Complete | Windows 11 keyboard/consumer/CDC enumeration and D1 recovery round trip pass without radio code or key output |
-| D2-D4 Rust-native 2.4G input | Pending | Unified `RIGHT -> LEFT -> dongle -> PC` path passes link, HID input, reconnect, release, and recovery tests |
+| Rust-native 2.4G dongle | ANSI hardware-verified | Unified `RIGHT -> LEFT -> dongle -> PC` link, HID input, reconnect, release, mode switching, and recovery pass on the ANSI set |
 | P7 Layout architecture | Software-complete | Shared behavior and separate ANSI/ISO/JIS/KR modules pass host and ARM checks |
 | P8 Layout variants | Experimental artifacts built | ISO/JIS/KR mappings come from verified sources but remain Rust hardware-unverified until matching devices are tested |
 
@@ -75,34 +74,17 @@ Last updated: 2026-08-27 (Asia/Seoul)
   baseline returned. No Rust dongle feature firmware has been flashed.
 - Factory ESB input remains untested because both halves run Rust firmware.
 
-## D1 dongle USB/recovery shell — complete
+## ANSI Rust 2.4G dongle — hardware-verified
 
-- The radio-free Rust application enumerated on Windows 11 as
-  `NocFree Rust Dongle`, `VID_2886&PID_8029`, serial `RUST-DONGLE`, with two
-  healthy HID interfaces and CDC COM5. Windows created keyboard and
-  consumer-control children.
-- D1 holds both HID writers and intentionally sends no reports. It is not yet a
-  working wireless receiver.
-- A COM5 1200-baud touch entered the preserved factory UF2/CDC bootloader as
-  `VID_239A&PID_0029`, hardware serial `E19D2CEA0B437049`, CDC COM11, and UF2
-  mass storage. This differs from the stock application's serial-only
-  `PID_002A` path and is expected for the D1 `0x57` recovery marker.
-- Reflashing the same application-only D1 package at 115200 baud reported
-  `Device programmed.`. D1 returned with keyboard, consumer control, COM5, and
-  no remaining bootloader nodes.
-
-| D1 artifact | Bytes | SHA-256 |
-|---|---:|---|
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.bin` | 14,112 | `B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2` | 28,672 | `AE96AB416C6C671FE88E584986FA37024D53D1A0B7C323925977893CE431A1CB` |
-| `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1_DFU.zip` | 15,130 | `FA8D3A03A0661C32FB78CAFA8D36505C2C946697895C28D6049272895175F223` |
-
-The hardware round trip used an earlier generated ZIP with SHA-256
-`2AB41BE31B78157994BB84A645A866A8D36DD6597D28C8B4E1B7C3F57818E362`.
-The committed ZIP differs only in generated archive timestamps; artifact tests
-prove that both wrap the same tested BIN
-`B80808F56226FBCB59FC20A39AE8CD297F4099BA18063F650368E284AA864648`
-and the same application-only manifest.
+- The left/right ANSI keyboard halves and dongle pair through the custom BLE
+  link and send keyboard and consumer HID reports to the host.
+- Dongle replug reconnects automatically. Fast cross-half input and modifiers
+  showed no observed lag, dropped reports, or stuck keys.
+- Switching from host BLE back to 2.4G restores the dongle path.
+- Each device completed a 1200-baud recovery round trip and returned to its
+  application.
+- ISO, JIS, and KR dongle images build successfully but require matching-layout
+  hardware testing.
 
 ## P7/P8 layout variants — software-complete, hardware pending
 

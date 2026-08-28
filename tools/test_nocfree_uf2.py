@@ -66,34 +66,12 @@ class DfuPackageTests(unittest.TestCase):
                 self.assertEqual(application["device_type"], 82)
                 self.assertEqual(application["softdevice_req"], [0xFFFE])
 
-    def test_dongle_serial_dfu_package_contains_only_the_bounded_application(self) -> None:
-        stem = "NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1"
-        binary = ROOT / "firmware" / f"{stem}.bin"
-        package = ROOT / "firmware" / f"{stem}_DFU.zip"
-        with zipfile.ZipFile(package) as archive:
-            self.assertEqual(set(archive.namelist()), {f"{stem}.bin", f"{stem}.dat", "manifest.json"})
-            self.assertEqual(archive.read(f"{stem}.bin"), binary.read_bytes())
-            manifest = json.loads(archive.read("manifest.json"))["manifest"]
-            self.assertEqual(set(manifest), {"application", "dfu_version"})
-            self.assertEqual(manifest["dfu_version"], 0.5)
-            application = manifest["application"]["init_packet_data"]
-            self.assertEqual(application["device_type"], 82)
-            self.assertEqual(application["softdevice_req"], [0x123])
-
-    def test_dongle_uf2_stays_inside_the_stock_application_range(self) -> None:
-        path = ROOT / "firmware" / "NocFree_And_Rust_ZMK_Based_ANSI_Dongle_D1.uf2"
-        image = UF2Image.load(path)
-        addresses = sorted(image.blocks)
-        self.assertEqual(image.family_id, NRF52833_FAMILY_ID)
-        self.assertEqual(addresses[0], APP_BASE)
-        self.assertLessEqual(addresses[-1] + 256, 0x38900)
-
 
 class ExperimentalArtifactTests(unittest.TestCase):
     def test_layout_uf2_pairs_stay_inside_the_application_partition(self) -> None:
         directory = ROOT / "firmware" / "experimental"
         paths = sorted(directory.glob("*.uf2"))
-        self.assertEqual(len(paths), 8)
+        self.assertEqual(len(paths), 12)
         for layout in ("ISO", "JIS", "KR"):
             for half in ("Left", "Right"):
                 expected = (
@@ -105,6 +83,11 @@ class ExperimentalArtifactTests(unittest.TestCase):
             self.assertIn(
                 directory
                 / f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}.uf2",
+                paths,
+            )
+        for layout in ("ANSI", "ISO", "JIS", "KR"):
+            self.assertIn(
+                directory / f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_Dongle.uf2",
                 paths,
             )
         for path in paths:
