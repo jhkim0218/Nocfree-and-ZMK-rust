@@ -7,22 +7,22 @@ Scope: build ANSI, ISO, JIS, and KR keyboard firmware with one universal dongle,
 - [x] G1: dongle framing, advertisement matching, sequence handling, output routing, and dedicated bond records pass for every layout
   CHECK: cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-ansi && cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-iso && cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-jis && cargo test --target x86_64-pc-windows-msvc --lib --no-default-features --features layout-kr && echo Dongle host verification passed
   EXPECT: Dongle host verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 1.55s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-895f109436db97e1.exe)
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Finished `test` profile [optimized + debuginfo] target(s) in 0.30s | Running unittests src\lib.rs (target\x86_64-pc-windows-msvc\debug\deps\nocfree_and_rust-895f109436db97e1.exe)
 
 - [x] G2: every layout's left and right plus the maximum-size universal dongle ARM applications compile without warnings
   CHECK: for %L in (ansi iso jis kr) do @cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-%L --bin central --bin right -- -D warnings || exit /b 1 & cargo clippy --release --target thumbv7em-none-eabihf --no-default-features --features layout-jis --bin dongle -- -D warnings && echo Dongle ARM verification passed
   EXPECT: Dongle ARM verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Finished `release` profile [optimized] target(s) in 0.64s | Finished `release` profile [optimized] target(s) in 0.08s
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Finished `release` profile [optimized] target(s) in 0.09s | Finished `release` profile [optimized] target(s) in 0.09s
 
 - [x] G3: the one universal dongle UF2 is regenerated from the maximum-size ARM application and stays inside the application partition
   CHECK: python -B tools/test_nocfree_uf2.py && echo Dongle UF2 verification passed
   EXPECT: Dongle UF2 verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Ran 6 tests in 0.011s | OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Ran 6 tests in 0.014s | OK
 
 - [x] G4: repository artifact, documentation, and recovery contracts pass
   CHECK: python -B -m unittest discover -s tools -p test_*.py && echo Dongle repository verification passed
   EXPECT: Dongle repository verification passed
-  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Ran 35 tests in 0.017s | OK
+  EVIDENCE: exit=0; shell=C:\WINDOWS\system32\cmd.exe; cwd=D:\study\nocfree\NocFree-and-rust; path=186adcb2655b/36 entries; output=Ran 35 tests in 0.018s | OK
 
 - [x] G5: the official v2.3.0 dongle UF2 remains untracked and unchanged while its hardware boundaries are recorded
   CHECK: python -B tools/test_dongle_firmware.py && echo Official dongle evidence verification passed
