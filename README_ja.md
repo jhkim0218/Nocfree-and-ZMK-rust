@@ -3,8 +3,8 @@
 [English](README.md) · [한국어](README_ko.md)
 
 > [!CAUTION]
-> `main` ブランチには実機検証済みの ANSI 2.4G 一式が含まれ、`develop` には開発中の
-> 作業が含まれる場合があります。ISO/JIS/KR 成果物は自動検査のみ合格の Experimental 状態です。
+> `main` ブランチには共通 dongle image を含む実機検証済みの ANSI 2.4G 一式があります。
+> ISO/JIS/KR の実機検証はまだ残っています。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -14,8 +14,8 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 > [!IMPORTANT]
 > - ファームウェアの**既定は Windows モード**です。macOS モードは `Fn+M`、
 >   Windows へ戻す場合は `Fn+N` をそれぞれ1秒間長押しします。
-> - ハードウェア役割と配列に一致するファイルだけを使用してください。ドングル
->   モードには同一ビルド・同一配列の Left、Right、Dongle の3ファイルが必要です。
+> - キーボードはハードウェア役割と配列に一致するファイルだけを使用してください。
+>   dongle モードは同一配列の Left・Right と一つの共通 Dongle UF2 を使います。
 > - NocFree & には外部リセットボタンがありません。フラッシュ前に
 >   [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右の DFU と純正 V2.3.0 への
 >   復元手順を確認してください。
@@ -25,10 +25,10 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
-| ANSI | 既定ビルド、対応 Rust ドングル UF2 あり | キーボード・ドングルの pairing・入力・再接続・モード切替・復旧を実機確認済み |
-| ISO | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
-| JIS | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
-| KR | Experimental、対応 Rust ドングル UF2 あり | 対応実機では未検証 |
+| ANSI | 既定ビルド、共通 Rust ドングル UF2 あり | 共通 image で pairing・左右入力・高速入力・再接続・モード切替・復旧を実機確認済み |
+| ISO | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
+| JIS | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
+| KR | Experimental、共通 Rust ドングル UF2 あり | 対応実機では未検証 |
 
 ## 最初に確認すること
 
@@ -56,7 +56,7 @@ USB 電源はスイッチを迂回するため、USB 接続中は OFF でも右�
 初回は次の順序を推奨します。
 
 1. [RECOVERY_ja.md](RECOVERY_ja.md) を読み、左右のファームウェアを確認します。
-2. 同じ配列の Left・Right UF2 と 2.4G 用 Dongle UF2 をまとめてビルドまたはダウンロードします。
+2. 同じ配列の Left・Right UF2 と 2.4G 用の共通 Dongle UF2 をまとめてビルドまたはダウンロードします。
 3. キーボードは片側ずつフラッシュし、Wired USB で左右入力を確認してから dongle を pairing します。
 4. Bluetooth、物理スイッチ、DFU ショートカット、高速な左右交互入力を
    確認します。
@@ -88,15 +88,14 @@ Experimental 配列は `ISO`、`JIS`、`KR` を指定し、4配列すべては�
 python3 -B tools/build_release.py --all-layouts
 ```
 
-配列に一致する左右・ドングル一式は次でビルドします。
+配列に一致する左右一式と一つの共通 dongle は次でビルドします。
 
 ```text
 python3 -B tools/build_release.py --all-layouts --dongle
 ```
 
-ドングル UF2 名は `firmware/experimental` の
-`NocFree_And_Rust_ZMK_Based_<LAYOUT>_Experimental_Dongle.uf2` です。ANSI は実機
-検証済みで、ISO/JIS/KR は対応キーボードでの検証が必要です。
+共通 dongle UF2 は `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2` です。全配列
+packetを受信し、ANSI 実機検証に合格しています。ISO/JIS/KR は対応実機検証が必要です。
 
 Windows PowerShell ラッパーも利用できます。
 
@@ -108,7 +107,7 @@ Windows PowerShell ラッパーも利用できます。
 内容の検証を行います。ANSI は `firmware`、Experimental 配列は
 `firmware/experimental` に出力されます。
 
-リポジトリ収録の ANSI キーボードと [dongle UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2):
+リポジトリ収録の ANSI キーボードと [共通 dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2):
 
 - [左/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [右/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
@@ -141,7 +140,7 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
 | 状態 LED | 放電機で赤い低電圧表示を確認し、純正相当の充電/満充電表示を実装 |
-| Experimental Rust ドングル | 全配列別 UF2 がソフトウェア検査に合格し、ANSI は pairing・再接続・入力・latency・BLE/ドングルモード切替・復旧を実機確認。ISO/JIS/KR は対応実機の検証が必要 |
+| 共通 Rust ドングル | 最大サイズ HID image 一つが全配列を受信し ANSI 実機検証に合格。ISO/JIS/KR 対応実機検証が必要 |
 | 純正 2.4 GHz 互換 | 純正 ESB、外部 nRF24L01、updater、別 numpad 通信は未実装 |
 | NocFree Link 追加機能 | バッテリー表示は unavailable。Quick Text の保存・削除・実行は未実装 |
 | その他のツール | 純正 updater と ZMK Studio は未対応で、現在の必須範囲外 |

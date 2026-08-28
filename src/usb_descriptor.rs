@@ -3,8 +3,8 @@ use crate::report::{KEY_BITMAP_BITS, LAST_BITMAP_USAGE};
 pub use crate::report::KEYBOARD_REPORT_BYTES;
 pub const CONSUMER_REPORT_BYTES: usize = 2;
 
-#[rustfmt::skip]
-pub const KEYBOARD_REPORT_DESCRIPTOR: &[u8] = &[
+macro_rules! keyboard_report_descriptor {
+    ($($padding:expr),* $(,)?) => { &[
     0x05, 0x01, // Usage Page (Generic Desktop)
     0x09, 0x06, // Usage (Keyboard)
     0xa1, 0x01, // Collection (Application)
@@ -36,8 +36,21 @@ pub const KEYBOARD_REPORT_DESCRIPTOR: &[u8] = &[
     0x75, 0x01, // Report Size (1)
     0x95, KEY_BITMAP_BITS, // Report Count
     0x81, 0x02, // Input (Data, Variable, Absolute)
+    $($padding,)*
     0xc0, // End Collection
-];
+    ] };
+}
+
+#[cfg(feature = "layout-jis")]
+#[rustfmt::skip]
+pub const KEYBOARD_REPORT_DESCRIPTOR: &[u8] = keyboard_report_descriptor!(
+    0x75, 0x01, // Report Size (1)
+    0x95, 0x01, // Report Count (1)
+    0x81, 0x01, // Input (Constant, Array, Absolute)
+);
+
+#[cfg(not(feature = "layout-jis"))]
+pub const KEYBOARD_REPORT_DESCRIPTOR: &[u8] = keyboard_report_descriptor!();
 
 pub const CONSUMER_REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x0c, // Usage Page (Consumer)
@@ -70,7 +83,14 @@ mod tests {
     #[test]
     fn report_sizes_match_the_descriptors() {
         #[cfg(feature = "layout-jis")]
-        assert_eq!(KEYBOARD_REPORT_BYTES, 19);
+        {
+            assert_eq!(KEYBOARD_REPORT_BYTES, 19);
+            assert!(
+                KEYBOARD_REPORT_DESCRIPTOR
+                    .windows(6)
+                    .any(|bytes| bytes == [0x75, 0x01, 0x95, 0x01, 0x81, 0x01])
+            );
+        }
         #[cfg(not(feature = "layout-jis"))]
         assert_eq!(KEYBOARD_REPORT_BYTES, 16);
         assert!(

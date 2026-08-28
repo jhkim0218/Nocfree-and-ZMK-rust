@@ -52,10 +52,9 @@ Rust는 `RUST-LEFT`/`RUST-RIGHT`/`RUST-DONGLE`이며 동글 parent는
 양쪽 volume 이름이 같으므로 사라진 CDC와 반대쪽 앱 존재 여부도 함께 확인합니다.
 그 뒤 왼쪽은 `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`, 오른쪽은
 `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2`만 복사합니다.
-Experimental ANSI 동글은
-`firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2`를 사용합니다.
-ANSI 동글 bootloader와 앱 복구는 실물에서 확인했습니다. ISO/JIS/KR은 같은 배열 이름의
-Dongle UF2와 대응 키보드에서 검증해야 합니다.
+공용 동글은 `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`를 사용합니다.
+공용 동글 bootloader와 앱 복구는 ANSI 실물에서 확인했습니다. ISO/JIS/KR은 대응
+키보드에서 검증해야 합니다.
 
 serial DFU는 확인된 `PID_002A` 포트에서만 실행합니다. `adafruit-nrfutil`은 과거
 `No data received on serial port` 실패를 출력하고도 exit 0을 반환한 적이 있으므로,

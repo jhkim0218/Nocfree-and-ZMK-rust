@@ -3,8 +3,8 @@
 [한국어](README_ko.md) · [日本語](README_ja.md)
 
 > [!CAUTION]
-> The `main` branch includes the hardware-verified ANSI 2.4G trio; `develop` may
-> contain work in progress. ISO/JIS/KR artifacts pass automated checks only and remain experimental.
+> The `main` branch includes the hardware-verified ANSI 2.4G trio with the universal
+> dongle image. ISO/JIS/KR hardware testing remains outstanding.
 
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
@@ -14,8 +14,8 @@ project; it is not an official NocFree firmware release.
 > [!IMPORTANT]
 > - The firmware starts in **Windows mode by default**. Hold `Fn+M` for one
 >   second for macOS mode; hold `Fn+N` for one second to return to Windows.
-> - Flash only files matching the hardware role and layout. Dongle mode requires
->   the matching-layout Left, Right, and Dongle files from the same build.
+> - Flash only files matching the keyboard hardware role and layout. Dongle mode
+>   uses the one universal Dongle UF2 with any matching-layout Left and Right pair.
 > - NocFree & has no external reset button. Read [RECOVERY.md](RECOVERY.md)
 >   before flashing so both halves can always return to DFU or stock V2.3.0.
 > - The experimental Rust dongle/2.4 GHz mode is not compatible with the factory ESB
@@ -25,10 +25,10 @@ project; it is not an official NocFree firmware release.
 
 | Layout | Current status | Physical validation |
 |---|---|---|
-| ANSI | Default build; matching Rust dongle UF2 available | Keyboard and dongle path passed physical pairing, input, reconnect, mode-switch, and recovery checks |
-| ISO | Experimental; matching Rust dongle UF2 available | Not tested on matching hardware |
-| JIS | Experimental; matching Rust dongle UF2 available | Not tested on matching hardware |
-| KR | Experimental; matching Rust dongle UF2 available | Not tested on matching hardware |
+| ANSI | Default build; universal Rust dongle UF2 available | Universal image passed physical pairing, both-half input, rapid input, reconnect, mode-switch, and recovery checks |
+| ISO | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
+| JIS | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
+| KR | Experimental; universal Rust dongle UF2 available | Not tested on matching hardware |
 
 ## Start here
 
@@ -57,7 +57,7 @@ HID output, but it does not power the keyboard off.
 For first use:
 
 1. Read [RECOVERY.md](RECOVERY.md) and identify the left and right firmware.
-2. Build or download matching-layout Left and Right UF2s, plus its Dongle UF2 for 2.4G.
+2. Build or download matching-layout Left and Right UF2s, plus the universal Dongle UF2 for 2.4G.
 3. Flash one keyboard half at a time, confirm both halves over Wired USB, then pair the dongle.
 4. Test Bluetooth, the physical switches, DFU shortcuts, and rapid alternating
    left/right input before relying on the firmware.
@@ -88,13 +88,13 @@ Use `ISO`, `JIS`, or `KR` for an experimental layout, or build all four:
 python3 -B tools/build_release.py --all-layouts
 ```
 
-Build all layout-matched left/right/dongle sets with:
+Build all layout-matched keyboard sets and the one universal dongle with:
 
 ```text
 python3 -B tools/build_release.py --all-layouts --dongle
 ```
 
-Dongle UF2s are named `NocFree_And_Rust_ZMK_Based_<LAYOUT>_Experimental_Dongle.uf2` under `firmware/experimental`; ANSI passed hardware verification, while ISO/JIS/KR require matching-keyboard verification.
+The universal Dongle UF2 is `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`. Its packet format accepts every layout and passed ANSI hardware validation; ISO/JIS/KR still require matching-keyboard verification.
 
 The Windows PowerShell wrapper remains available:
 
@@ -107,7 +107,7 @@ creates BIN/UF2/serial-DFU artifacts, and verifies their address and contents.
 ANSI output is stored under `firmware`; experimental layouts are stored under
 `firmware/experimental`.
 
-Committed ANSI keyboard and [dongle UF2](firmware/experimental/NocFree_And_Rust_ZMK_Based_ANSI_Experimental_Dongle.uf2):
+Committed ANSI keyboard and [universal dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2):
 
 - [Left/central UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2)
 - [Right/peripheral UF2](firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2)
@@ -140,7 +140,7 @@ on the build computer and are not installed on the keyboard.
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |
 | Status LEDs | Verify red low-battery behavior on a discharged unit and implement factory-equivalent charging/full indications |
-| Experimental Rust dongle | All layout-matched UF2s pass software checks; ANSI also passed pairing, reconnect, input, latency, BLE/dongle mode switching, and recovery on hardware. ISO/JIS/KR need matching-hardware tests |
+| Universal Rust dongle | One maximum-size HID image accepts all layouts and passed ANSI hardware validation. ISO/JIS/KR need matching-hardware tests |
 | Factory 2.4 GHz compatibility | Factory ESB, external nRF24L01, updater compatibility, and separate numpad communication remain unimplemented |
 | NocFree Link extras | Battery display returns unavailable; Quick Text storage/deletion/execution is not implemented |
 | Other tools | Factory updater and ZMK Studio compatibility are not implemented and are not current project requirements |

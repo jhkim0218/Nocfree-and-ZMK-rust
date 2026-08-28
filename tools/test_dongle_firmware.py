@@ -14,8 +14,7 @@ OFFICIAL = (
 RUST_DONGLE = (
     ROOT
     / "firmware"
-    / "experimental"
-    / "NocFree_And_Rust_ZMK_Based_KR_Experimental_Dongle.uf2"
+    / "NocFree_And_Rust_ZMK_Based_Dongle.uf2"
 )
 OFFICIAL_SHA256 = "98097252B4752888D4CD959D98B019152B95E743D1AF4039DB841D670002A93C"
 

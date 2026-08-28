@@ -66,13 +66,8 @@ def artifact_paths(
     )
 
 
-def dongle_uf2_path(layout: str) -> Path:
-    return (
-        ROOT
-        / "firmware"
-        / "experimental"
-        / f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_Dongle.uf2"
-    )
+def dongle_uf2_path() -> Path:
+    return ROOT / "firmware" / "NocFree_And_Rust_ZMK_Based_Dongle.uf2"
 
 
 def build_layout(
@@ -159,10 +154,8 @@ def build_layout(
     print(f"NocFree {layout}{curve_label} release verification passed", flush=True)
 
 
-def build_dongle(layout: str, objcopy: Path, backlight_curve: str = "linear") -> None:
-    selected_features = [f"layout-{layout.lower()}"]
-    if backlight_curve == "perceptual":
-        selected_features.append("backlight-perceptual")
+def build_dongle(objcopy: Path) -> None:
+    selected_features = ["layout-jis"]
     features = (
         "--no-default-features",
         "--features",
@@ -192,8 +185,8 @@ def build_dongle(layout: str, objcopy: Path, backlight_curve: str = "linear") ->
         *features,
     )
     elf = ROOT / "target" / ARM_TARGET / "release" / "dongle"
-    binary = ROOT / "target" / ARM_TARGET / "release" / f"dongle-{layout.lower()}.bin"
-    uf2 = dongle_uf2_path(layout)
+    binary = ROOT / "target" / ARM_TARGET / "release" / "dongle.bin"
+    uf2 = dongle_uf2_path()
     uf2.parent.mkdir(parents=True, exist_ok=True)
     run(str(objcopy), "-O", "binary", str(elf), str(binary))
     run(
@@ -203,7 +196,7 @@ def build_dongle(layout: str, objcopy: Path, backlight_curve: str = "linear") ->
         str(binary),
         str(uf2),
     )
-    print(f"NocFree {layout} dongle release verification passed", flush=True)
+    print("NocFree universal dongle release verification passed", flush=True)
 
 
 def main() -> None:
@@ -217,7 +210,7 @@ def main() -> None:
     parser.add_argument(
         "--dongle",
         action="store_true",
-        help="also build the experimental layout-matched USB dongle UF2",
+        help="also build the universal USB dongle UF2",
     )
     arguments = parser.parse_args()
     if arguments.backlight_curve == "perceptual" and (
@@ -248,8 +241,8 @@ def main() -> None:
         if backlight_curve is None:
             backlight_curve = "perceptual" if layout == "ANSI" else "linear"
         build_layout(layout, host, objcopy, nrfutil, backlight_curve)
-        if arguments.dongle:
-            build_dongle(layout, objcopy, backlight_curve)
+    if arguments.dongle:
+        build_dongle(objcopy)
     run(
         sys.executable,
         "-B",

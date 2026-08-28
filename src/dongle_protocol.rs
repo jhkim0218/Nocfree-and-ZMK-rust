@@ -1,8 +1,8 @@
-use crate::report::{KeyboardReport, ReportFrame};
-use crate::usb_descriptor::KEYBOARD_REPORT_BYTES;
+use crate::report::{KEY_BITMAP_BYTES, KEYBOARD_REPORT_BYTES, KeyboardReport, ReportFrame};
 
 pub const SERVICE_UUID_LE: [u8; 16] = 0xf3641500_00b0_4240_ba50_05ca45bf8abc_u128.to_le_bytes();
-pub const REPORT_BYTES: usize = 2 + KEYBOARD_REPORT_BYTES + 2;
+pub const UNIVERSAL_KEYBOARD_REPORT_BYTES: usize = 19;
+pub const REPORT_BYTES: usize = 2 + UNIVERSAL_KEYBOARD_REPORT_BYTES + 2;
 pub const ATT_MTU: u16 = REPORT_BYTES as u16 + 3;
 pub const CONNECTION_INTERVAL_UNITS: u16 = 6;
 pub const CONNECTION_LATENCY: u16 = 0;
@@ -19,7 +19,8 @@ impl DongleReport {
         let mut bytes = [0; REPORT_BYTES];
         bytes[..2].copy_from_slice(&self.sequence.to_le_bytes());
         bytes[2..2 + KEYBOARD_REPORT_BYTES].copy_from_slice(self.frame.keyboard.as_bytes());
-        bytes[2 + KEYBOARD_REPORT_BYTES..].copy_from_slice(&self.frame.consumer.to_le_bytes());
+        bytes[2 + UNIVERSAL_KEYBOARD_REPORT_BYTES..]
+            .copy_from_slice(&self.frame.consumer.to_le_bytes());
         bytes
     }
 
@@ -30,10 +31,12 @@ impl DongleReport {
                 keyboard: KeyboardReport {
                     modifiers: bytes[2],
                     reserved: bytes[3],
-                    keys: bytes[4..2 + KEYBOARD_REPORT_BYTES].try_into().unwrap(),
+                    keys: bytes[4..4 + KEY_BITMAP_BYTES].try_into().unwrap(),
                 },
                 consumer: u16::from_le_bytes(
-                    bytes[2 + KEYBOARD_REPORT_BYTES..].try_into().unwrap(),
+                    bytes[2 + UNIVERSAL_KEYBOARD_REPORT_BYTES..]
+                        .try_into()
+                        .unwrap(),
                 ),
             },
         }
@@ -91,8 +94,6 @@ pub fn advertisement_has_dongle_service(mut data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::report::KEY_BITMAP_BYTES;
-
     fn frame(modifiers: u8, key: u8, consumer: u16) -> ReportFrame {
         let mut keys = [0; KEY_BITMAP_BYTES];
         keys[0] = key;
@@ -113,7 +114,12 @@ mod tests {
             frame: frame(5, 9, 0x02a0),
         };
         assert_eq!(DongleReport::decode(report.encode()), report);
-        assert_eq!(REPORT_BYTES, KEYBOARD_REPORT_BYTES + 4);
+        assert_eq!(REPORT_BYTES, UNIVERSAL_KEYBOARD_REPORT_BYTES + 4);
+        assert!(
+            report.encode()[2 + KEYBOARD_REPORT_BYTES..2 + UNIVERSAL_KEYBOARD_REPORT_BYTES]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
         assert!(ATT_MTU <= 64);
     }
 
