@@ -67,18 +67,15 @@ pub fn pack_connection_parameters(
     ])
 }
 
-// 네 PCA9555 입력값을 CDC 진단 레코드의 64비트 데이터 필드에 보존한다.
-pub const fn pack_key_scan_words(words: [u16; 4]) -> u64 {
-    u64::from_le_bytes([
-        words[0] as u8,
-        (words[0] >> 8) as u8,
-        words[1] as u8,
-        (words[1] >> 8) as u8,
-        words[2] as u8,
-        (words[2] >> 8) as u8,
-        words[3] as u8,
-        (words[3] >> 8) as u8,
-    ])
+// 최대 네 PCA9555 입력값을 CDC 진단 레코드의 64비트 데이터 필드에 보존한다.
+pub const fn pack_key_scan_words<const N: usize>(words: [u16; N]) -> u64 {
+    let mut packed = 0_u64;
+    let mut index = 0;
+    while index < N && index < 4 {
+        packed |= (words[index] as u64) << (index * 16);
+        index += 1;
+    }
+    packed
 }
 
 pub fn duration_millis(start_ms: u64, end_ms: u64) -> u16 {
@@ -247,6 +244,10 @@ mod tests {
         assert_eq!(
             packed.to_le_bytes(),
             [0x23, 0x01, 0x67, 0x45, 0xab, 0x89, 0xef, 0xcd]
+        );
+        assert_eq!(
+            pack_key_scan_words([0x0123, 0x4567, 0x89ab]).to_le_bytes(),
+            [0x23, 0x01, 0x67, 0x45, 0xab, 0x89, 0, 0]
         );
     }
 }
