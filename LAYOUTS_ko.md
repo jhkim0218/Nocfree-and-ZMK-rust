@@ -10,7 +10,7 @@
 | ANSI | `src/keymap/ansi.rs` | 37 | 47 | 원본 커뮤니티 ZMK와 로컬 실물 | 안정 후보·실기 검증 이력 있음 |
 | ISO | `src/keymap/iso.rs` | 38 | 47 | 공식 updater ISO 이미지 | Experimental·실물 미검증 |
 | JIS | `src/keymap/jis.rs` | 37 | 48 | `electricdoc187`의 `jis-custom` 스캔맵 | Experimental·Rust 실물 미검증 |
-| KR | `src/keymap/kr.rs` | 39 | 50 | 공식 updater/product 자료와 `0x21/P0` 추가 포트 | Experimental·실물 미검증 |
+| KR | `src/keymap/kr.rs` | 39 | 50 | hyun님의 2026-08-28/29 실측: 표준 포트와 Right 전용 `0x21/P0.0..P0.3` | Experimental·Rust 이미지 실물 미검증 |
 
 모든 배열은 지원되는 공용 Rust 2.4G Dongle UF2를 사용합니다. ANSI는 2.4G 실기
 검증을 통과했고, ISO/JIS/KR은 반드시 대응 실물 키보드에서 테스트해야 합니다.
@@ -41,6 +41,8 @@ ANSI 결과는 `firmware`, ISO/JIS/KR은 `firmware/experimental`에 생성됩니
 ## 제한 사항
 
 - ISO, JIS, KR은 컴파일·합성 입력·아티팩트 검사를 통과해도 실물 검증이 아닙니다.
+- KR 실측 리포트로 `0x24/P1.7`이 미사용이고 `0x21/P0`의 네 입력은 모두 Right
+  전용임을 확인했습니다. 다만 이로 재생성한 Rust 이미지는 별도 실물 검증이 필요합니다.
 - JIS의 0x87/0x89/0x8a HID usage와 48번째 오른쪽 키를 보고할 수 있도록 report와
   디바운서 크기를 확장했습니다. Rust 실물 키보드 검증은 아직 없습니다.
 - 참고 ZMK의 왼쪽 Eisu 키는 tap Muhenkan / hold Fn입니다. 초기 Rust JIS는
@@ -58,4 +60,5 @@ Wired 입력을 확인한 뒤 공용 동글을 페어링하십시오.
 
 매핑 근거는 원본 <https://github.com/NocFreeKB/NocFree-and-zmk>, JIS 참고
 <https://github.com/electricdoc187/NocFree-and-zmk/tree/jis-custom>, 공식 제품 페이지
-<https://www.nocfree.com/products/nocfree-and-reservation>입니다.
+<https://www.nocfree.com/products/nocfree-and-reservation>, hyun님의 2026-08-28/29 KR
+실측 리포트입니다.

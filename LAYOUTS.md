@@ -10,7 +10,7 @@ the default and the only layout verified on the maintainer's keyboard.
 | ANSI | `src/keymap/ansi.rs` | 37 | 47 | Original NocFree community ZMK port and local hardware | Stable candidate; locally hardware-tested |
 | ISO | `src/keymap/iso.rs` | 38 | 47 | Official updater ISO images | Experimental; matching hardware not tested |
 | JIS | `src/keymap/jis.rs` | 37 | 48 | `electricdoc187/NocFree-and-zmk` `jis-custom` scan map | Experimental; Rust build not hardware-tested |
-| KR | `src/keymap/kr.rs` | 39 | 50 | Official updater/product data and documented `0x21/P0` extra port | Experimental; matching hardware not tested |
+| KR | `src/keymap/kr.rs` | 39 | 50 | hyun's 2026-08-28/29 physical scan report: standard ports plus Right-only `0x21/P0.0..P0.3` | Experimental; Rust image not tested on matching hardware |
 
 All layouts use the supported universal Rust 2.4G Dongle UF2. ANSI passed the
 physical 2.4G checks; ISO, JIS, and KR still require matching-keyboard tests.
@@ -51,6 +51,9 @@ Right. Flash only a matching Left/Right pair from one build.
 - No ISO, JIS, or KR Rust artifact has been tested on matching hardware in this
   repository. Passing compilation and synthetic scan tests is not physical
   validation.
+- The KR physical scan report establishes its PCA9555 wiring, including that
+  `0x24/P1.7` is unused and the four `0x21/P0` inputs belong only to Right. It
+  does not replace validation of this regenerated Rust image.
 - The JIS source uses tap Muhenkan / hold Fn on the left Eisu key. The initial
   Rust variant keeps that physical key as Fn only; tap/hold behavior is deferred
   until a JIS tester is available. The right Fn key remains Fn.
@@ -73,4 +76,5 @@ pairing the universal dongle.
 
 - Original community port: <https://github.com/NocFreeKB/NocFree-and-zmk>
 - Hardware-tested JIS ZMK branch: <https://github.com/electricdoc187/NocFree-and-zmk/tree/jis-custom>
+- KR physical scan report: 2026-08-28/29 (hyun; tester-supplied hardware record)
 - Official product layout reference: <https://www.nocfree.com/products/nocfree-and-reservation>

@@ -10,7 +10,7 @@
 | ANSI | `src/keymap/ansi.rs` | 37 | 47 | 元の community ZMK とローカル実機 | 安定候補・実機履歴あり |
 | ISO | `src/keymap/iso.rs` | 38 | 47 | 公式 updater ISO image | Experimental・実機未検証 |
 | JIS | `src/keymap/jis.rs` | 37 | 48 | `electricdoc187` の `jis-custom` scan map | Experimental・Rust 実機未検証 |
-| KR | `src/keymap/kr.rs` | 39 | 50 | 公式 updater/product と `0x21/P0` | Experimental・実機未検証 |
+| KR | `src/keymap/kr.rs` | 39 | 50 | hyun の 2026-08-28/29 実測: 標準ポートと Right 専用 `0x21/P0.0..P0.3` | Experimental・Rust image 実機未検証 |
 
 全配列はサポートされる共通 Rust 2.4G Dongle UF2 を使います。ANSI は2.4Gの実機
 検証に合格しましたが、ISO/JIS/KR は必ず対応する実機 keyboard で試験してください。
@@ -40,6 +40,8 @@ ANSI は `firmware`、他は `firmware/experimental` に出力されます。同
 ## 制限
 
 - ISO/JIS/KR は compile、synthetic input、artifact test が通っても実機検証ではありません。
+- KR 実測 report により、`0x24/P1.7` は未使用で、`0x21/P0` の4入力はすべて
+  Right 専用と確認しました。ただし再生成した Rust image は別途実機検証が必要です。
 - JIS の usage 0x87/0x89/0x8a と右48番目のキーに合わせ、HID report と
   debouncer 容量を拡張済みですが、Rust 実機試験は未実施です。
 - 参考 ZMK の左 Eisu は tap Muhenkan / hold Fn です。初期 Rust JIS は tester が
@@ -57,4 +59,4 @@ flash して Wired input を確認し、その後に共通 dongle を pairing �
 
 参照: <https://github.com/NocFreeKB/NocFree-and-zmk>、
 <https://github.com/electricdoc187/NocFree-and-zmk/tree/jis-custom>、
-<https://www.nocfree.com/products/nocfree-and-reservation>。
+<https://www.nocfree.com/products/nocfree-and-reservation>、hyun による 2026-08-28/29 KR 実測 report。

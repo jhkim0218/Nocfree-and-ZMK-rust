@@ -28,7 +28,7 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 | ANSI | 既定のサポート build、共通 Rust ドングル UF2 あり | 共通 image で pairing・左右入力・高速入力・再接続・モード切替・復旧を実機確認済み |
 | ISO | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
 | JIS | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
-| KR | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
+| KR | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須; KR ハードウェアマッピング試験協力: hyun |
 
 ## 最初に確認すること
 

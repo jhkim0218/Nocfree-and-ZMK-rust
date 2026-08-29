@@ -338,13 +338,18 @@ mod tests {
 
     #[cfg(feature = "layout-kr")]
     #[test]
-    fn kr_scan_matches_official_port_limits() {
-        assert_eq!(Half::Right.row_counts(), [8, 8, 8, 7, 8, 8]);
+    fn kr_scan_matches_physical_port_limits() {
+        assert_eq!(Half::Left.row_counts(), [7, 7, 7, 7, 6, 5]);
+        assert_eq!(Half::Right.row_counts(), [8, 8, 8, 7, 8, 7]);
 
         let released = [u16::MAX; EXPANDER_COUNT];
         let mut unused_right_bit = released;
-        unused_right_bit[1] &= !(1 << 15);
+        unused_right_bit[2] &= !(1 << 15);
         assert_eq!(decode_pressed(Half::Right, unused_right_bit), 0);
+
+        let mut extra_left_bit = released;
+        extra_left_bit[3] &= !1;
+        assert_eq!(decode_pressed(Half::Left, extra_left_bit), 0);
 
         for extra in 0..EXTRA_RIGHT_KEYS {
             let mut words = released;
