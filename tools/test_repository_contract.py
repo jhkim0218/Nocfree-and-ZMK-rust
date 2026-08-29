@@ -182,8 +182,14 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("peripherals.P0_31", right)
 
     def test_scanner_retries_transient_expander_startup_failures(self) -> None:
+        # 이 테스트가 검증하는 시나리오: 확장기 초기화가 일시 실패해도 진단 후 backoff를 거쳐 계속 재시도한다.
+        # Given: 하드웨어 스캐너 구현을 읽는다.
         scanner = read("src/hardware_scanner.rs")
-        self.assertIn("while expanders.configure_and_verify().await.is_err()", scanner)
+
+        # When / Then: 성공할 때까지 반복하고 실패 경로에서 지연한 뒤 다시 시도한다.
+        self.assertIn("match expanders.configure_and_verify().await", scanner)
+        self.assertIn("SplitDiagnosticEvent::KeyScanConfigured", scanner)
+        self.assertIn("failure_backoff_ms(fail_streak)", scanner)
         self.assertIn("interrupt.wait_for_low()", scanner)
         self.assertIn("IDLE_SAFETY_SCAN_MS", scanner)
         self.assertNotIn("core::future::pending", scanner)

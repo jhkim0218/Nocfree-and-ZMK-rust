@@ -389,7 +389,14 @@ async fn run_hardware(
 ) -> ! {
     pwm.set_period(BACKLIGHT_PWM_HZ);
     let mut backlight = current_backlight();
-    pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
+    let initial_duty = backlight.state.duty(pwm.max_duty());
+    pwm.set_duty(0, initial_duty);
+    SPLIT_DIAGNOSTICS.record(
+        SplitDiagnosticEvent::BacklightPwm,
+        0,
+        initial_duty,
+        u64::from(pwm.max_duty()),
+    );
     saadc.calibrate().await;
     let mut filter = VoltageFilter::new();
     pwm.set_duty(0, pwm.max_duty());
@@ -1163,7 +1170,13 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 usb_device.run(),
                 cdc_recovery(cdc, &SPLIT_DIAGNOSTICS, SplitDiagnosticRole::Left),
                 run_usb_reports(keyboard, consumer),
-                hardware_scanner::run(Half::Left, expanders, key_interrupt, &INPUT_STATE),
+                hardware_scanner::run(
+                    Half::Left,
+                    expanders,
+                    key_interrupt,
+                    &INPUT_STATE,
+                    &SPLIT_DIAGNOSTICS,
+                ),
                 link.run(&BONDS),
             ),
             join5(

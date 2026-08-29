@@ -38,6 +38,9 @@ pub enum SplitDiagnosticEvent {
     Advertising = 16,
     AdvertisingError = 17,
     DisconnectedKey = 18,
+    KeyScanConfigured = 19,
+    KeyScanInputs = 20,
+    BacklightPwm = 21,
 }
 
 pub fn pack_address(flags: u8, bytes: [u8; 6]) -> u64 {
@@ -61,6 +64,20 @@ pub fn pack_connection_parameters(
         (latency >> 8) as u8,
         timeout as u8,
         (timeout >> 8) as u8,
+    ])
+}
+
+// 네 PCA9555 입력값을 CDC 진단 레코드의 64비트 데이터 필드에 보존한다.
+pub const fn pack_key_scan_words(words: [u16; 4]) -> u64 {
+    u64::from_le_bytes([
+        words[0] as u8,
+        (words[0] >> 8) as u8,
+        words[1] as u8,
+        (words[1] >> 8) as u8,
+        words[2] as u8,
+        (words[2] >> 8) as u8,
+        words[3] as u8,
+        (words[3] >> 8) as u8,
     ])
 }
 
@@ -215,5 +232,21 @@ mod tests {
         );
         assert_eq!(duration_millis(100, 175), 75);
         assert_eq!(duration_millis(200, 100), 0);
+    }
+
+    #[test]
+    fn packs_key_scan_words_without_loss() {
+        // 이 테스트가 검증하는 시나리오: 네 확장기의 원시 입력값을 CDC 진단 한 레코드에 손실 없이 담는다.
+        // Given: 서로 구분되는 네 개의 16비트 입력값이 있다.
+        let words = [0x0123, 0x4567, 0x89ab, 0xcdef];
+
+        // When: 진단용 64비트 값으로 묶는다.
+        let packed = pack_key_scan_words(words);
+
+        // Then: 바이트 순서와 모든 입력 비트가 그대로 유지된다.
+        assert_eq!(
+            packed.to_le_bytes(),
+            [0x23, 0x01, 0x67, 0x45, 0xab, 0x89, 0xef, 0xcd]
+        );
     }
 }

@@ -15,6 +15,7 @@ use crate::pca9555::Pca9555Bus;
 use crate::scanner::{
     ACTIVE_SCAN_MS, Debouncer, Half, IDLE_SAFETY_SCAN_MS, decode_pressed, failure_backoff_ms,
 };
+use crate::split_diagnostics::{SplitDiagnosticEvent, SplitDiagnostics, pack_key_scan_words};
 
 pub async fn recover_i2c_bus(sda: Peri<'_, impl Pin>, scl: Peri<'_, impl Pin>) {
     let mut sda = Flex::new(sda);
@@ -142,23 +143,44 @@ impl<const N: usize> KeyState<N> {
     }
 }
 
-pub async fn run<I, const N: usize>(
+pub async fn run<I, const N: usize, const D: usize>(
     half: Half,
     mut expanders: Pca9555Bus<I>,
     mut interrupt: Input<'_>,
     state: &KeyState<N>,
+    diagnostics: &SplitDiagnostics<D>,
 ) -> !
 where
     I: I2c,
 {
     let mut fail_streak = 0_u8;
-    while expanders.configure_and_verify().await.is_err() {
-        fail_streak = fail_streak.saturating_add(1);
-        Timer::after(Duration::from_millis(failure_backoff_ms(fail_streak) as u64)).await;
+    loop {
+        match expanders.configure_and_verify().await {
+            Ok(()) => {
+                diagnostics.record(
+                    SplitDiagnosticEvent::KeyScanConfigured,
+                    0,
+                    u16::from(expanders.configured_address_mask()),
+                    u64::from(fail_streak),
+                );
+                break;
+            }
+            Err(_) => {
+                fail_streak = fail_streak.saturating_add(1);
+                diagnostics.record(
+                    SplitDiagnosticEvent::KeyScanConfigured,
+                    -1,
+                    u16::from(expanders.configured_address_mask()),
+                    u64::from(fail_streak),
+                );
+                Timer::after(Duration::from_millis(failure_backoff_ms(fail_streak) as u64)).await;
+            }
+        }
     }
 
     let mut debounce = Debouncer::<MAX_HALF_KEY_COUNT>::default();
     let mut previous_scan = Instant::now();
+    let mut last_readable_port_mask = None;
     fail_streak = 0;
 
     loop {
@@ -172,10 +194,30 @@ where
         let words = match expanders.read_inputs().await {
             Ok(words) => {
                 fail_streak = 0;
+                let readable_port_mask = expanders.readable_port_mask();
+                if last_readable_port_mask != Some(readable_port_mask) {
+                    diagnostics.record(
+                        SplitDiagnosticEvent::KeyScanInputs,
+                        0,
+                        u16::from(readable_port_mask),
+                        pack_key_scan_words(words),
+                    );
+                    last_readable_port_mask = Some(readable_port_mask);
+                }
                 words
             }
             Err(_) => {
                 fail_streak = fail_streak.saturating_add(1);
+                let readable_port_mask = expanders.readable_port_mask();
+                if last_readable_port_mask != Some(readable_port_mask) {
+                    diagnostics.record(
+                        SplitDiagnosticEvent::KeyScanInputs,
+                        -1,
+                        u16::from(readable_port_mask),
+                        u64::from(fail_streak),
+                    );
+                    last_readable_port_mask = Some(readable_port_mask);
+                }
                 Timer::after(Duration::from_millis(failure_backoff_ms(fail_streak) as u64)).await;
                 continue;
             }
