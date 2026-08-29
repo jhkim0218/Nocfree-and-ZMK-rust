@@ -463,7 +463,13 @@ async fn main(_spawner: embassy_executor::Spawner) {
                 usb_device.run(),
                 cdc_recovery(cdc, &SPLIT_DIAGNOSTICS, SplitDiagnosticRole::Right),
                 join(
-                    hardware_scanner::run(Half::Right, expanders, key_interrupt, &KEY_STATE),
+                    hardware_scanner::run(
+                        Half::Right,
+                        expanders,
+                        key_interrupt,
+                        &KEY_STATE,
+                        &SPLIT_DIAGNOSTICS,
+                    ),
                     log_disconnected_keys(),
                 ),
                 run_split_peripheral(softdevice, &split_server),

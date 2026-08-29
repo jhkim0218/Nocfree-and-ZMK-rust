@@ -17,6 +17,8 @@ pub enum Error<E> {
 
 pub struct Pca9555Bus<I> {
     i2c: I,
+    configured_address_mask: u8,
+    readable_port_mask: u8,
 }
 
 impl<I> Pca9555Bus<I>
@@ -24,15 +26,23 @@ where
     I: I2c,
 {
     pub const fn new(i2c: I) -> Self {
-        Self { i2c }
+        Self {
+            i2c,
+            configured_address_mask: 0,
+            readable_port_mask: 0,
+        }
     }
 
     pub async fn configure_and_verify(&mut self) -> Result<(), Error<I::Error>> {
+        self.configured_address_mask = 0;
         let mut configured = false;
         let mut first_error = None;
-        for address in EXPANDER_ADDRESSES {
+        for (index, address) in EXPANDER_ADDRESSES.into_iter().enumerate() {
             match self.configure_and_verify_address(address).await {
-                Ok(()) => configured = true,
+                Ok(()) => {
+                    configured = true;
+                    self.configured_address_mask |= 1 << index;
+                }
                 Err(error) if first_error.is_none() => first_error = Some(error),
                 Err(_) => {}
             }
@@ -45,6 +55,7 @@ where
     }
 
     pub async fn read_inputs(&mut self) -> Result<[u16; EXPANDER_COUNT], Error<I::Error>> {
+        self.readable_port_mask = 0;
         let mut words = [u16::MAX; EXPANDER_COUNT];
         let mut any_read = false;
         let mut first_error = None;
@@ -55,6 +66,7 @@ where
                     Ok(byte) => {
                         words[index] &= !(0xff_u16 << (port * 8));
                         words[index] |= u16::from(byte) << (port * 8);
+                        self.readable_port_mask |= 1 << (index * 2 + port as usize);
                         any_read = true;
                     }
                     Err(error) if first_error.is_none() => first_error = Some(error),
@@ -67,6 +79,16 @@ where
         } else {
             Err(first_error.expect("at least one expander port"))
         }
+    }
+
+    // 마지막 설정 확인에서 응답한 확장기 주소를 배열 순서의 비트 마스크로 반환한다.
+    pub const fn configured_address_mask(&self) -> u8 {
+        self.configured_address_mask
+    }
+
+    // 마지막 입력 읽기에서 응답한 포트를 확장기당 두 비트의 마스크로 반환한다.
+    pub const fn readable_port_mask(&self) -> u8 {
+        self.readable_port_mask
     }
 
     async fn configure_and_verify_address(&mut self, address: u8) -> Result<(), Error<I::Error>> {
@@ -293,5 +315,27 @@ mod tests {
         assert_eq!(words[2], 0x3333);
         assert_eq!(words[3] & 0x00ff, 0x44);
         assert_eq!(words[3] & 0xff00, 0xff00);
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn diagnostics_report_each_available_address_and_port() {
+        // 이 테스트가 검증하는 시나리오: 일부 KR 확장기/포트가 실패해도 성공한 하드웨어 범위를 진단할 수 있다.
+        // Given: 0x21 설정 확인과 0x22의 두 번째 입력 포트가 각각 실패한다.
+        let mut configuration = MockI2c::new();
+        configuration.failed_read = Some((0x21, POLARITY_PORT0));
+        let mut configuration_bus = Pca9555Bus::new(configuration);
+
+        let mut input = MockI2c::new();
+        input.failed_read = Some((0x22, INPUT_PORT0 + 1));
+        let mut input_bus = Pca9555Bus::new(input);
+
+        // When: 설정 확인과 입력 읽기를 실행한다.
+        block_on(configuration_bus.configure_and_verify()).unwrap();
+        block_on(input_bus.read_inputs()).unwrap();
+
+        // Then: 응답한 주소와 포트만 비트 마스크에 남는다.
+        assert_eq!(configuration_bus.configured_address_mask(), 0b0111);
+        assert_eq!(input_bus.readable_port_mask(), 0b0111_0111);
     }
 }

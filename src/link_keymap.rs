@@ -15,6 +15,10 @@ pub const LINK_KEYMAP_RECORD_BYTES: usize = 12 + LINK_KEYMAP_BYTES + HOTKEY_SLOT
 pub const LINK_KEYMAP_PAGE: u8 = 7;
 
 const MAGIC: [u8; 4] = *b"NFK1";
+// KR은 양쪽 raw 순서 교정 때마다 이전 저장 키맵을 무효화한다.
+#[cfg(feature = "layout-kr")]
+const VERSION: u8 = 6;
+#[cfg(not(feature = "layout-kr"))]
 const VERSION: u8 = 4;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -476,6 +480,18 @@ mod tests {
         encoded[4] = VERSION;
         encoded[100] ^= 1;
         assert_eq!(LinkKeymap::decode(&encoded), None);
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_mapping_change_invalidates_the_old_persisted_keymap() {
+        // 이 테스트가 검증하는 시나리오: KR 오른쪽 raw 순서 변경 후 version 5 저장 키맵이 새 기본 매핑을 덮어쓰지 않는다.
+        // Given: 새 KR 기본 키맵을 인코딩한다.
+        let encoded = LinkKeymap::default().encode();
+
+        // When / Then: KR 레코드는 version 6을 사용해 기존 version 5와 구분된다.
+        assert_eq!(VERSION, 6);
+        assert_eq!(encoded[4], 6);
     }
 
     #[test]

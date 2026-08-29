@@ -272,9 +272,13 @@ mod tests {
     #[cfg(feature = "layout-kr")]
     #[test]
     fn kr_duplicates_the_verified_boundary_keys() {
+        // 이 테스트가 검증하는 시나리오: KR 경계 중복키 수와 HID 사용값이 실물 검증 결과를 유지한다.
+        // Given / When: KR 배열의 키 수와 추가 포트 키 수를 조회한다.
         assert_eq!((LAYOUT_ID, LAYOUT_NAME), (3, "KR"));
         assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (39, 50, 89));
-        assert_eq!((EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS), (2, 3));
+        assert_eq!((EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS), (0, 4));
+
+        // Then: 다섯 경계 키는 양쪽에 정확히 하나씩 존재한다.
         for usage in [0x3f, 0x23, 0x1c, 0x0b, 0x05] {
             assert_eq!(
                 (0..KEY_COUNT)
@@ -284,5 +288,49 @@ mod tests {
                 "KR boundary usage {usage:#04x} must appear on both halves"
             );
         }
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_right_uses_the_verified_physical_row_order() {
+        // 이 테스트가 검증하는 시나리오: KR 오른쪽 50키가 실물에서 누른 여섯 행의 raw 순서를 그대로 사용한다.
+        // Given / When: 각 행의 오른쪽 visual 구간을 선택한다.
+        let right_rows: [&[usize]; 6] = [
+            &VISUAL_TO_RAW[7..17],
+            &VISUAL_TO_RAW[24..33],
+            &VISUAL_TO_RAW[40..49],
+            &VISUAL_TO_RAW[56..63],
+            &VISUAL_TO_RAW[69..77],
+            &VISUAL_TO_RAW[82..89],
+        ];
+
+        // Then: 표준 포트와 0x21 P0.0~P0.3 키가 실제 왼쪽→오른쪽 순서와 일치한다.
+        assert_eq!(RIGHT_ROW_COUNTS, [8, 8, 8, 7, 8, 7]);
+        assert_eq!(RIGHT_FN_RAW, 80);
+        assert_eq!(right_rows[0], [39, 40, 41, 42, 43, 44, 45, 46, 85, 86]);
+        assert_eq!(right_rows[1], [47, 48, 49, 50, 51, 52, 53, 54, 87]);
+        assert_eq!(right_rows[2], [55, 56, 57, 58, 59, 60, 61, 62, 88]);
+        assert_eq!(right_rows[3], [63, 64, 65, 66, 67, 68, 69]);
+        assert_eq!(right_rows[4], [70, 71, 72, 73, 74, 75, 76, 77]);
+        assert_eq!(right_rows[5], [78, 79, 80, 81, 82, 83, 84]);
+        assert_eq!(base_action(39), Action::Key(0x3f));
+        assert_eq!(base_action(47), Action::Key(0x23));
+        assert_eq!(base_action(70), Action::Key(0x05));
+        assert_eq!(base_action(80), Action::Fn);
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_left_uses_the_verified_six_port_mapping() {
+        // 이 테스트가 검증하는 시나리오: KR 왼쪽 39키가 0x21 추가 포트 없이 여섯 표준 포트에 배치된다.
+        // Given: KR 배열을 선택한다.
+        assert_eq!((LAYOUT_ID, LAYOUT_NAME), (3, "KR"));
+
+        // When / Then: 실제 행 수, Fn 위치, Y/H raw 위치가 실물 포트 순서와 일치한다.
+        assert_eq!(LEFT_ROW_COUNTS, [7, 7, 7, 7, 6, 5]);
+        assert_eq!(EXTRA_LEFT_KEYS, 0);
+        assert_eq!(LEFT_FN_RAW, 34);
+        assert_eq!(base_action(20), Action::Key(0x1c));
+        assert_eq!(base_action(27), Action::Key(0x0b));
     }
 }

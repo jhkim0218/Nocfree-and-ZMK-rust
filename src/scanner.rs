@@ -339,11 +339,16 @@ mod tests {
     #[cfg(feature = "layout-kr")]
     #[test]
     fn kr_scan_matches_official_port_limits() {
-        assert_eq!(Half::Right.row_counts(), [8, 8, 8, 7, 8, 8]);
+        // 이 테스트가 검증하는 시나리오: KR 오른쪽은 실물에 없는 0x24 P1.7을 제외하고 0x21 P0.3을 포함한다.
+        // Given: 실물에서 확인된 오른쪽 행 길이를 사용한다.
+        assert_eq!(Half::Right.row_counts(), [8, 8, 8, 7, 8, 7]);
 
+        // When: 과거에 잘못 포함했던 0x24 P1.7을 누른 상태로 만든다.
         let released = [u16::MAX; EXPANDER_COUNT];
         let mut unused_right_bit = released;
-        unused_right_bit[1] &= !(1 << 15);
+        unused_right_bit[2] &= !(1 << 15);
+
+        // Then: 해당 비트는 키가 아니며 0x21 P0.0~P0.3 네 비트만 추가 키로 해석한다.
         assert_eq!(decode_pressed(Half::Right, unused_right_bit), 0);
 
         for extra in 0..EXTRA_RIGHT_KEYS {
@@ -354,6 +359,27 @@ mod tests {
                 1_u64 << (RIGHT_KEY_COUNT - EXTRA_RIGHT_KEYS + extra)
             );
         }
+    }
+
+    #[cfg(feature = "layout-kr")]
+    #[test]
+    fn kr_left_reads_y_and_h_from_the_seventh_standard_port_bits() {
+        // 이 테스트가 검증하는 시나리오: KR 왼쪽 Y/H가 응답하지 않는 0x21이 아니라 0x22의 일곱 번째 비트에 있다.
+        // Given: 모든 키가 해제된 PCA9555 입력값을 준비한다.
+        let released = [u16::MAX; EXPANDER_COUNT];
+
+        // When: 0x22 P0.6과 P1.6을 각각 누른다.
+        let mut y_pressed = released;
+        y_pressed[1] &= !(1 << 6);
+        let mut h_pressed = released;
+        h_pressed[1] &= !(1 << 14);
+        let mut absent_extra_port = released;
+        absent_extra_port[3] &= !(1 << 0);
+
+        // Then: Y/H raw만 검출되고 0x21 입력은 왼쪽 키로 해석되지 않는다.
+        assert_eq!(decode_pressed(Half::Left, y_pressed), 1_u64 << 20);
+        assert_eq!(decode_pressed(Half::Left, h_pressed), 1_u64 << 27);
+        assert_eq!(decode_pressed(Half::Left, absent_extra_port), 0);
     }
 
     #[test]
