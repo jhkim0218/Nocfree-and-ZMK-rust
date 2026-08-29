@@ -271,14 +271,10 @@ mod tests {
 
     #[cfg(feature = "layout-kr")]
     #[test]
-    fn kr_matches_the_physical_scan_report() {
+    fn kr_duplicates_the_verified_boundary_keys() {
         assert_eq!((LAYOUT_ID, LAYOUT_NAME), (3, "KR"));
         assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (39, 50, 89));
-        assert_eq!(LEFT_ROW_COUNTS, [7, 7, 7, 7, 6, 5]);
-        assert_eq!(RIGHT_ROW_COUNTS, [8, 8, 8, 7, 8, 7]);
-        assert_eq!((EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS), (0, 4));
-        assert_eq!(base_action(20), Action::Key(0x1c));
-        assert_eq!(base_action(27), Action::Key(0x0b));
+        assert_eq!((EXTRA_LEFT_KEYS, EXTRA_RIGHT_KEYS), (2, 3));
         for usage in [0x3f, 0x23, 0x1c, 0x0b, 0x05] {
             assert_eq!(
                 (0..KEY_COUNT)

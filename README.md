@@ -28,7 +28,7 @@ project; it is not an official NocFree firmware release.
 | ANSI | Default supported build; universal Rust dongle UF2 available | Universal image passed physical pairing, both-half input, rapid input, reconnect, mode-switch, and recovery checks |
 | ISO | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
 | JIS | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
-| KR | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required; hyun assisted with KR hardware-mapping tests |
+| KR | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
 
 ## Start here
 
