@@ -149,11 +149,8 @@ async fn run_receiver(softdevice: &Softdevice) -> ! {
                 Ok(connection) => connection,
                 Err(_) => continue,
             };
-        let had_dongle_peer = BONDS.has_dongle_peer();
         if !secure_connection(&connection).await {
-            if had_dongle_peer {
-                BONDS.clear_dongle_peer();
-            }
+            // A transient security failure must not erase the shared bond.
             disconnect(&connection).await;
             continue;
         }
