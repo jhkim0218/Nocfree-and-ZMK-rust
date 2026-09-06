@@ -171,6 +171,19 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 - **안전한 flash 범위:** SoftDevice, 영구 저장소, 공장 filesystem과 UF2 bootloader
   영역을 보존.
 
+### NocFree Link 호환성 범위
+
+Link의 Function에서 지정한 Bluetooth 1/2/3은 기본 `Fn+1/2/3`과 같은 동작입니다.
+짧게 누르면 해당 슬롯을 선택하고, 1초 누르면 그 슬롯의 bond를 지운 뒤 새 페어링을
+시작합니다. 표준 Function 백라이트, Media/WWW/System 키, Windows/macOS 선택,
+왼쪽 DFU 및 레이어·hotkey도 실행 의미와 GET 응답을 같은 계약으로 처리합니다.
+
+Mouse, Quick Text, LT/MT, 2.4G 전환, 동글 DFU, Link 밝기·절전 설정처럼 실행 경로가
+없는 메뉴는 `BAD_ARG`로 거부합니다. 기존 키맵을 다른 기능으로 바꾸거나 성공한 것처럼
+표시하지 않으며, 저장된 알 수 없는 바인딩도 그대로 보존합니다. Link의 배포 웹 소스는
+이 저장소에 없으므로 Rust 전용의 남은 `0x...` 라벨을 사람 이름으로 바꾸는 UI 작업은
+별도 소스가 필요합니다.
+
 현재 5 ms ANSI 펌웨어는 유선 입력과 양쪽 1 kHz 백라이트 제어를 확인했습니다.
 이전 ANSI 펌웨어는 84키 전체, Wired/Bluetooth, Windows 11·Android 멀티페어링,
 물리 스위치, NocFree Link, 백라이트 동기화·소등, 전원 wake, 양쪽 DFU와 순정

@@ -65,6 +65,7 @@ impl Command {
             Action::BacklightDown => Command::BacklightDown,
             Action::BacklightUp => Command::BacklightUp,
             Action::BatteryStatus => Command::None,
+            Action::SystemSelect(system) => Command::SystemSelect(system),
             _ => Command::None,
         }
     }
@@ -409,7 +410,19 @@ mod tests {
     }
 
     #[test]
-    fn system_shortcuts_tap_letters_and_hold_to_select_the_os() {
+    fn direct_system_selection_is_immediate() {
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with_at(1, 10, |_, raw| match raw {
+            0 => Action::SystemSelect(1),
+            _ => Action::Transparent,
+        });
+        assert_eq!(effects.commands(), &[Command::SystemSelect(1)]);
+        assert!(engine.apply_snapshot_at(1, 1_010).commands().is_empty());
+        assert!(engine.apply_snapshot_at(0, 1_011).commands().is_empty());
+    }
+
+    #[test]
+    fn system_shortcuts_keep_their_mn_tap_and_one_second_hold_behavior() {
         let mut engine = ReportEngine::default();
         let keys = (1_u128 << LEFT_FN_RAW) | (1_u128 << raw_with_base(Action::Key(0x11)));
         assert!(engine.apply_snapshot_at(keys, 10).commands().is_empty());
@@ -422,6 +435,7 @@ mod tests {
 
         let keys = (1_u128 << RIGHT_FN_RAW) | (1_u128 << raw_with_base(Action::Key(0x10)));
         assert!(engine.apply_snapshot_at(keys, 2_000).commands().is_empty());
+        assert!(engine.apply_snapshot_at(keys, 2_999).commands().is_empty());
         assert_eq!(
             engine.apply_snapshot_at(keys, 3_000).commands(),
             &[Command::SystemSelect(0)]

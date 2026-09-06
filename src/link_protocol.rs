@@ -1,6 +1,6 @@
 use crate::link_keymap::{
     HOTKEY_SLOTS, HotkeySlot, LINK_COLS, LINK_LAYERS, LINK_ROWS, LinkBinding, LinkKeymap,
-    raw_from_matrix,
+    binding_for_link, binding_is_valid, raw_from_matrix,
 };
 
 pub const MAX_FRAME_BYTES: usize = 261;
@@ -26,9 +26,14 @@ const DELETE_HOTKEY: u8 = 55;
 const CLEAR_ALL: u8 = 33;
 const CLEAR_LAYER: u8 = 34;
 const READ_VERSION: u8 = 81;
+const ENTER_LEFT_UF2: u8 = 82;
 const SET_SYSTEM: u8 = 84;
 const READ_SYSTEM: u8 = 85;
 const READ_BATTERY: u8 = 86;
+const READ_BRIGHTNESS: u8 = 87;
+const SET_BRIGHTNESS: u8 = 88;
+const READ_SLEEP: u8 = 89;
+const SET_SLEEP: u8 = 90;
 
 const RSP_SET_KEY: u8 = 144;
 const RSP_GET_KEY: u8 = 145;
@@ -45,9 +50,14 @@ const RSP_DELETE_HOTKEY: u8 = 183;
 const RSP_CLEAR_ALL: u8 = 161;
 const RSP_CLEAR_LAYER: u8 = 162;
 const RSP_READ_VERSION: u8 = 209;
+const RSP_ENTER_LEFT_UF2: u8 = 210;
 const RSP_SET_SYSTEM: u8 = 212;
 const RSP_READ_SYSTEM: u8 = 213;
 const RSP_READ_BATTERY: u8 = 214;
+const RSP_READ_BRIGHTNESS: u8 = 215;
+const RSP_SET_BRIGHTNESS: u8 = 216;
+const RSP_READ_SLEEP: u8 = 218;
+const RSP_SET_SLEEP: u8 = 219;
 
 pub struct LinkResponse {
     pub bytes: [u8; MAX_FRAME_BYTES],
@@ -96,6 +106,7 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
                 let row = payload[1] as usize;
                 let col = payload[2] as usize;
                 if let Some(binding) = keymap.matrix_binding(layer, row, col) {
+                    let binding = binding_for_link(binding);
                     response_payload[..7].copy_from_slice(&[
                         OK,
                         payload[0],
@@ -125,6 +136,7 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
                 for col in 0..LINK_COLS {
                     let binding = keymap
                         .matrix_binding(payload[0] as usize, payload[1] as usize, col)
+                        .map(binding_for_link)
                         .unwrap_or(LinkBinding::TRANSPARENT);
                     response_payload[payload_len..payload_len + 4].copy_from_slice(&[
                         col as u8,
@@ -198,8 +210,12 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
             payload_len = 4;
             RSP_READ_VERSION
         }
+        ENTER_LEFT_UF2 => {
+            response_payload[0] = BAD_ARG;
+            RSP_ENTER_LEFT_UF2
+        }
         SET_SYSTEM => {
-            if payload.len() == 1 && keymap.set_system(payload[0]) {
+            if payload.len() == 1 && payload[0] <= 1 && keymap.set_system(1 - payload[0]) {
                 response_payload[0] = OK;
                 changed = true;
             } else {
@@ -208,7 +224,7 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
             RSP_SET_SYSTEM
         }
         READ_SYSTEM => {
-            response_payload[..2].copy_from_slice(&[OK, keymap.system()]);
+            response_payload[..2].copy_from_slice(&[OK, 1 - keymap.system()]);
             payload_len = 2;
             RSP_READ_SYSTEM
         }
@@ -216,6 +232,25 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
             response_payload[..4].copy_from_slice(&[OK, 0xff, 0xff, 0xff]);
             payload_len = 4;
             RSP_READ_BATTERY
+        }
+        READ_BRIGHTNESS => {
+            response_payload[..2].copy_from_slice(&[BAD_ARG, 0]);
+            payload_len = 2;
+            RSP_READ_BRIGHTNESS
+        }
+        SET_BRIGHTNESS => {
+            response_payload[..2].copy_from_slice(&[BAD_ARG, 0]);
+            payload_len = 2;
+            RSP_SET_BRIGHTNESS
+        }
+        READ_SLEEP => {
+            response_payload[..3].copy_from_slice(&[BAD_ARG, 0, 0]);
+            payload_len = 3;
+            RSP_READ_SLEEP
+        }
+        SET_SLEEP => {
+            response_payload[0] = BAD_ARG;
+            RSP_SET_SLEEP
         }
         _ => return None,
     };
@@ -257,7 +292,9 @@ fn handle_set_hotkey(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut bool
         let usage = u16::from_be_bytes([event[0], event[1]]);
         match usage {
             0xe0..=0xe7 => modifiers |= 1 << (usage - 0xe0),
-            0x04..=0xff if key.is_none() => key = Some(usage),
+            usage if key.is_none() && binding_is_valid(LinkBinding::new(0, usage)) => {
+                key = Some(usage)
+            }
             _ => return BAD_ARG,
         }
     }
@@ -334,16 +371,6 @@ fn handle_set_layer_row(payload: &[u8], keymap: &mut LinkKeymap, changed: &mut b
     OK
 }
 
-fn binding_is_valid(binding: LinkBinding) -> bool {
-    match binding.kind {
-        0 => binding.value <= 0xff,
-        1 => (0xe0..=0xe7).contains(&binding.value),
-        2 => binding.value <= 0x03ff,
-        3 | 0x80 => true,
-        _ => false,
-    }
-}
-
 fn decode_frame(frame: &[u8]) -> Option<(u8, &[u8])> {
     if frame.len() < 6 || frame[..2] != START || frame[frame.len() - 2..] != END {
         return None;
@@ -412,6 +439,39 @@ mod tests {
     }
 
     #[test]
+    fn get_requests_canonicalize_legacy_link_aliases() {
+        let mut keymap = LinkKeymap::default();
+        assert!(keymap.set_matrix_binding(0, 0, 0, LinkBinding::new(0x80, 0x40)));
+
+        assert_eq!(
+            run(GET_KEY, &[0, 0, 0], &mut keymap).as_slice(),
+            &[0xff, 0xfe, RSP_GET_KEY, 7, OK, 0, 0, 0, 3, 0, 2, 0xfe, 0xff,]
+        );
+        assert_eq!(
+            &run(GET_LAYER_ROW, &[0, 0], &mut keymap).as_slice()[4..10],
+            &[OK, 0, 0, 3, 0, 2]
+        );
+    }
+
+    #[test]
+    fn rejected_bindings_do_not_change_keymap_and_row_writes_are_atomic() {
+        let mut keymap = LinkKeymap::default();
+        for value in [16, 18, 20] {
+            let before = keymap.clone();
+            let response = run(SET_KEY, &[0, 0, 0, 3, 0, value], &mut keymap);
+            assert_eq!(response.as_slice()[4], BAD_ARG);
+            assert!(!response.changed);
+            assert_eq!(keymap, before);
+        }
+
+        let before = keymap.clone();
+        let response = run(SET_LAYER_ROW, &[0, 0, 0, 3, 0, 2, 1, 3, 0, 16], &mut keymap);
+        assert_eq!(response.as_slice()[4], BAD_ARG);
+        assert!(!response.changed);
+        assert_eq!(keymap, before);
+    }
+
+    #[test]
     fn layer_row_contains_all_twenty_one_columns() {
         let mut keymap = LinkKeymap::default();
         let response = run(GET_LAYER_ROW, &[0, 0], &mut keymap);
@@ -428,11 +488,51 @@ mod tests {
             run(READ_VERSION, &[], &mut keymap).as_slice(),
             &[0xff, 0xfe, RSP_READ_VERSION, 4, OK, 2, 3, 0, 0xfe, 0xff]
         );
-        assert_eq!(run(READ_SYSTEM, &[], &mut keymap).as_slice()[4..6], [OK, 1]);
+        assert_eq!(run(READ_SYSTEM, &[], &mut keymap).as_slice()[4..6], [OK, 0]);
         assert_eq!(
             run(READ_BATTERY, &[], &mut keymap).as_slice()[4..8],
             [OK, 0xff, 0xff, 0xff]
         );
+    }
+
+    #[test]
+    fn system_values_round_trip_between_link_and_internal_formats() {
+        let mut keymap = LinkKeymap::default();
+        for (wire, internal) in [(0, 1), (1, 0)] {
+            let response = run(SET_SYSTEM, &[wire], &mut keymap);
+            assert_eq!(response.as_slice()[4], OK);
+            assert!(response.changed);
+            assert_eq!(keymap.system(), internal);
+            assert_eq!(
+                run(READ_SYSTEM, &[], &mut keymap).as_slice()[4..6],
+                [OK, wire]
+            );
+        }
+        let before = keymap.clone();
+        let response = run(SET_SYSTEM, &[2], &mut keymap);
+        assert_eq!(response.as_slice()[4], BAD_ARG);
+        assert!(!response.changed);
+        assert_eq!(keymap, before);
+    }
+
+    #[test]
+    fn known_unsupported_operations_reply_without_changing_keymap() {
+        let mut keymap = LinkKeymap::default();
+        for (op, response_op, payload_len) in [
+            (ENTER_LEFT_UF2, RSP_ENTER_LEFT_UF2, 1),
+            (READ_BRIGHTNESS, RSP_READ_BRIGHTNESS, 2),
+            (SET_BRIGHTNESS, RSP_SET_BRIGHTNESS, 2),
+            (READ_SLEEP, RSP_READ_SLEEP, 3),
+            (SET_SLEEP, RSP_SET_SLEEP, 1),
+        ] {
+            let before = keymap.clone();
+            let response = run(op, &[], &mut keymap);
+            assert_eq!(response.as_slice()[2], response_op);
+            assert_eq!(response.as_slice()[3] as usize, payload_len);
+            assert_eq!(response.as_slice()[4], BAD_ARG);
+            assert!(!response.changed);
+            assert_eq!(keymap, before);
+        }
     }
 
     #[test]
@@ -501,6 +601,20 @@ mod tests {
                 key: 0x4c,
             }
         );
+    }
+
+    #[test]
+    fn hotkeys_reject_keys_outside_supported_hid_range() {
+        let mut keymap = LinkKeymap::default();
+        let before = keymap.clone();
+        let response = run(
+            SET_HOTKEY,
+            &[0, 1, u8::MAX, u8::MAX, u8::MAX, 1, 0, u8::MAX, 1],
+            &mut keymap,
+        );
+        assert_eq!(response.as_slice()[4], BAD_ARG);
+        assert!(!response.changed);
+        assert_eq!(keymap, before);
     }
 
     #[test]

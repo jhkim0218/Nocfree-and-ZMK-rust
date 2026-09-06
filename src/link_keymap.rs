@@ -97,7 +97,10 @@ impl LinkKeymap {
     }
 
     pub fn binding(&self, layer: usize, raw: usize) -> Option<LinkBinding> {
-        (layer < LINK_LAYERS && raw < KEY_COUNT).then_some(self.bindings[layer * KEY_COUNT + raw])
+        if layer >= LINK_LAYERS || raw >= KEY_COUNT {
+            return None;
+        }
+        Some(self.bindings[layer * KEY_COUNT + raw])
     }
 
     pub fn action(&self, layer: usize, raw: usize) -> Action {
@@ -121,7 +124,17 @@ impl LinkKeymap {
     }
 
     pub fn matrix_binding(&self, layer: usize, row: usize, col: usize) -> Option<LinkBinding> {
-        self.binding(layer, raw_from_matrix(row, col)?)
+        let raw = raw_from_matrix(row, col)?;
+        let binding = self.binding(layer, raw)?;
+        if let Some(slot) = self.hotkeys.iter().position(|slot| {
+            slot.is_coordinate_bound()
+                && slot.layer as usize == layer
+                && slot.row as usize == row
+                && slot.col as usize == col
+        }) {
+            return Some(LinkBinding::new(3, 64 + slot as u16));
+        }
+        Some(binding)
     }
 
     pub fn set_matrix_binding(
@@ -138,6 +151,7 @@ impl LinkKeymap {
             return false;
         }
         self.bindings[layer * KEY_COUNT + raw] = binding;
+        self.clear_coordinate_hotkey(layer, row, col);
         true
     }
 
@@ -149,11 +163,21 @@ impl LinkKeymap {
         let start = layer * KEY_COUNT;
         self.bindings[start..start + KEY_COUNT]
             .copy_from_slice(&defaults.bindings[start..start + KEY_COUNT]);
+        for hotkey in &mut self.hotkeys {
+            if hotkey.is_coordinate_bound() && hotkey.layer as usize == layer {
+                *hotkey = HotkeySlot::EMPTY;
+            }
+        }
         true
     }
 
     pub fn reset_all(&mut self) {
         self.bindings = Self::default().bindings;
+        for hotkey in &mut self.hotkeys {
+            if hotkey.is_coordinate_bound() {
+                *hotkey = HotkeySlot::EMPTY;
+            }
+        }
     }
 
     pub fn hotkey(&self, slot: usize) -> Option<HotkeySlot> {
@@ -252,6 +276,90 @@ impl LinkKeymap {
         }
         Some(map)
     }
+
+    fn clear_coordinate_hotkey(&mut self, layer: usize, row: usize, col: usize) {
+        for hotkey in &mut self.hotkeys {
+            if hotkey.is_coordinate_bound()
+                && hotkey.layer as usize == layer
+                && hotkey.row as usize == row
+                && hotkey.col as usize == col
+            {
+                *hotkey = HotkeySlot::EMPTY;
+            }
+        }
+    }
+}
+
+impl HotkeySlot {
+    const fn is_coordinate_bound(self) -> bool {
+        (self.layer as usize) < LINK_LAYERS
+            && (self.row as usize) < LINK_ROWS
+            && (self.col as usize) < LINK_COLS
+            && raw_from_matrix(self.row as usize, self.col as usize).is_some()
+    }
+}
+
+pub const fn binding_for_link(binding: LinkBinding) -> LinkBinding {
+    match binding {
+        LinkBinding {
+            kind: 0x80,
+            value: 0x40..=0x42,
+        } => LinkBinding::new(3, binding.value - 0x3e),
+        LinkBinding {
+            kind: 0x80,
+            value: 0x50,
+        } => LinkBinding::new(3, 34),
+        LinkBinding {
+            kind: 0x80,
+            value: 0x51,
+        } => LinkBinding::new(3, 33),
+        LinkBinding {
+            kind: 0x80,
+            value: 0x52,
+        } => LinkBinding::new(3, 32),
+        LinkBinding {
+            kind: 2,
+            value: 127,
+        } => LinkBinding::new(2, 168),
+        LinkBinding {
+            kind: 2,
+            value: 128,
+        } => LinkBinding::new(2, 169),
+        LinkBinding {
+            kind: 2,
+            value: 129,
+        } => LinkBinding::new(2, 170),
+        _ => binding,
+    }
+}
+
+pub const fn binding_is_valid(binding: LinkBinding) -> bool {
+    match binding.kind {
+        0 => {
+            binding.value <= 1
+                || (binding.value >= 0x04
+                    && binding.value
+                        <= if cfg!(feature = "layout-jis") {
+                            0x8a
+                        } else {
+                            0x73
+                        })
+        }
+        1 => binding.value >= 0xe0 && binding.value <= 0xe7,
+        2 => matches!(
+            binding.value,
+            127..=129 | 165..=174 | 176 | 180..=190
+        ),
+        3 => matches!(
+            binding.value,
+            1..=9 | 17 | 19 | 32..=34 | 64..=79 | 96..=110
+        ),
+        0x80 => matches!(
+            binding.value,
+            1..=3 | 0x10..=0x12 | 0x20 | 0x30..=0x31 | 0x40..=0x42 | 0x50..=0x57
+        ),
+        _ => false,
+    }
 }
 
 const fn binding_from_action(action: Action) -> LinkBinding {
@@ -264,10 +372,29 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::Chord { .. } | Action::LayerMomentary(_) | Action::LayerToggle(_) => {
             LinkBinding::TRANSPARENT
         }
+        Action::Consumer(0x0030) => LinkBinding::new(2, 165),
+        Action::Consumer(0x0032) => LinkBinding::new(2, 166),
+        Action::Consumer(0x0033) => LinkBinding::new(2, 167),
         Action::Consumer(0x00e2) => LinkBinding::new(2, 168),
         Action::Consumer(0x00e9) => LinkBinding::new(2, 169),
         Action::Consumer(0x00ea) => LinkBinding::new(2, 170),
-        Action::Consumer(usage) => LinkBinding::new(2, usage),
+        Action::Consumer(0x00b5) => LinkBinding::new(2, 171),
+        Action::Consumer(0x00b6) => LinkBinding::new(2, 172),
+        Action::Consumer(0x00b7) => LinkBinding::new(2, 173),
+        Action::Consumer(0x00cd) => LinkBinding::new(2, 174),
+        Action::Consumer(0x00b8) => LinkBinding::new(2, 176),
+        Action::Consumer(0x0221) => LinkBinding::new(2, 180),
+        Action::Consumer(0x0223) => LinkBinding::new(2, 181),
+        Action::Consumer(0x0224) => LinkBinding::new(2, 182),
+        Action::Consumer(0x0225) => LinkBinding::new(2, 183),
+        Action::Consumer(0x0226) => LinkBinding::new(2, 184),
+        Action::Consumer(0x0227) => LinkBinding::new(2, 185),
+        Action::Consumer(0x022a) => LinkBinding::new(2, 186),
+        Action::Consumer(0x00b3) => LinkBinding::new(2, 187),
+        Action::Consumer(0x00b4) => LinkBinding::new(2, 188),
+        Action::Consumer(0x006f) => LinkBinding::new(2, 189),
+        Action::Consumer(0x0070) => LinkBinding::new(2, 190),
+        Action::Consumer(_) => LinkBinding::TRANSPARENT,
         Action::ResetLeft => LinkBinding::new(0x80, 1),
         Action::BootRight => LinkBinding::new(0x80, 2),
         Action::BootLeft => LinkBinding::new(0x80, 3),
@@ -280,6 +407,9 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::BacklightDown => LinkBinding::new(0x80, 0x51),
         Action::BacklightUp => LinkBinding::new(0x80, 0x52),
         Action::BatteryStatus => LinkBinding::new(0x80, 0x53),
+        Action::SystemSelect(1) => LinkBinding::new(3, 6),
+        Action::SystemSelect(0) => LinkBinding::new(3, 7),
+        Action::SystemSelect(_) => LinkBinding::TRANSPARENT,
         Action::SystemF3 => LinkBinding::new(0x80, 0x54),
         Action::SystemF4 => LinkBinding::new(0x80, 0x55),
         Action::SystemShortcut {
@@ -298,7 +428,16 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
     match binding.kind {
         0 if binding.value == 0 => Action::Transparent,
         0 if binding.value == 1 => Action::NoAction,
-        0 if binding.value <= 0xff => Action::Key(binding.value as u8),
+        0 if binding.value >= 0x04
+            && binding.value
+                <= if cfg!(feature = "layout-jis") {
+                    0x8a
+                } else {
+                    0x73
+                } =>
+        {
+            Action::Key(binding.value as u8)
+        }
         1 if binding.value >= 0xe0 && binding.value <= 0xe7 => Action::Key(binding.value as u8),
         2 => Action::Consumer(match binding.value {
             127 => 0x00e2,
@@ -326,15 +465,17 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
             188 => 0x00b4,
             189 => 0x006f,
             190 => 0x0070,
-            value => value,
+            _ => return Action::NoAction,
         }),
         3 => match binding.value {
             1 | 97 => Action::LayerMomentary(1),
-            2..=4 => Action::ProfileSelect((binding.value - 2) as u8),
+            2..=4 => Action::ProfileShortcut((binding.value - 2) as u8),
             5 => Action::Chord {
                 modifiers: 1 << 3,
                 key: 0x07,
             },
+            6 => Action::SystemSelect(1),
+            7 => Action::SystemSelect(0),
             8 => Action::Chord {
                 modifiers: 1 << 0,
                 key: 0x52,
@@ -347,26 +488,17 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
                 modifiers: 1 << 3,
                 key: 0x0f,
             },
-            19 => Action::ResetLeft,
-            96 | 98 => Action::LayerToggle(1),
+            19 => Action::BootLeft,
+            32 => Action::BacklightUp,
+            33 => Action::BacklightDown,
+            34 => Action::BacklightToggle,
+            96 => Action::LayerToggle(0),
+            98 => Action::LayerToggle(1),
             99 | 101 | 103 | 105 | 107 | 109 => {
                 Action::LayerMomentary(((binding.value - 95) / 2) as u8)
             }
             100 | 102 | 104 | 106 | 108 | 110 => {
                 Action::LayerToggle(((binding.value - 96) / 2) as u8)
-            }
-            value if value & 0x3000 == 0x2000 => Action::LayerMomentary(((value >> 8) & 7) as u8),
-            value if value & 0x3000 == 0x3000 => {
-                let modifier_slot = ((value >> 8) & 0x0f) as u8;
-                let modifier = if modifier_slot < 8 {
-                    1 << modifier_slot
-                } else {
-                    0
-                };
-                Action::Chord {
-                    modifiers: modifier,
-                    key: value as u8,
-                }
             }
             _ => Action::NoAction,
         },
@@ -516,6 +648,184 @@ mod tests {
             action_from_binding(LinkBinding::new(3, 104)),
             Action::LayerToggle(4)
         );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 96)),
+            Action::LayerToggle(0)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 97)),
+            Action::LayerMomentary(1)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 98)),
+            Action::LayerToggle(1)
+        );
+    }
+
+    #[test]
+    fn canonical_link_bindings_preserve_ble_and_backlight_actions() {
+        for (legacy, web, action) in [
+            (
+                LinkBinding::new(0x80, 0x40),
+                LinkBinding::new(3, 2),
+                Action::ProfileShortcut(0),
+            ),
+            (
+                LinkBinding::new(0x80, 0x41),
+                LinkBinding::new(3, 3),
+                Action::ProfileShortcut(1),
+            ),
+            (
+                LinkBinding::new(0x80, 0x42),
+                LinkBinding::new(3, 4),
+                Action::ProfileShortcut(2),
+            ),
+            (
+                LinkBinding::new(0x80, 0x50),
+                LinkBinding::new(3, 34),
+                Action::BacklightToggle,
+            ),
+            (
+                LinkBinding::new(0x80, 0x51),
+                LinkBinding::new(3, 33),
+                Action::BacklightDown,
+            ),
+            (
+                LinkBinding::new(0x80, 0x52),
+                LinkBinding::new(3, 32),
+                Action::BacklightUp,
+            ),
+        ] {
+            assert_eq!(binding_for_link(legacy), web);
+            assert_eq!(action_from_binding(legacy), action);
+            assert_eq!(action_from_binding(web), action);
+            assert!(binding_is_valid(web));
+        }
+    }
+
+    #[test]
+    fn consumer_bindings_round_trip_default_function_actions() {
+        for action in [
+            Action::Consumer(0x006f),
+            Action::Consumer(0x0070),
+            Action::Consumer(0x00b5),
+            Action::Consumer(0x00b6),
+            Action::Consumer(0x00cd),
+            Action::Consumer(0x00e2),
+            Action::Consumer(0x00e9),
+            Action::Consumer(0x00ea),
+        ] {
+            let binding = binding_from_action(action);
+            assert!(binding_is_valid(binding));
+            assert_eq!(action_from_binding(binding), action);
+        }
+    }
+
+    #[test]
+    fn web_system_and_left_dfu_codes_keep_their_distinct_meanings() {
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 6)),
+            Action::SystemSelect(1)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 7)),
+            Action::SystemSelect(0)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 19)),
+            Action::BootLeft
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(0x80, 1)),
+            Action::ResetLeft
+        );
+        assert_eq!(
+            binding_from_action(Action::SystemSelect(1)),
+            LinkBinding::new(3, 6)
+        );
+        assert_eq!(
+            binding_from_action(Action::SystemSelect(0)),
+            LinkBinding::new(3, 7)
+        );
+    }
+
+    #[test]
+    fn unsupported_bindings_are_rejected_and_legacy_unknowns_are_unchanged() {
+        let bindings = [
+            LinkBinding::new(0, 2),
+            LinkBinding::new(2, 175),
+            LinkBinding::new(2, 191),
+            LinkBinding::new(3, 0x2001),
+            LinkBinding::new(3, 0x3004),
+            LinkBinding::new(0x80, 0x58),
+        ];
+        for value in 205..=223 {
+            assert!(!binding_is_valid(LinkBinding::new(0, value)));
+        }
+        for value in 80..=95 {
+            assert!(!binding_is_valid(LinkBinding::new(3, value)));
+        }
+        for value in [16, 18, 20] {
+            assert!(!binding_is_valid(LinkBinding::new(3, value)));
+        }
+        for binding in bindings {
+            assert!(!binding_is_valid(binding));
+            assert_eq!(binding_for_link(binding), binding);
+            assert_eq!(action_from_binding(binding), Action::NoAction);
+        }
+    }
+
+    #[test]
+    fn link_function_contract_accepts_only_supported_values() {
+        for value in [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 19, 32, 33, 34, 64, 79, 96, 110,
+        ] {
+            assert!(binding_is_valid(LinkBinding::new(3, value)));
+        }
+    }
+
+    #[test]
+    fn out_of_range_binding_lookup_returns_none() {
+        let map = LinkKeymap::default();
+        assert_eq!(map.binding(LINK_LAYERS, 0), None);
+        assert_eq!(map.binding(0, KEY_COUNT), None);
+    }
+
+    #[test]
+    fn normal_bindings_and_resets_clear_only_coordinate_hotkeys() {
+        let mut map = LinkKeymap::default();
+        let bound = HotkeySlot {
+            empty: false,
+            row: 3,
+            col: 7,
+            layer: 1,
+            modifiers: 1,
+            key: 0x06,
+        };
+        let other_layer = HotkeySlot { layer: 2, ..bound };
+        let unbound = HotkeySlot {
+            row: u8::MAX,
+            col: u8::MAX,
+            layer: u8::MAX,
+            ..bound
+        };
+        assert!(map.set_hotkey(0, bound));
+        assert!(map.set_hotkey(1, other_layer));
+        assert!(map.set_hotkey(2, unbound));
+
+        assert!(map.set_matrix_binding(1, 3, 7, LinkBinding::new(0, 0x04)));
+        assert_eq!(map.hotkey(0), Some(HotkeySlot::EMPTY));
+        assert_eq!(map.hotkey(1), Some(other_layer));
+        assert_eq!(map.hotkey(2), Some(unbound));
+
+        assert!(map.reset_layer(2));
+        assert_eq!(map.hotkey(1), Some(HotkeySlot::EMPTY));
+        assert_eq!(map.hotkey(2), Some(unbound));
+
+        assert!(map.set_hotkey(3, bound));
+        map.reset_all();
+        assert_eq!(map.hotkey(3), Some(HotkeySlot::EMPTY));
+        assert_eq!(map.hotkey(2), Some(unbound));
     }
 
     #[test]
@@ -537,5 +847,10 @@ mod tests {
         };
         assert_eq!(map.action(0, 0), expected);
         assert_eq!(map.action(2, raw_from_matrix(3, 7).unwrap()), expected);
+        assert_eq!(
+            map.binding(2, raw_from_matrix(3, 7).unwrap()),
+            Some(LinkBinding::TRANSPARENT)
+        );
+        assert_eq!(map.matrix_binding(2, 3, 7), Some(LinkBinding::new(3, 64)));
     }
 }

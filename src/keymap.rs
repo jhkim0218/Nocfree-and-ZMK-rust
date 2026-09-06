@@ -75,6 +75,7 @@ pub enum Action {
     BacklightDown,
     BacklightUp,
     BatteryStatus,
+    SystemSelect(u8),
     SystemShortcut {
         system: u8,
         key: u8,
@@ -212,6 +213,20 @@ mod tests {
                 }
                 Action::Key(0x2b) => assert_eq!(function_action(raw), Action::BacklightToggle),
                 Action::Key(0x0c) => assert_eq!(function_action(raw), Action::BatteryStatus),
+                Action::Key(0x11) => assert_eq!(
+                    function_action(raw),
+                    Action::SystemShortcut {
+                        system: 1,
+                        key: 0x11,
+                    }
+                ),
+                Action::Key(0x10) => assert_eq!(
+                    function_action(raw),
+                    Action::SystemShortcut {
+                        system: 0,
+                        key: 0x10,
+                    }
+                ),
                 _ => {}
             }
         }
