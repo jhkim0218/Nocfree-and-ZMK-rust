@@ -17,13 +17,13 @@ pub const LINK_KEYMAP_PAGE: u8 = 7;
 const MAGIC: [u8; 4] = *b"NFK1";
 // KR은 양쪽 raw 순서 교정 때마다 이전 저장 키맵을 무효화한다.
 #[cfg(feature = "layout-kr")]
-const VERSION: u8 = 7;
+const VERSION: u8 = 8;
 #[cfg(not(feature = "layout-kr"))]
-const VERSION: u8 = 5;
+const VERSION: u8 = 6;
 #[cfg(feature = "layout-kr")]
-const PREVIOUS_VERSION: u8 = 6;
+const PREVIOUS_VERSION: u8 = 7;
 #[cfg(not(feature = "layout-kr"))]
-const PREVIOUS_VERSION: u8 = 4;
+const PREVIOUS_VERSION: u8 = 5;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LinkBinding {
@@ -95,6 +95,9 @@ impl LinkKeymap {
         while raw < KEY_COUNT {
             map.bindings[raw] = binding_from_action(base_action(raw));
             map.bindings[KEY_COUNT + raw] = binding_from_action(function_action(raw));
+            if map.bindings[KEY_COUNT + raw].kind == 0 && map.bindings[KEY_COUNT + raw].value == 0 {
+                map.bindings[KEY_COUNT + raw] = map.bindings[raw];
+            }
             raw += 1;
         }
         let mut layer = 2;
@@ -293,6 +296,7 @@ impl LinkKeymap {
         }
         let migrated = bytes[4] == PREVIOUS_VERSION;
         if migrated {
+            map.copy_base_bindings_to_empty_function_keys();
             for layer in 2..LINK_LAYERS {
                 map.copy_base_layer_to(layer);
             }
@@ -308,6 +312,15 @@ impl LinkKeymap {
         for hotkey in &mut self.hotkeys {
             if hotkey.is_coordinate_bound() && hotkey.layer as usize == layer {
                 *hotkey = HotkeySlot::EMPTY;
+            }
+        }
+    }
+
+    fn copy_base_bindings_to_empty_function_keys(&mut self) {
+        for raw in 0..KEY_COUNT {
+            let function_index = KEY_COUNT + raw;
+            if self.bindings[function_index] == LinkBinding::TRANSPARENT {
+                self.bindings[function_index] = self.bindings[raw];
             }
         }
     }
@@ -354,6 +367,10 @@ pub const fn binding_for_link(binding: LinkBinding) -> LinkBinding {
         } => LinkBinding::new(3, 32),
         LinkBinding {
             kind: 0x80,
+            value: 2,
+        } => LinkBinding::new(3, 20),
+        LinkBinding {
+            kind: 0x80,
             value: 3,
         } => LinkBinding::new(3, 19),
         LinkBinding {
@@ -391,7 +408,7 @@ pub const fn binding_is_valid(binding: LinkBinding) -> bool {
         ),
         3 => matches!(
             binding.value,
-            1..=9 | 16..=17 | 19 | 32..=34 | 64..=79 | 96..=110
+            1..=9 | 16..=17 | 19..=20 | 32..=34 | 64..=79 | 96..=110
         ),
         0x80 => matches!(
             binding.value,
@@ -535,6 +552,7 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
                 key: 0x0f,
             },
             19 => Action::BootLeft,
+            20 => Action::BootRight,
             32 => Action::BacklightUp,
             33 => Action::BacklightDown,
             34 => Action::BacklightToggle,
@@ -630,6 +648,17 @@ mod tests {
             map.matrix_binding(1, row, col),
             Some(LinkBinding::new(2, 168))
         );
+        for raw in 0..KEY_COUNT {
+            let expected = binding_from_action(function_action(raw));
+            assert_eq!(
+                map.binding(1, raw),
+                Some(if expected == LinkBinding::TRANSPARENT {
+                    binding_from_action(base_action(raw))
+                } else {
+                    expected
+                })
+            );
+        }
         for layer in 2..LINK_LAYERS {
             for raw in 0..KEY_COUNT {
                 assert_eq!(map.binding(layer, raw), map.binding(0, raw));
@@ -672,9 +701,9 @@ mod tests {
         // Given: 새 KR 기본 키맵을 인코딩한다.
         let encoded = LinkKeymap::default().encode();
 
-        // When / Then: KR 레코드는 version 7을 사용해 기존 version 6과 구분된다.
-        assert_eq!(VERSION, 7);
-        assert_eq!(encoded[4], 7);
+        // When / Then: KR 레코드는 version 8을 사용해 기존 version 7과 구분된다.
+        assert_eq!(VERSION, 8);
+        assert_eq!(encoded[4], 8);
     }
 
     #[test]
@@ -682,6 +711,8 @@ mod tests {
         let mut map = LinkKeymap::default();
         assert!(map.set_matrix_binding(0, 0, 0, LinkBinding::new(0, 0x04)));
         assert!(map.set_matrix_binding(1, 0, 0, LinkBinding::new(0, 0x05)));
+        assert!(map.set_matrix_binding(0, 0, 1, LinkBinding::new(0, 0x06)));
+        assert!(map.set_matrix_binding(1, 0, 1, LinkBinding::TRANSPARENT));
         assert!(map.set_matrix_binding(2, 0, 0, LinkBinding::new(2, 174)));
         let mut encoded = map.encode();
         encoded[4] = PREVIOUS_VERSION;
@@ -692,6 +723,8 @@ mod tests {
         assert!(needs_save);
         assert_eq!(migrated.binding(0, 0), Some(LinkBinding::new(0, 0x04)));
         assert_eq!(migrated.binding(1, 0), Some(LinkBinding::new(0, 0x05)));
+        let raw = raw_from_matrix(0, 1).unwrap();
+        assert_eq!(migrated.binding(1, raw), migrated.binding(0, raw));
         for layer in 2..LINK_LAYERS {
             assert_eq!(migrated.binding(layer, 0), migrated.binding(0, 0));
         }
@@ -880,7 +913,7 @@ mod tests {
         for value in 80..=95 {
             assert!(!binding_is_valid(LinkBinding::new(3, value)));
         }
-        for value in [18, 20] {
+        for value in [18, 21] {
             assert!(!binding_is_valid(LinkBinding::new(3, value)));
         }
         for binding in bindings {

@@ -78,10 +78,11 @@ BLE·백라이트 표시는 개선되지만, Rust 전용 private 코드 전체�
 | `0x0053` | 배터리 상태 |
 | `0x0054` / `0x0055` | OS에 따라 달라지는 F3/F4 기능 |
 | `0x0056` / `0x0057` | macOS/Windows 단축키 |
-| `0x0001` / `0x0002` | 왼쪽 재시작/오른쪽 DFU (웹 Function에 동등한 값 없음) |
+| `0x0001` | 왼쪽 재시작 (웹 Function에 동등한 값 없음) |
+| `0x0002` | 기존 오른쪽-half DFU 복구 경로 (`(3,20)` Dongle DFU 라벨로 정규화) |
 | `0x0003` | 왼쪽 DFU (`(3,19)`로 정규화) |
 
-이미지에는 kind가 보이지 않으므로 이 표는 이미지 위치와 코드에 근거한 대응이다. 실제 응답 패킷을 읽은 결과는 아니다. `0x0001`/`0x0002`, 배터리와 OS별 tap/hold 기능은 웹 Function 목록에 동등한 값이 없어 다른 기능으로 치환하지 않는다. numpad가 보인다는 사실도 Rust numpad 지원이나 물리 연결을 증명하지 않는다.
+이미지에는 kind가 보이지 않으므로 이 표는 이미지 위치와 코드에 근거한 대응이다. 실제 응답 패킷을 읽은 결과는 아니다. `(3,20)`은 Link가 Dongle DFU라고 부르지만 이 펌웨어에는 USB 동글을 원격으로 DFU로 전환하는 경로가 없으므로, 기존 오른쪽-half DFU 복구 명령을 그대로 실행한다. `0x0001`, 배터리와 OS별 tap/hold 기능은 웹 Function 목록에 동등한 값이 없어 다른 기능으로 치환하지 않는다. numpad가 보인다는 사실도 Rust numpad 지원이나 물리 연결을 증명하지 않는다.
 
 ### 3.3 미디어 키도 같은 경계에서 의미가 바뀐다
 
@@ -110,7 +111,7 @@ BLE·백라이트 표시는 개선되지만, Rust 전용 private 코드 전체�
 | 마우스 키 | 웹 type 0의 205..223은 마우스 기능인데 Rust는 일반 Key로 받아 report에서 누락 | Mouse 전체를 명시적 미지원으로 분류. Keyboard usage로 오인하지 않음 |
 | LT | `0x2000` 계열이 tap key를 버리고 즉시 레이어 hold로 바뀜 | tap/hold 구현 전 저장 거부; 구현 시 구분된 Action 필요 |
 | MT / MT_FN / Globe | `0x3000` 계열이 tap/hold 대신 동시 Chord. Fn/Globe slot 8/9는 modifier=0이 됨 | Chord로 대체하지 않음. 각 hold 종류를 구분해 구현 |
-| 레이어 | Layer 2~7의 투명 바인딩이 Link 화면에 `Trans`로만 표시 | Layer 2~7에 기본 Layer 1 바인딩을 채운다. 기존 레코드는 Layer 0·Fn을 보존하며 해당 여섯 레이어만 이관 |
+| 레이어 | Fn의 기능 없는 키와 Layer 2~7의 투명 바인딩이 Link 화면에 `Trans`로만 표시 | Fn의 특수 기능은 보존하고 나머지는 기본 Layer 1 바인딩으로 채운다. Layer 2~7도 기본 Layer 1 바인딩을 채운다 |
 | hotkey 재지정 | 좌표에 연결된 hotkey가 새 일반 binding보다 우선함 | 일반 키 재지정 시 해당 좌표 연결 해제. 다른 좌표·슬롯 내용은 유지 |
 | 레이어/전체 초기화 | reset은 binding만 복구하고 좌표 hotkey는 남음 | 레이어 초기화는 해당 레이어 연결, 전체 키맵 초기화는 모든 좌표 연결도 해제 |
 | Consumer 전체 목록 | Media Select·Control Panel·Voice가 누락 | `175→0x0183`, `191→0x019f`, `192→0x00cf` 및 Function Dictation `(3,16)→0x00cf`로 명시 변환 |

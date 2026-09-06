@@ -411,6 +411,8 @@ fn encode_frame(op: u8, payload: &[u8], output: &mut [u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keymap::Action;
+    use crate::link_keymap::action_from_binding;
 
     fn request(op: u8, payload: &[u8]) -> [u8; MAX_FRAME_BYTES] {
         let mut frame = [0; MAX_FRAME_BYTES];
@@ -482,7 +484,7 @@ mod tests {
     #[test]
     fn rejected_bindings_do_not_change_keymap_and_row_writes_are_atomic() {
         let mut keymap = LinkKeymap::default();
-        for value in [18, 20] {
+        for value in [18, 21] {
             let before = keymap.clone();
             let response = run(SET_KEY, &[0, 0, 0, 3, 0, value], &mut keymap);
             assert_eq!(response.as_slice()[4], BAD_ARG);
@@ -495,6 +497,51 @@ mod tests {
         assert_eq!(response.as_slice()[4], BAD_ARG);
         assert!(!response.changed);
         assert_eq!(keymap, before);
+    }
+
+    #[test]
+    fn search_control_panel_and_dongle_dfu_round_trip_with_link_labels() {
+        let mut keymap = LinkKeymap::default();
+        for (row, binding) in [
+            (0, LinkBinding::new(2, 180)),
+            (1, LinkBinding::new(2, 191)),
+            (2, LinkBinding::new(3, 20)),
+        ] {
+            let set = run(
+                SET_KEY,
+                &[
+                    0,
+                    row,
+                    0,
+                    binding.kind,
+                    (binding.value >> 8) as u8,
+                    binding.value as u8,
+                ],
+                &mut keymap,
+            );
+            assert_eq!(set.as_slice()[4], OK);
+            let get = run(GET_KEY, &[0, row, 0], &mut keymap);
+            assert_eq!(
+                &get.as_slice()[8..11],
+                &[
+                    binding.kind,
+                    (binding.value >> 8) as u8,
+                    binding.value as u8
+                ]
+            );
+        }
+        assert_eq!(
+            action_from_binding(LinkBinding::new(2, 180)),
+            Action::Consumer(0x0221)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(2, 191)),
+            Action::Consumer(0x019f)
+        );
+        assert_eq!(
+            action_from_binding(LinkBinding::new(3, 20)),
+            Action::BootRight
+        );
     }
 
     #[test]
