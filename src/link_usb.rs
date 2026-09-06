@@ -9,7 +9,7 @@ use embassy_usb::types::InterfaceNumber;
 use embassy_usb::{Builder, Handler};
 
 use crate::bond_store::BondStore;
-use crate::link_protocol::MAX_FRAME_BYTES;
+use crate::link_protocol::{LinkEffect, MAX_FRAME_BYTES};
 
 const PACKET_SIZE: usize = 64;
 
@@ -71,7 +71,12 @@ impl<'d, D: Driver<'d>> LinkUsbClass<'d, D> {
         Self { read, write }
     }
 
-    pub async fn run(mut self, store: &'static BondStore) -> ! {
+    pub async fn run(
+        mut self,
+        store: &'static BondStore,
+        brightness: fn() -> u8,
+        apply_effect: fn(LinkEffect),
+    ) -> ! {
         let mut request = [0_u8; MAX_FRAME_BYTES];
         loop {
             self.read.wait_enabled().await;
@@ -81,9 +86,13 @@ impl<'d, D: Driver<'d>> LinkUsbClass<'d, D> {
                     Err(EndpointError::Disabled) => break,
                     Err(EndpointError::BufferOverflow) => continue,
                 };
-                let Some(response) = store.handle_link_frame(&request[..length]) else {
+                let Some(response) = store.handle_link_frame(&request[..length], brightness())
+                else {
                     continue;
                 };
+                if let Some(effect) = response.effect {
+                    apply_effect(effect);
+                }
                 if self.write_frame(response.as_slice()).await.is_err() {
                     break;
                 }

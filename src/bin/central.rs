@@ -34,6 +34,7 @@ use nocfree_and_rust::bond_store::{BondStore, DongleSecurity, SplitSecurity, run
 use nocfree_and_rust::dongle_protocol::{DongleReport, SERVICE_UUID_LE as DONGLE_UUID_LE};
 use nocfree_and_rust::hardware_scanner::{self, KeyState, KeyUpdate};
 use nocfree_and_rust::keymap::PRODUCT_NAME;
+use nocfree_and_rust::link_protocol::LinkEffect;
 use nocfree_and_rust::link_usb::{LinkUsbClass, State as LinkUsbState};
 use nocfree_and_rust::output_policy::physical_switch_mode;
 use nocfree_and_rust::output_router::{OutputMode, OutputRouter, ReportFrame};
@@ -306,6 +307,16 @@ fn set_backlight(command: BacklightCommand) {
     });
     BACKLIGHT_CONTROL.signal(snapshot);
     SPLIT_BACKLIGHT.signal(snapshot);
+}
+
+fn link_brightness() -> u8 {
+    current_backlight().state.link_level()
+}
+
+fn apply_link_effect(effect: LinkEffect) {
+    match effect {
+        LinkEffect::SetBrightness(level) => set_backlight(BacklightCommand::SetLevel(level)),
+    }
 }
 
 async fn run_backlight_timeout() -> ! {
@@ -1177,7 +1188,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
                     &INPUT_STATE,
                     &SPLIT_DIAGNOSTICS,
                 ),
-                link.run(&BONDS),
+                link.run(&BONDS, link_brightness, apply_link_effect),
             ),
             join5(
                 process_key_states(),

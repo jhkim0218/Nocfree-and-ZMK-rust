@@ -3,6 +3,7 @@ pub enum BacklightCommand {
     Toggle,
     Down,
     Up,
+    SetLevel(u8),
     Idle,
     Wake,
 }
@@ -50,8 +51,39 @@ impl BacklightState {
                 self.timed_out = false;
                 self.percent = self.percent.saturating_add(20).min(100);
             }
+            BacklightCommand::SetLevel(level) => {
+                self.timed_out = false;
+                match level {
+                    0 => self.enabled = false,
+                    1 => {
+                        self.enabled = true;
+                        self.percent = 33;
+                    }
+                    2 => {
+                        self.enabled = true;
+                        self.percent = 66;
+                    }
+                    3 => {
+                        self.enabled = true;
+                        self.percent = 100;
+                    }
+                    _ => {}
+                }
+            }
             BacklightCommand::Idle => self.timed_out = true,
             BacklightCommand::Wake => self.timed_out = false,
+        }
+    }
+
+    pub const fn link_level(self) -> u8 {
+        if !self.enabled || self.percent == 0 {
+            0
+        } else if self.percent <= 33 {
+            1
+        } else if self.percent <= 66 {
+            2
+        } else {
+            3
         }
     }
 
@@ -180,6 +212,17 @@ mod tests {
         state.apply(BacklightCommand::Idle);
         state.apply(BacklightCommand::Wake);
         assert_eq!(state.duty(1_000), 1_000);
+    }
+
+    #[test]
+    fn link_levels_change_the_real_backlight_state() {
+        let mut state = BacklightState::default();
+        for (level, percent) in [(0, 20), (1, 33), (2, 66), (3, 100)] {
+            state.apply(BacklightCommand::SetLevel(level));
+            assert_eq!(state.link_level(), level);
+            assert_eq!(state.percent, percent);
+            assert_eq!(state.enabled, level != 0);
+        }
     }
 
     #[test]

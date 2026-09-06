@@ -348,11 +348,11 @@ pub const fn binding_is_valid(binding: LinkBinding) -> bool {
         1 => binding.value >= 0xe0 && binding.value <= 0xe7,
         2 => matches!(
             binding.value,
-            127..=129 | 165..=174 | 176 | 180..=190
+            127..=129 | 165..=176 | 180..=192
         ),
         3 => matches!(
             binding.value,
-            1..=9 | 17 | 19 | 32..=34 | 64..=79 | 96..=110
+            1..=9 | 16..=17 | 19 | 32..=34 | 64..=79 | 96..=110
         ),
         0x80 => matches!(
             binding.value,
@@ -382,6 +382,7 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::Consumer(0x00b6) => LinkBinding::new(2, 172),
         Action::Consumer(0x00b7) => LinkBinding::new(2, 173),
         Action::Consumer(0x00cd) => LinkBinding::new(2, 174),
+        Action::Consumer(0x0183) => LinkBinding::new(2, 175),
         Action::Consumer(0x00b8) => LinkBinding::new(2, 176),
         Action::Consumer(0x0221) => LinkBinding::new(2, 180),
         Action::Consumer(0x0223) => LinkBinding::new(2, 181),
@@ -394,6 +395,8 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::Consumer(0x00b4) => LinkBinding::new(2, 188),
         Action::Consumer(0x006f) => LinkBinding::new(2, 189),
         Action::Consumer(0x0070) => LinkBinding::new(2, 190),
+        Action::Consumer(0x019f) => LinkBinding::new(2, 191),
+        Action::Consumer(0x00cf) => LinkBinding::new(2, 192),
         Action::Consumer(_) => LinkBinding::TRANSPARENT,
         Action::ResetLeft => LinkBinding::new(0x80, 1),
         Action::BootRight => LinkBinding::new(0x80, 2),
@@ -453,6 +456,7 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
             172 => 0x00b6,
             173 => 0x00b7,
             174 => 0x00cd,
+            175 => 0x0183,
             176 => 0x00b8,
             180 => 0x0221,
             181 => 0x0223,
@@ -465,6 +469,8 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
             188 => 0x00b4,
             189 => 0x006f,
             190 => 0x0070,
+            191 => 0x019f,
+            192 => 0x00cf,
             _ => return Action::NoAction,
         }),
         3 => match binding.value {
@@ -484,6 +490,7 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
                 modifiers: 1 << 3,
                 key: 0x2c,
             },
+            16 => Action::Consumer(0x00cf),
             17 => Action::Chord {
                 modifiers: 1 << 3,
                 key: 0x0f,
@@ -663,6 +670,44 @@ mod tests {
     }
 
     #[test]
+    fn link_function_layers_cover_the_eight_layers_shown_by_link() {
+        for (value, action) in [
+            (96, Action::LayerToggle(0)),
+            (97, Action::LayerMomentary(1)),
+            (98, Action::LayerToggle(1)),
+            (99, Action::LayerMomentary(2)),
+            (100, Action::LayerToggle(2)),
+            (101, Action::LayerMomentary(3)),
+            (102, Action::LayerToggle(3)),
+            (103, Action::LayerMomentary(4)),
+            (104, Action::LayerToggle(4)),
+            (105, Action::LayerMomentary(5)),
+            (106, Action::LayerToggle(5)),
+            (107, Action::LayerMomentary(6)),
+            (108, Action::LayerToggle(6)),
+            (109, Action::LayerMomentary(7)),
+            (110, Action::LayerToggle(7)),
+        ] {
+            let binding = LinkBinding::new(3, value);
+            assert!(binding_is_valid(binding));
+            assert_eq!(action_from_binding(binding), action);
+        }
+    }
+
+    #[test]
+    fn link_function_voice_and_system_entries_have_hid_actions() {
+        for (binding, action) in [
+            (LinkBinding::new(3, 16), Action::Consumer(0x00cf)),
+            (LinkBinding::new(2, 175), Action::Consumer(0x0183)),
+            (LinkBinding::new(2, 191), Action::Consumer(0x019f)),
+            (LinkBinding::new(2, 192), Action::Consumer(0x00cf)),
+        ] {
+            assert!(binding_is_valid(binding));
+            assert_eq!(action_from_binding(binding), action);
+        }
+    }
+
+    #[test]
     fn canonical_link_bindings_preserve_ble_and_backlight_actions() {
         for (legacy, web, action) in [
             (
@@ -753,8 +798,8 @@ mod tests {
     fn unsupported_bindings_are_rejected_and_legacy_unknowns_are_unchanged() {
         let bindings = [
             LinkBinding::new(0, 2),
-            LinkBinding::new(2, 175),
-            LinkBinding::new(2, 191),
+            LinkBinding::new(2, 177),
+            LinkBinding::new(2, 193),
             LinkBinding::new(3, 0x2001),
             LinkBinding::new(3, 0x3004),
             LinkBinding::new(0x80, 0x58),
@@ -765,7 +810,7 @@ mod tests {
         for value in 80..=95 {
             assert!(!binding_is_valid(LinkBinding::new(3, value)));
         }
-        for value in [16, 18, 20] {
+        for value in [18, 20] {
             assert!(!binding_is_valid(LinkBinding::new(3, value)));
         }
         for binding in bindings {
@@ -778,7 +823,7 @@ mod tests {
     #[test]
     fn link_function_contract_accepts_only_supported_values() {
         for value in [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 19, 32, 33, 34, 64, 79, 96, 110,
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 19, 32, 33, 34, 64, 79, 96, 110,
         ] {
             assert!(binding_is_valid(LinkBinding::new(3, value)));
         }

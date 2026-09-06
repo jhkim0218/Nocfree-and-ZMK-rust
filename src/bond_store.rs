@@ -203,10 +203,10 @@ impl BondStore {
         })
     }
 
-    pub fn handle_link_frame(&self, frame: &[u8]) -> Option<LinkResponse> {
+    pub fn handle_link_frame(&self, frame: &[u8], brightness: u8) -> Option<LinkResponse> {
         let response = self
             .keymap
-            .lock(|keymap| handle_request(frame, &mut keymap.borrow_mut()))?;
+            .lock(|keymap| handle_request(frame, &mut keymap.borrow_mut(), brightness))?;
         if response.changed {
             self.request_save(LINK_KEYMAP_PAGE);
         }

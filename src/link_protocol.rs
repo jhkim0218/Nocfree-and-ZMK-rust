@@ -63,6 +63,12 @@ pub struct LinkResponse {
     pub bytes: [u8; MAX_FRAME_BYTES],
     pub len: usize,
     pub changed: bool,
+    pub effect: Option<LinkEffect>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LinkEffect {
+    SetBrightness(u8),
 }
 
 impl LinkResponse {
@@ -71,11 +77,16 @@ impl LinkResponse {
     }
 }
 
-pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkResponse> {
+pub fn handle_request(
+    frame: &[u8],
+    keymap: &mut LinkKeymap,
+    brightness: u8,
+) -> Option<LinkResponse> {
     let (op, payload) = decode_frame(frame)?;
     let mut response_payload = [0_u8; u8::MAX as usize];
     let mut payload_len = 1;
     let mut changed = false;
+    let mut effect = None;
 
     let response_op = match op {
         SET_KEY => {
@@ -234,12 +245,17 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
             RSP_READ_BATTERY
         }
         READ_BRIGHTNESS => {
-            response_payload[..2].copy_from_slice(&[BAD_ARG, 0]);
+            response_payload[..2].copy_from_slice(&[OK, brightness.min(3)]);
             payload_len = 2;
             RSP_READ_BRIGHTNESS
         }
         SET_BRIGHTNESS => {
-            response_payload[..2].copy_from_slice(&[BAD_ARG, 0]);
+            if payload.len() == 1 && payload[0] <= 3 {
+                response_payload[..2].copy_from_slice(&[OK, payload[0]]);
+                effect = Some(LinkEffect::SetBrightness(payload[0]));
+            } else {
+                response_payload[..2].copy_from_slice(&[BAD_ARG, 0]);
+            }
             payload_len = 2;
             RSP_SET_BRIGHTNESS
         }
@@ -261,6 +277,7 @@ pub fn handle_request(frame: &[u8], keymap: &mut LinkKeymap) -> Option<LinkRespo
         bytes,
         len,
         changed,
+        effect,
     })
 }
 
@@ -403,9 +420,18 @@ mod tests {
         frame
     }
 
-    fn run(op: u8, payload: &[u8], keymap: &mut LinkKeymap) -> LinkResponse {
+    fn run_with_brightness(
+        op: u8,
+        payload: &[u8],
+        keymap: &mut LinkKeymap,
+        brightness: u8,
+    ) -> LinkResponse {
         let frame = request(op, payload);
-        handle_request(&frame[..payload.len() + 6], keymap).unwrap()
+        handle_request(&frame[..payload.len() + 6], keymap, brightness).unwrap()
+    }
+
+    fn run(op: u8, payload: &[u8], keymap: &mut LinkKeymap) -> LinkResponse {
+        run_with_brightness(op, payload, keymap, 2)
     }
 
     #[test]
@@ -456,7 +482,7 @@ mod tests {
     #[test]
     fn rejected_bindings_do_not_change_keymap_and_row_writes_are_atomic() {
         let mut keymap = LinkKeymap::default();
-        for value in [16, 18, 20] {
+        for value in [18, 20] {
             let before = keymap.clone();
             let response = run(SET_KEY, &[0, 0, 0, 3, 0, value], &mut keymap);
             assert_eq!(response.as_slice()[4], BAD_ARG);
@@ -465,7 +491,7 @@ mod tests {
         }
 
         let before = keymap.clone();
-        let response = run(SET_LAYER_ROW, &[0, 0, 0, 3, 0, 2, 1, 3, 0, 16], &mut keymap);
+        let response = run(SET_LAYER_ROW, &[0, 0, 0, 3, 0, 2, 1, 3, 0, 18], &mut keymap);
         assert_eq!(response.as_slice()[4], BAD_ARG);
         assert!(!response.changed);
         assert_eq!(keymap, before);
@@ -520,8 +546,6 @@ mod tests {
         let mut keymap = LinkKeymap::default();
         for (op, response_op, payload_len) in [
             (ENTER_LEFT_UF2, RSP_ENTER_LEFT_UF2, 1),
-            (READ_BRIGHTNESS, RSP_READ_BRIGHTNESS, 2),
-            (SET_BRIGHTNESS, RSP_SET_BRIGHTNESS, 2),
             (READ_SLEEP, RSP_READ_SLEEP, 3),
             (SET_SLEEP, RSP_SET_SLEEP, 1),
         ] {
@@ -536,9 +560,31 @@ mod tests {
     }
 
     #[test]
+    fn brightness_protocol_reads_and_changes_the_runtime_level() {
+        let mut keymap = LinkKeymap::default();
+        assert_eq!(
+            run_with_brightness(READ_BRIGHTNESS, &[], &mut keymap, 3).as_slice()[4..6],
+            [OK, 3]
+        );
+
+        for level in 0..=3 {
+            let response = run(SET_BRIGHTNESS, &[level], &mut keymap);
+            assert_eq!(response.as_slice()[4..6], [OK, level]);
+            assert_eq!(response.effect, Some(LinkEffect::SetBrightness(level)));
+            assert!(!response.changed);
+        }
+
+        for payload in [&[][..], &[4][..], &[1, 2][..]] {
+            let response = run(SET_BRIGHTNESS, payload, &mut keymap);
+            assert_eq!(response.as_slice()[4..6], [BAD_ARG, 0]);
+            assert_eq!(response.effect, None);
+        }
+    }
+
+    #[test]
     fn malformed_and_out_of_range_requests_fail_loudly() {
         let mut keymap = LinkKeymap::default();
-        assert!(handle_request(&[0xff, 0xfe, GET_KEY, 0, 0, 0], &mut keymap).is_none());
+        assert!(handle_request(&[0xff, 0xfe, GET_KEY, 0, 0, 0], &mut keymap, 0).is_none());
         let response = run(SET_KEY, &[0, 9, 9, 0, 0, 4], &mut keymap);
         assert_eq!(response.as_slice()[4], OOR);
         assert!(!response.changed);
