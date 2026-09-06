@@ -17,9 +17,13 @@ pub const LINK_KEYMAP_PAGE: u8 = 7;
 const MAGIC: [u8; 4] = *b"NFK1";
 // KR은 양쪽 raw 순서 교정 때마다 이전 저장 키맵을 무효화한다.
 #[cfg(feature = "layout-kr")]
-const VERSION: u8 = 6;
+const VERSION: u8 = 7;
 #[cfg(not(feature = "layout-kr"))]
-const VERSION: u8 = 4;
+const VERSION: u8 = 5;
+#[cfg(feature = "layout-kr")]
+const PREVIOUS_VERSION: u8 = 6;
+#[cfg(not(feature = "layout-kr"))]
+const PREVIOUS_VERSION: u8 = 4;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LinkBinding {
@@ -92,6 +96,15 @@ impl LinkKeymap {
             map.bindings[raw] = binding_from_action(base_action(raw));
             map.bindings[KEY_COUNT + raw] = binding_from_action(function_action(raw));
             raw += 1;
+        }
+        let mut layer = 2;
+        while layer < LINK_LAYERS {
+            raw = 0;
+            while raw < KEY_COUNT {
+                map.bindings[layer * KEY_COUNT + raw] = map.bindings[raw];
+                raw += 1;
+            }
+            layer += 1;
         }
         map
     }
@@ -237,8 +250,12 @@ impl LinkKeymap {
     }
 
     pub fn decode(bytes: &[u8; LINK_KEYMAP_RECORD_BYTES]) -> Option<Self> {
+        Self::decode_with_migration(bytes).map(|(map, _)| map)
+    }
+
+    pub fn decode_with_migration(bytes: &[u8; LINK_KEYMAP_RECORD_BYTES]) -> Option<(Self, bool)> {
         if bytes[..4] != MAGIC
-            || bytes[4] != VERSION
+            || (bytes[4] != VERSION && bytes[4] != PREVIOUS_VERSION)
             || bytes[5] > 1
             || bytes[6] != LAYOUT_ID
             || bytes[7] as usize != KEY_COUNT
@@ -274,7 +291,25 @@ impl LinkKeymap {
             };
             offset += HOTKEY_BYTES;
         }
-        Some(map)
+        let migrated = bytes[4] == PREVIOUS_VERSION;
+        if migrated {
+            for layer in 2..LINK_LAYERS {
+                map.copy_base_layer_to(layer);
+            }
+        }
+        Some((map, migrated))
+    }
+
+    fn copy_base_layer_to(&mut self, layer: usize) {
+        let start = layer * KEY_COUNT;
+        for raw in 0..KEY_COUNT {
+            self.bindings[start + raw] = self.bindings[raw];
+        }
+        for hotkey in &mut self.hotkeys {
+            if hotkey.is_coordinate_bound() && hotkey.layer as usize == layer {
+                *hotkey = HotkeySlot::EMPTY;
+            }
+        }
     }
 
     fn clear_coordinate_hotkey(&mut self, layer: usize, row: usize, col: usize) {
@@ -317,6 +352,10 @@ pub const fn binding_for_link(binding: LinkBinding) -> LinkBinding {
             kind: 0x80,
             value: 0x52,
         } => LinkBinding::new(3, 32),
+        LinkBinding {
+            kind: 0x80,
+            value: 3,
+        } => LinkBinding::new(3, 19),
         LinkBinding {
             kind: 2,
             value: 127,
@@ -591,6 +630,11 @@ mod tests {
             map.matrix_binding(1, row, col),
             Some(LinkBinding::new(2, 168))
         );
+        for layer in 2..LINK_LAYERS {
+            for raw in 0..KEY_COUNT {
+                assert_eq!(map.binding(layer, raw), map.binding(0, raw));
+            }
+        }
     }
 
     #[test]
@@ -614,7 +658,7 @@ mod tests {
         assert_eq!(encoded[6], LAYOUT_ID);
         assert_eq!(encoded[7] as usize, KEY_COUNT);
         assert_eq!(LinkKeymap::decode(&encoded), Some(map));
-        encoded[4] = VERSION - 1;
+        encoded[4] = VERSION + 1;
         assert_eq!(LinkKeymap::decode(&encoded), None);
         encoded[4] = VERSION;
         encoded[100] ^= 1;
@@ -628,9 +672,30 @@ mod tests {
         // Given: 새 KR 기본 키맵을 인코딩한다.
         let encoded = LinkKeymap::default().encode();
 
-        // When / Then: KR 레코드는 version 6을 사용해 기존 version 5와 구분된다.
-        assert_eq!(VERSION, 6);
-        assert_eq!(encoded[4], 6);
+        // When / Then: KR 레코드는 version 7을 사용해 기존 version 6과 구분된다.
+        assert_eq!(VERSION, 7);
+        assert_eq!(encoded[4], 7);
+    }
+
+    #[test]
+    fn previous_keymap_version_preserves_first_two_layers_and_rebuilds_higher_layers() {
+        let mut map = LinkKeymap::default();
+        assert!(map.set_matrix_binding(0, 0, 0, LinkBinding::new(0, 0x04)));
+        assert!(map.set_matrix_binding(1, 0, 0, LinkBinding::new(0, 0x05)));
+        assert!(map.set_matrix_binding(2, 0, 0, LinkBinding::new(2, 174)));
+        let mut encoded = map.encode();
+        encoded[4] = PREVIOUS_VERSION;
+        let crc = crc32(&encoded[..LINK_KEYMAP_RECORD_BYTES - 4]);
+        encoded[LINK_KEYMAP_RECORD_BYTES - 4..].copy_from_slice(&crc.to_le_bytes());
+
+        let (migrated, needs_save) = LinkKeymap::decode_with_migration(&encoded).unwrap();
+        assert!(needs_save);
+        assert_eq!(migrated.binding(0, 0), Some(LinkBinding::new(0, 0x04)));
+        assert_eq!(migrated.binding(1, 0), Some(LinkBinding::new(0, 0x05)));
+        for layer in 2..LINK_LAYERS {
+            assert_eq!(migrated.binding(layer, 0), migrated.binding(0, 0));
+        }
+        assert_eq!(migrated.encode()[4], VERSION);
     }
 
     #[test]
@@ -739,6 +804,11 @@ mod tests {
                 LinkBinding::new(0x80, 0x52),
                 LinkBinding::new(3, 32),
                 Action::BacklightUp,
+            ),
+            (
+                LinkBinding::new(0x80, 3),
+                LinkBinding::new(3, 19),
+                Action::BootLeft,
             ),
         ] {
             assert_eq!(binding_for_link(legacy), web);
@@ -892,10 +962,8 @@ mod tests {
         };
         assert_eq!(map.action(0, 0), expected);
         assert_eq!(map.action(2, raw_from_matrix(3, 7).unwrap()), expected);
-        assert_eq!(
-            map.binding(2, raw_from_matrix(3, 7).unwrap()),
-            Some(LinkBinding::TRANSPARENT)
-        );
+        let raw = raw_from_matrix(3, 7).unwrap();
+        assert_eq!(map.binding(2, raw), map.binding(0, raw));
         assert_eq!(map.matrix_binding(2, 3, 7), Some(LinkBinding::new(3, 64)));
     }
 }

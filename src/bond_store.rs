@@ -526,9 +526,12 @@ pub async fn run_storage(mut flash: Flash, store: &'static BondStore) -> ! {
         .read(page_address(LINK_KEYMAP_PAGE), &mut keymap_buffer.0)
         .await
         .is_ok()
-        && let Some(keymap) = LinkKeymap::decode(&keymap_buffer.0)
+        && let Some((keymap, migrated)) = LinkKeymap::decode_with_migration(&keymap_buffer.0)
     {
         store.keymap.lock(|current| *current.borrow_mut() = keymap);
+        if migrated {
+            store.request_save(LINK_KEYMAP_PAGE);
+        }
     }
     store.ready.store(true, Ordering::Release);
 
