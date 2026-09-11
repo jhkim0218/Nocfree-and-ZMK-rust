@@ -62,8 +62,8 @@ use nocfree_and_rust::split_protocol::{
 };
 use nocfree_and_rust::status_led::{UNKNOWN_BATTERY_PERCENT, low_battery_led_on, pairing_led_on};
 use nocfree_and_rust::usb_descriptor::{
-    CONSUMER_REPORT_BYTES, CONSUMER_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES,
-    KEYBOARD_REPORT_DESCRIPTOR,
+    CONSUMER_POINTER_REPORT_BYTES, CONSUMER_POINTER_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES,
+    KEYBOARD_REPORT_DESCRIPTOR, USB_CONSUMER_REPORT_ID, USB_POINTER_REPORT_ID,
 };
 use nrf_softdevice::ble::advertisement_builder::{
     AdvertisementDataType, Flag, LegacyAdvertisementBuilder, LegacyAdvertisementPayload,
@@ -223,10 +223,11 @@ fn apply_key_snapshot(engine: &mut ReportEngine, snapshot: u128) {
             Command::ProfileSelect(_) | Command::None => {}
         }
     }
-    if effects.keyboard_changed || effects.consumer_changed {
+    if effects.keyboard_changed || effects.consumer_changed || effects.pointer_changed {
         OUTPUT.publish(ReportFrame {
             keyboard: effects.keyboard,
             consumer: effects.consumer,
+            pointer: effects.pointer,
         });
     }
 }
@@ -475,6 +476,7 @@ async fn run_battery_status_output() -> ! {
             OUTPUT.send_transient(ReportFrame {
                 keyboard: key_report(byte),
                 consumer: 0,
+                ..ReportFrame::default()
             });
             Timer::after(Duration::from_millis(8)).await;
             OUTPUT.send_transient(ReportFrame::default());
@@ -489,6 +491,7 @@ async fn run_key_tap_output() -> ! {
         OUTPUT.send_transient(ReportFrame {
             keyboard: usage_report(KEY_TAP.wait().await, 0),
             consumer: 0,
+            ..ReportFrame::default()
         });
         Timer::after(Duration::from_millis(8)).await;
         OUTPUT.send_transient(ReportFrame::default());
@@ -498,7 +501,7 @@ async fn run_key_tap_output() -> ! {
 
 async fn run_usb_reports<'d, D: UsbDriver<'d>>(
     mut keyboard: HidWriter<'d, D, KEYBOARD_REPORT_BYTES>,
-    mut consumer: HidWriter<'d, D, CONSUMER_REPORT_BYTES>,
+    mut consumer: HidWriter<'d, D, CONSUMER_POINTER_REPORT_BYTES>,
 ) -> ! {
     loop {
         join(keyboard.ready(), consumer.ready()).await;
@@ -510,7 +513,14 @@ async fn run_usb_reports<'d, D: UsbDriver<'d>>(
                     .write(ReportFrame::default().keyboard.as_bytes())
                     .await
                     .is_err()
-                    || consumer.write(&0_u16.to_le_bytes()).await.is_err())
+                    || consumer
+                        .write(&[USB_CONSUMER_REPORT_ID, 0, 0])
+                        .await
+                        .is_err()
+                    || consumer
+                        .write(&[USB_POINTER_REPORT_ID, 0, 0, 0, 0])
+                        .await
+                        .is_err())
             {
                 OUTPUT.set_usb_connected(false);
                 break;
@@ -519,7 +529,24 @@ async fn run_usb_reports<'d, D: UsbDriver<'d>>(
                 continue;
             }
             if keyboard.write(frame.keyboard.as_bytes()).await.is_err()
-                || consumer.write(&frame.consumer.to_le_bytes()).await.is_err()
+                || consumer
+                    .write(&[
+                        USB_CONSUMER_REPORT_ID,
+                        frame.consumer as u8,
+                        (frame.consumer >> 8) as u8,
+                    ])
+                    .await
+                    .is_err()
+                || consumer
+                    .write(&[
+                        USB_POINTER_REPORT_ID,
+                        frame.pointer.buttons,
+                        frame.pointer.x as u8,
+                        frame.pointer.y as u8,
+                        frame.pointer.wheel as u8,
+                    ])
+                    .await
+                    .is_err()
             {
                 OUTPUT.set_usb_connected(false);
                 break;
@@ -538,6 +565,8 @@ async fn notify_ble_reports(connection: &nrf_softdevice::ble::Connection, server
                 .await
                 || !send_ble_notification(|| server.hid.notify_consumer(connection, empty.consumer))
                     .await
+                || !send_ble_notification(|| server.hid.notify_pointer(connection, &empty.pointer))
+                    .await
             {
                 return;
             }
@@ -547,6 +576,8 @@ async fn notify_ble_reports(connection: &nrf_softdevice::ble::Connection, server
         }
         if !send_ble_notification(|| server.hid.notify_keyboard(connection, &frame.keyboard)).await
             || !send_ble_notification(|| server.hid.notify_consumer(connection, frame.consumer))
+                .await
+            || !send_ble_notification(|| server.hid.notify_pointer(connection, &frame.pointer))
                 .await
         {
             return;
@@ -1160,14 +1191,14 @@ async fn main(_spawner: embassy_executor::Spawner) {
             max_packet_size: KEYBOARD_REPORT_BYTES as u16,
         },
     );
-    let consumer = HidWriter::<_, CONSUMER_REPORT_BYTES>::new(
+    let consumer = HidWriter::<_, CONSUMER_POINTER_REPORT_BYTES>::new(
         &mut usb_builder,
         &mut consumer_state,
         HidConfig {
-            report_descriptor: CONSUMER_REPORT_DESCRIPTOR,
+            report_descriptor: CONSUMER_POINTER_REPORT_DESCRIPTOR,
             request_handler: None,
             poll_ms: 1,
-            max_packet_size: CONSUMER_REPORT_BYTES as u16,
+            max_packet_size: CONSUMER_POINTER_REPORT_BYTES as u16,
         },
     );
     let cdc = CdcAcmClass::new(&mut usb_builder, &mut cdc_state, 64);

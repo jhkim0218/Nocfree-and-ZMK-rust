@@ -5,8 +5,10 @@ use nrf_softdevice::ble::gatt_server::{self, RegisterError, WriteOp};
 use nrf_softdevice::ble::{Connection, SecurityMode, Uuid};
 
 use crate::dongle_ble::DongleService;
-use crate::report::KeyboardReport;
-use crate::usb_descriptor::{BLE_HID_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES};
+use crate::report::{KeyboardReport, PointerReport};
+use crate::usb_descriptor::{
+    BLE_HID_REPORT_DESCRIPTOR, KEYBOARD_REPORT_BYTES, POINTER_REPORT_BYTES,
+};
 
 const HID_SERVICE: Uuid = Uuid::new_16(0x1812);
 const HID_INFORMATION: Uuid = Uuid::new_16(0x2a4a);
@@ -17,10 +19,12 @@ const PROTOCOL_MODE: Uuid = Uuid::new_16(0x2a4e);
 const REPORT_REFERENCE: Uuid = Uuid::new_16(0x2908);
 const KEYBOARD_REPORT_ID: u8 = 1;
 const CONSUMER_REPORT_ID: u8 = 2;
+const POINTER_REPORT_ID: u8 = 3;
 
 pub struct HidService {
     keyboard_input: u16,
     consumer_input: u16,
+    pointer_input: u16,
 }
 
 impl HidService {
@@ -90,10 +94,22 @@ impl HidService {
         )?;
         let consumer_input = consumer_input.build().value_handle;
 
+        let mut pointer_input = service.add_characteristic(
+            HID_REPORT,
+            Attribute::new([0_u8; POINTER_REPORT_BYTES]).security(SecurityMode::JustWorks),
+            Metadata::new(Properties::new().read().notify()).security(SecurityMode::JustWorks),
+        )?;
+        pointer_input.add_descriptor(
+            REPORT_REFERENCE,
+            Attribute::new([POINTER_REPORT_ID, 1_u8]).security(SecurityMode::JustWorks),
+        )?;
+        let pointer_input = pointer_input.build().value_handle;
+
         service.build();
         Ok(Self {
             keyboard_input,
             consumer_input,
+            pointer_input,
         })
     }
 
@@ -111,6 +127,14 @@ impl HidService {
         usage: u16,
     ) -> Result<(), gatt_server::NotifyValueError> {
         gatt_server::notify_value(connection, self.consumer_input, &usage.to_le_bytes())
+    }
+
+    pub fn notify_pointer(
+        &self,
+        connection: &Connection,
+        report: &PointerReport,
+    ) -> Result<(), gatt_server::NotifyValueError> {
+        gatt_server::notify_value(connection, self.pointer_input, report.as_bytes())
     }
 }
 

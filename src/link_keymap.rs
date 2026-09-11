@@ -1,10 +1,11 @@
 pub use crate::keymap::raw_from_matrix;
 use crate::keymap::{
     Action, KEY_COUNT, LAYOUT_ID, MATRIX_COLS, MATRIX_ROWS, base_action, function_action,
-    matrix_from_raw,
+    layer2_action, matrix_from_raw,
 };
 
 pub const LINK_LAYERS: usize = 8;
+pub const SPACE_LAYER_FALLBACK: u8 = LINK_LAYERS as u8;
 pub const LINK_ROWS: usize = MATRIX_ROWS;
 pub const LINK_COLS: usize = MATRIX_COLS;
 pub const LINK_BINDING_BYTES: usize = 3;
@@ -17,13 +18,13 @@ pub const LINK_KEYMAP_PAGE: u8 = 7;
 const MAGIC: [u8; 4] = *b"NFK1";
 // KR은 양쪽 raw 순서 교정 때마다 이전 저장 키맵을 무효화한다.
 #[cfg(feature = "layout-kr")]
+const VERSION: u8 = 10;
+#[cfg(not(feature = "layout-kr"))]
 const VERSION: u8 = 8;
-#[cfg(not(feature = "layout-kr"))]
-const VERSION: u8 = 6;
 #[cfg(feature = "layout-kr")]
-const PREVIOUS_VERSION: u8 = 7;
+const PREVIOUS_VERSION: u8 = 9;
 #[cfg(not(feature = "layout-kr"))]
-const PREVIOUS_VERSION: u8 = 5;
+const PREVIOUS_VERSION: u8 = 7;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LinkBinding {
@@ -109,6 +110,11 @@ impl LinkKeymap {
             }
             layer += 1;
         }
+        raw = 0;
+        while raw < KEY_COUNT {
+            map.bindings[2 * KEY_COUNT + raw] = binding_from_action(layer2_action(raw));
+            raw += 1;
+        }
         map
     }
 
@@ -137,6 +143,15 @@ impl LinkKeymap {
             return slot.action();
         }
         action_from_binding(binding)
+    }
+
+    pub fn space_layer(&self) -> u8 {
+        for layer in 2..LINK_LAYERS {
+            if self.is_space_layer(layer) {
+                return layer as u8;
+            }
+        }
+        SPACE_LAYER_FALLBACK
     }
 
     pub fn matrix_binding(&self, layer: usize, row: usize, col: usize) -> Option<LinkBinding> {
@@ -297,23 +312,48 @@ impl LinkKeymap {
         let migrated = bytes[4] == PREVIOUS_VERSION;
         if migrated {
             map.copy_base_bindings_to_empty_function_keys();
-            for layer in 2..LINK_LAYERS {
-                map.copy_base_layer_to(layer);
+            if let Some(layer) = map.first_stock_base_layer() {
+                map.install_space_layer(layer);
             }
         }
         Some((map, migrated))
     }
 
-    fn copy_base_layer_to(&mut self, layer: usize) {
-        let start = layer * KEY_COUNT;
+    fn first_stock_base_layer(&self) -> Option<usize> {
+        (2..LINK_LAYERS).find(|&layer| {
+            self.hotkeys
+                .iter()
+                .all(|hotkey| !hotkey.is_coordinate_bound() || hotkey.layer as usize != layer)
+                && (0..KEY_COUNT).all(|raw| {
+                    self.bindings[layer * KEY_COUNT + raw] == binding_from_action(base_action(raw))
+                })
+        })
+    }
+
+    fn install_space_layer(&mut self, layer: usize) {
         for raw in 0..KEY_COUNT {
-            self.bindings[start + raw] = self.bindings[raw];
+            self.bindings[layer * KEY_COUNT + raw] = binding_from_action(layer2_action(raw));
         }
         for hotkey in &mut self.hotkeys {
             if hotkey.is_coordinate_bound() && hotkey.layer as usize == layer {
                 *hotkey = HotkeySlot::EMPTY;
             }
         }
+    }
+
+    fn is_space_layer(&self, layer: usize) -> bool {
+        let mut has_navigation = false;
+        for raw in 0..KEY_COUNT {
+            let expected = binding_from_action(layer2_action(raw));
+            if expected == LinkBinding::TRANSPARENT {
+                continue;
+            }
+            has_navigation = true;
+            if self.bindings[layer * KEY_COUNT + raw] != expected {
+                return false;
+            }
+        }
+        has_navigation
     }
 
     fn copy_base_bindings_to_empty_function_keys(&mut self) {
@@ -400,6 +440,8 @@ pub const fn binding_is_valid(binding: LinkBinding) -> bool {
                         } else {
                             0x73
                         })
+                || (binding.value >= 205 && binding.value <= 211)
+                || matches!(binding.value, 217 | 218)
         }
         1 => binding.value >= 0xe0 && binding.value <= 0xe7,
         2 => matches!(
@@ -425,6 +467,17 @@ const fn binding_from_action(action: Action) -> LinkBinding {
         Action::Fn => LinkBinding::new(3, 1),
         Action::Key(usage @ 0xe0..=0xe7) => LinkBinding::new(1, usage as u16),
         Action::Key(usage) => LinkBinding::new(0, usage as u16),
+        Action::CapsLayer { tap, .. } => LinkBinding::new(0, tap as u16),
+        Action::PointerMove { x: 0, y: -8 } => LinkBinding::new(0, 205),
+        Action::PointerMove { x: 0, y: 8 } => LinkBinding::new(0, 206),
+        Action::PointerMove { x: -8, y: 0 } => LinkBinding::new(0, 207),
+        Action::PointerMove { x: 8, y: 0 } => LinkBinding::new(0, 208),
+        Action::PointerButton(button @ 1..=3) => LinkBinding::new(0, 208 + button as u16),
+        Action::PointerWheel(1) => LinkBinding::new(0, 217),
+        Action::PointerWheel(-1) => LinkBinding::new(0, 218),
+        Action::PointerMove { .. } | Action::PointerWheel(_) | Action::PointerButton(_) => {
+            LinkBinding::TRANSPARENT
+        }
         Action::Chord { .. } | Action::LayerMomentary(_) | Action::LayerToggle(_) => {
             LinkBinding::TRANSPARENT
         }
@@ -497,6 +550,15 @@ pub const fn action_from_binding(binding: LinkBinding) -> Action {
         {
             Action::Key(binding.value as u8)
         }
+        0 if binding.value == 205 => Action::PointerMove { x: 0, y: -8 },
+        0 if binding.value == 206 => Action::PointerMove { x: 0, y: 8 },
+        0 if binding.value == 207 => Action::PointerMove { x: -8, y: 0 },
+        0 if binding.value == 208 => Action::PointerMove { x: 8, y: 0 },
+        0 if binding.value >= 209 && binding.value <= 211 => {
+            Action::PointerButton((binding.value - 208) as u8)
+        }
+        0 if binding.value == 217 => Action::PointerWheel(1),
+        0 if binding.value == 218 => Action::PointerWheel(-1),
         1 if binding.value >= 0xe0 && binding.value <= 0xe7 => Action::Key(binding.value as u8),
         2 => Action::Consumer(match binding.value {
             127 => 0x00e2,
@@ -659,11 +721,44 @@ mod tests {
                 })
             );
         }
-        for layer in 2..LINK_LAYERS {
+        for raw in 0..KEY_COUNT {
+            assert_eq!(
+                map.binding(2, raw),
+                Some(binding_from_action(layer2_action(raw)))
+            );
+        }
+        for layer in 3..LINK_LAYERS {
             for raw in 0..KEY_COUNT {
                 assert_eq!(map.binding(layer, raw), map.binding(0, raw));
             }
         }
+    }
+
+    #[test]
+    fn caps_hold_layer2_link_bindings_restore_navigation_and_pointer_actions() {
+        let map = LinkKeymap::default();
+        for raw in 0..KEY_COUNT {
+            let expected = layer2_action(raw);
+            assert_eq!(map.action(2, raw), expected);
+            let binding = map.binding(2, raw).unwrap();
+            if expected != Action::Transparent {
+                assert!(binding_is_valid(binding));
+                assert_eq!(action_from_binding(binding), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn caps_hold_layer2_preserves_a_fully_customized_link_map() {
+        let mut map = LinkKeymap::default();
+        let q = (0..KEY_COUNT)
+            .find(|raw| base_action(*raw) == Action::Key(0x14))
+            .unwrap();
+        let (row, col) = matrix_from_raw(q).unwrap();
+        for layer in 2..LINK_LAYERS {
+            assert!(map.set_matrix_binding(layer, row, col, LinkBinding::new(0, 1)));
+        }
+        assert_eq!(map.space_layer(), SPACE_LAYER_FALLBACK);
     }
 
     #[test]
@@ -701,9 +796,9 @@ mod tests {
         // Given: 새 KR 기본 키맵을 인코딩한다.
         let encoded = LinkKeymap::default().encode();
 
-        // When / Then: KR 레코드는 version 8을 사용해 기존 version 7과 구분된다.
-        assert_eq!(VERSION, 8);
-        assert_eq!(encoded[4], 8);
+        // When / Then: KR 레코드는 version 10을 사용해 Caps Lock Layer 2 이전 version 9와 구분된다.
+        assert_eq!(VERSION, 10);
+        assert_eq!(encoded[4], 10);
     }
 
     #[test]
@@ -713,7 +808,12 @@ mod tests {
         assert!(map.set_matrix_binding(1, 0, 0, LinkBinding::new(0, 0x05)));
         assert!(map.set_matrix_binding(0, 0, 1, LinkBinding::new(0, 0x06)));
         assert!(map.set_matrix_binding(1, 0, 1, LinkBinding::TRANSPARENT));
+        for raw in 0..KEY_COUNT {
+            map.bindings[2 * KEY_COUNT + raw] = map.bindings[raw];
+        }
         assert!(map.set_matrix_binding(2, 0, 0, LinkBinding::new(2, 174)));
+        let custom_raw = raw_from_matrix(0, 0).unwrap();
+        let base_raw = custom_raw;
         let mut encoded = map.encode();
         encoded[4] = PREVIOUS_VERSION;
         let crc = crc32(&encoded[..LINK_KEYMAP_RECORD_BYTES - 4]);
@@ -721,12 +821,32 @@ mod tests {
 
         let (migrated, needs_save) = LinkKeymap::decode_with_migration(&encoded).unwrap();
         assert!(needs_save);
-        assert_eq!(migrated.binding(0, 0), Some(LinkBinding::new(0, 0x04)));
-        assert_eq!(migrated.binding(1, 0), Some(LinkBinding::new(0, 0x05)));
+        assert_eq!(
+            migrated.binding(0, base_raw),
+            Some(LinkBinding::new(0, 0x04))
+        );
+        assert_eq!(
+            migrated.binding(1, base_raw),
+            Some(LinkBinding::new(0, 0x05))
+        );
         let raw = raw_from_matrix(0, 1).unwrap();
         assert_eq!(migrated.binding(1, raw), migrated.binding(0, raw));
-        for layer in 2..LINK_LAYERS {
-            assert_eq!(migrated.binding(layer, 0), migrated.binding(0, 0));
+        assert_eq!(
+            migrated.binding(2, custom_raw),
+            Some(LinkBinding::new(2, 174))
+        );
+        let q = (0..KEY_COUNT)
+            .find(|raw| base_action(*raw) == Action::Key(0x14))
+            .unwrap();
+        assert_eq!(
+            migrated.binding(3, q),
+            Some(binding_from_action(layer2_action(q)))
+        );
+        for layer in 4..LINK_LAYERS {
+            assert_eq!(
+                migrated.binding(layer, base_raw),
+                Some(binding_from_action(base_action(base_raw)))
+            );
         }
         assert_eq!(migrated.encode()[4], VERSION);
     }
@@ -907,7 +1027,10 @@ mod tests {
             LinkBinding::new(3, 0x3004),
             LinkBinding::new(0x80, 0x58),
         ];
-        for value in 205..=223 {
+        for value in 205..=211 {
+            assert!(binding_is_valid(LinkBinding::new(0, value)));
+        }
+        for value in [212, 213, 214, 215, 216, 219, 220, 221, 222, 223] {
             assert!(!binding_is_valid(LinkBinding::new(0, value)));
         }
         for value in 80..=95 {
@@ -996,7 +1119,10 @@ mod tests {
         assert_eq!(map.action(0, 0), expected);
         assert_eq!(map.action(2, raw_from_matrix(3, 7).unwrap()), expected);
         let raw = raw_from_matrix(3, 7).unwrap();
-        assert_eq!(map.binding(2, raw), map.binding(0, raw));
+        assert_eq!(
+            map.binding(2, raw),
+            Some(binding_from_action(layer2_action(raw)))
+        );
         assert_eq!(map.matrix_binding(2, 3, 7), Some(LinkBinding::new(3, 64)));
     }
 }

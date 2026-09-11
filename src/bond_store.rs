@@ -19,7 +19,9 @@ use crate::bond_record::{
     decode_selected_profile, encode_bond, encode_selected_profile,
 };
 use crate::keymap::Action;
-use crate::link_keymap::{LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap};
+use crate::link_keymap::{
+    LINK_KEYMAP_PAGE, LINK_KEYMAP_RECORD_BYTES, LinkKeymap, SPACE_LAYER_FALLBACK,
+};
 use crate::link_protocol::{LinkResponse, handle_request};
 
 #[derive(Clone, Copy)]
@@ -183,7 +185,17 @@ impl BondStore {
     pub fn key_action(&self, layer: u8, raw: usize) -> Action {
         self.keymap.lock(|keymap| {
             let keymap = keymap.borrow();
-            match (keymap.system(), keymap.action(layer as usize, raw)) {
+            if layer == SPACE_LAYER_FALLBACK {
+                return crate::keymap::layer2_action(raw);
+            }
+            let action = keymap.action(layer as usize, raw);
+            if layer <= 1 && crate::keymap::is_caps_lock_key(raw) && action == Action::Key(0x39) {
+                return Action::CapsLayer {
+                    tap: 0x39,
+                    layer: keymap.space_layer(),
+                };
+            }
+            match (keymap.system(), action) {
                 (_, Action::OutputUsb | Action::OutputBle) => Action::Transparent,
                 (0, Action::SystemF3) => Action::Consumer(0x029f),
                 (0, Action::SystemF4) => Action::Chord {

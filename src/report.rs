@@ -11,6 +11,7 @@ pub const KEYBOARD_REPORT_BYTES: usize = 2 + KEY_BITMAP_BYTES;
 pub const HOLD_MS: u64 = 1_000;
 pub const BATTERY_HOLD_MS: u64 = 3_000;
 pub const DFU_HOLD_MS: u64 = 3_000;
+pub const CAPS_TAPPING_TERM_MS: u64 = 200;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[repr(C)]
@@ -27,9 +28,31 @@ impl KeyboardReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[repr(C)]
+pub struct PointerReport {
+    pub buttons: u8,
+    pub x: i8,
+    pub y: i8,
+    pub wheel: i8,
+}
+
+impl PointerReport {
+    pub fn as_bytes(&self) -> &[u8; POINTER_REPORT_BYTES] {
+        unsafe { &*(self as *const Self as *const [u8; POINTER_REPORT_BYTES]) }
+    }
+
+    const fn has_motion(self) -> bool {
+        self.x != 0 || self.y != 0 || self.wheel != 0
+    }
+}
+
+pub const POINTER_REPORT_BYTES: usize = 4;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ReportFrame {
     pub keyboard: KeyboardReport,
     pub consumer: u16,
+    pub pointer: PointerReport,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -75,8 +98,10 @@ impl Command {
 pub struct Effects {
     pub keyboard: KeyboardReport,
     pub consumer: u16,
+    pub pointer: PointerReport,
     pub keyboard_changed: bool,
     pub consumer_changed: bool,
+    pub pointer_changed: bool,
     commands: [Command; 8],
     command_count: usize,
 }
@@ -93,8 +118,10 @@ pub struct ReportEngine {
     default_layer: u8,
     keyboard: KeyboardReport,
     consumer: u16,
+    pointer: PointerReport,
     pressed_at: [u64; KEY_COUNT],
     hold_triggered: u128,
+    caps_layer_held: u128,
 }
 
 impl Default for ReportEngine {
@@ -105,8 +132,10 @@ impl Default for ReportEngine {
             default_layer: 0,
             keyboard: KeyboardReport::default(),
             consumer: 0,
+            pointer: PointerReport::default(),
             pressed_at: [0; KEY_COUNT],
             hold_triggered: 0,
+            caps_layer_held: 0,
         }
     }
 }
@@ -157,6 +186,12 @@ impl ReportEngine {
             match action {
                 Action::Fn => active_layer = active_layer.max(1),
                 Action::LayerMomentary(layer) => active_layer = active_layer.max(layer),
+                Action::CapsLayer { layer, .. }
+                    if self.caps_layer_should_hold(raw, snapshot, now_ms) =>
+                {
+                    self.caps_layer_held |= 1_u128 << raw;
+                    active_layer = active_layer.max(layer);
+                }
                 _ => {}
             }
         }
@@ -169,8 +204,10 @@ impl ReportEngine {
                 continue;
             }
             if snapshot & bit == 0 {
+                let caps_layer_held = self.caps_layer_held & bit != 0;
                 if self.hold_triggered & bit == 0 {
                     let command = match self.assigned[raw] {
+                        Action::CapsLayer { tap, .. } if !caps_layer_held => Command::KeyTap(tap),
                         Action::ProfileShortcut(profile) => {
                             if now_ms.saturating_sub(self.pressed_at[raw]) >= HOLD_MS {
                                 Command::ProfilePair(profile)
@@ -209,11 +246,15 @@ impl ReportEngine {
                 }
                 self.assigned[raw] = Action::Transparent;
                 self.hold_triggered &= !bit;
+                self.caps_layer_held &= !bit;
                 continue;
             }
 
             let base = resolve(0, raw);
-            let mut action = if matches!(base, Action::Fn | Action::LayerMomentary(_)) {
+            let mut action = if matches!(
+                base,
+                Action::Fn | Action::LayerMomentary(_) | Action::CapsLayer { .. }
+            ) {
                 base
             } else if active_layer != 0 {
                 match resolve(active_layer, raw) {
@@ -278,13 +319,16 @@ impl ReportEngine {
         self.snapshot = snapshot;
         let old_keyboard = self.keyboard;
         let old_consumer = self.consumer;
+        let old_pointer = self.pointer;
         self.rebuild_reports();
 
         Effects {
             keyboard: self.keyboard,
             consumer: self.consumer,
+            pointer: self.pointer,
             keyboard_changed: self.keyboard != old_keyboard,
             consumer_changed: self.consumer != old_consumer,
+            pointer_changed: self.pointer != old_pointer || self.pointer.has_motion(),
             commands,
             command_count,
         }
@@ -293,6 +337,7 @@ impl ReportEngine {
     fn rebuild_reports(&mut self) {
         let mut keyboard = KeyboardReport::default();
         let mut consumer = 0;
+        let mut pointer = PointerReport::default();
         for raw in 0..KEY_COUNT {
             if self.snapshot & (1_u128 << raw) == 0 {
                 continue;
@@ -311,18 +356,32 @@ impl ReportEngine {
                     }
                 }
                 Action::Consumer(usage) if consumer == 0 => consumer = usage,
+                Action::PointerMove { x, y } => {
+                    pointer.x = pointer.x.saturating_add(x);
+                    pointer.y = pointer.y.saturating_add(y);
+                }
+                Action::PointerWheel(wheel) => pointer.wheel = pointer.wheel.saturating_add(wheel),
+                Action::PointerButton(button @ 1..=3) => pointer.buttons |= 1 << (button - 1),
                 _ => {}
             }
         }
         self.keyboard = keyboard;
         self.consumer = consumer;
+        self.pointer = pointer;
+    }
+
+    fn caps_layer_should_hold(&self, raw: usize, snapshot: u128, now_ms: u64) -> bool {
+        let bit = 1_u128 << raw;
+        self.caps_layer_held & bit != 0
+            || snapshot & !bit != 0
+            || now_ms.saturating_sub(self.pressed_at[raw]) >= CAPS_TAPPING_TERM_MS
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keymap::{LEFT_FN_RAW, LEFT_KEY_COUNT, RIGHT_FN_RAW};
+    use crate::keymap::{LEFT_FN_RAW, LEFT_KEY_COUNT, RIGHT_FN_RAW, layer2_action};
 
     fn key_is_set(report: &KeyboardReport, usage: u8) -> bool {
         let index = (usage - FIRST_BITMAP_USAGE) as usize;
@@ -419,6 +478,153 @@ mod tests {
         assert_eq!(effects.commands(), &[Command::SystemSelect(1)]);
         assert!(engine.apply_snapshot_at(1, 1_010).commands().is_empty());
         assert!(engine.apply_snapshot_at(0, 1_011).commands().is_empty());
+    }
+
+    fn caps_layer_action(layer: u8, raw: usize, caps_lock: usize) -> Action {
+        if raw == caps_lock && layer <= 1 {
+            Action::CapsLayer {
+                tap: 0x39,
+                layer: 2,
+            }
+        } else if layer == 0 {
+            base_action(raw)
+        } else if layer == 2 {
+            layer2_action(raw)
+        } else {
+            Action::Transparent
+        }
+    }
+
+    #[test]
+    fn caps_hold_layer2_taps_caps_lock_and_activates_after_term() {
+        let caps_lock = raw_with_base(Action::Key(0x39));
+        let a = raw_with_base(Action::Key(0x04));
+        let mut engine = ReportEngine::default();
+
+        assert!(
+            engine
+                .apply_snapshot_with_at(1_u128 << caps_lock, 0, |layer, raw| {
+                    caps_layer_action(layer, raw, caps_lock)
+                })
+                .commands()
+                .is_empty()
+        );
+        assert_eq!(
+            engine
+                .apply_snapshot_with_at(0, CAPS_TAPPING_TERM_MS - 1, |layer, raw| {
+                    caps_layer_action(layer, raw, caps_lock)
+                })
+                .commands(),
+            &[Command::KeyTap(0x39)]
+        );
+
+        let mut engine = ReportEngine::default();
+        engine.apply_snapshot_with_at(1_u128 << caps_lock, 0, |layer, raw| {
+            caps_layer_action(layer, raw, caps_lock)
+        });
+        let effects = engine.apply_snapshot_with_at(
+            (1_u128 << caps_lock) | (1_u128 << a),
+            1,
+            |layer, raw| caps_layer_action(layer, raw, caps_lock),
+        );
+        assert!(key_is_set(&effects.keyboard, 0x50));
+        assert!(effects.commands().is_empty());
+        let effects = engine.apply_snapshot_with_at(1_u128 << a, 2, |layer, raw| {
+            caps_layer_action(layer, raw, caps_lock)
+        });
+        assert!(key_is_set(&effects.keyboard, 0x50));
+        assert!(effects.commands().is_empty());
+    }
+
+    #[test]
+    fn caps_hold_layer2_maps_browser_navigation() {
+        let caps_lock = raw_with_base(Action::Key(0x39));
+        let q = raw_with_base(Action::Key(0x14));
+        let z = raw_with_base(Action::Key(0x1d));
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with_at(
+            (1_u128 << caps_lock) | (1_u128 << q),
+            0,
+            |layer, raw| caps_layer_action(layer, raw, caps_lock),
+        );
+        assert_eq!(effects.consumer, 0x0224);
+
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with_at(
+            (1_u128 << caps_lock) | (1_u128 << z),
+            0,
+            |layer, raw| caps_layer_action(layer, raw, caps_lock),
+        );
+        assert!(key_is_set(&effects.keyboard, 0x4b));
+    }
+
+    #[test]
+    fn caps_hold_layer2_moves_scrolls_and_clicks() {
+        let caps_lock = raw_with_base(Action::Key(0x39));
+        let i = raw_with_base(Action::Key(0x0c));
+        let j = raw_with_base(Action::Key(0x0d));
+        let u = raw_with_base(Action::Key(0x18));
+        let m = raw_with_base(Action::Key(0x10));
+        let c = raw_with_base(Action::Key(0x06));
+        let v = raw_with_base(Action::Key(0x19));
+        let b = raw_with_base(Action::Key(0x05));
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with_at(
+            (1_u128 << caps_lock) | (1_u128 << i),
+            0,
+            |layer, raw| caps_layer_action(layer, raw, caps_lock),
+        );
+        assert_eq!(
+            effects.pointer,
+            PointerReport {
+                buttons: 0,
+                x: 0,
+                y: -8,
+                wheel: 0
+            }
+        );
+        assert!(effects.pointer_changed);
+        assert!(
+            engine
+                .apply_snapshot_with_at((1_u128 << caps_lock) | (1_u128 << i), 20, |layer, raw| {
+                    caps_layer_action(layer, raw, caps_lock)
+                })
+                .pointer_changed
+        );
+
+        let mut engine = ReportEngine::default();
+        let effects = engine.apply_snapshot_with_at(
+            (1_u128 << caps_lock) | (1_u128 << j) | (1_u128 << c),
+            0,
+            |layer, raw| caps_layer_action(layer, raw, caps_lock),
+        );
+        assert_eq!(
+            effects.pointer,
+            PointerReport {
+                buttons: 1,
+                x: -8,
+                y: 0,
+                wheel: 0
+            }
+        );
+        for (raw, expected) in [(u, 1), (m, -1)] {
+            let mut engine = ReportEngine::default();
+            let effects = engine.apply_snapshot_with_at(
+                (1_u128 << caps_lock) | (1_u128 << raw),
+                0,
+                |layer, raw| caps_layer_action(layer, raw, caps_lock),
+            );
+            assert_eq!(effects.pointer.wheel, expected);
+        }
+        for (raw, expected) in [(c, 1), (v, 2), (b, 4)] {
+            let mut engine = ReportEngine::default();
+            let effects = engine.apply_snapshot_with_at(
+                (1_u128 << caps_lock) | (1_u128 << raw),
+                0,
+                |layer, raw| caps_layer_action(layer, raw, caps_lock),
+            );
+            assert_eq!(effects.pointer.buttons, expected);
+        }
     }
 
     #[test]

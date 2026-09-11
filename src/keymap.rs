@@ -63,6 +63,16 @@ pub enum Action {
     Consumer(u16),
     LayerMomentary(u8),
     LayerToggle(u8),
+    CapsLayer {
+        tap: u8,
+        layer: u8,
+    },
+    PointerMove {
+        x: i8,
+        y: i8,
+    },
+    PointerWheel(i8),
+    PointerButton(u8),
     ResetLeft,
     BootLeft,
     BootRight,
@@ -90,6 +100,34 @@ pub const fn base_action(raw: usize) -> Action {
 
 pub const fn function_action(raw: usize) -> Action {
     function_action_for(base_action(raw))
+}
+
+pub const fn is_caps_lock_key(raw: usize) -> bool {
+    matches!(base_action(raw), Action::Key(0x39))
+}
+
+pub const fn layer2_action(raw: usize) -> Action {
+    match base_action(raw) {
+        Action::Key(0x14) => Action::Consumer(0x0224),
+        Action::Key(0x1a) => Action::Key(0x52),
+        Action::Key(0x08) => Action::Key(0x4a),
+        Action::Key(0x15) => Action::Key(0x4d),
+        Action::Key(0x04) => Action::Key(0x50),
+        Action::Key(0x16) => Action::Key(0x51),
+        Action::Key(0x07) => Action::Key(0x4f),
+        Action::Key(0x1d) => Action::Key(0x4b),
+        Action::Key(0x1b) => Action::Key(0x4e),
+        Action::Key(0x0c) => Action::PointerMove { x: 0, y: -8 },
+        Action::Key(0x0d) => Action::PointerMove { x: -8, y: 0 },
+        Action::Key(0x0e) => Action::PointerMove { x: 0, y: 8 },
+        Action::Key(0x0f) => Action::PointerMove { x: 8, y: 0 },
+        Action::Key(0x18) => Action::PointerWheel(1),
+        Action::Key(0x10) => Action::PointerWheel(-1),
+        Action::Key(0x06) => Action::PointerButton(1),
+        Action::Key(0x19) => Action::PointerButton(2),
+        Action::Key(0x05) => Action::PointerButton(3),
+        _ => Action::Transparent,
+    }
 }
 
 pub const fn raw_to_visual(raw: usize) -> usize {
@@ -237,6 +275,40 @@ mod tests {
         assert_eq!(function_action_for(Action::Key(0x3f)), Action::BacklightUp);
     }
 
+    #[test]
+    fn caps_hold_layer2_uses_physical_qwerty_positions() {
+        assert!(
+            (0..KEY_COUNT).any(is_caps_lock_key),
+            "every supported layout must contain a Caps Lock key"
+        );
+        for (usage, expected) in [
+            (0x14, Action::Consumer(0x0224)),
+            (0x1a, Action::Key(0x52)),
+            (0x08, Action::Key(0x4a)),
+            (0x15, Action::Key(0x4d)),
+            (0x04, Action::Key(0x50)),
+            (0x16, Action::Key(0x51)),
+            (0x07, Action::Key(0x4f)),
+            (0x09, Action::Transparent),
+            (0x1d, Action::Key(0x4b)),
+            (0x1b, Action::Key(0x4e)),
+            (0x0c, Action::PointerMove { x: 0, y: -8 }),
+            (0x0d, Action::PointerMove { x: -8, y: 0 }),
+            (0x0e, Action::PointerMove { x: 0, y: 8 }),
+            (0x0f, Action::PointerMove { x: 8, y: 0 }),
+            (0x18, Action::PointerWheel(1)),
+            (0x10, Action::PointerWheel(-1)),
+            (0x06, Action::PointerButton(1)),
+            (0x19, Action::PointerButton(2)),
+            (0x05, Action::PointerButton(3)),
+        ] {
+            let raw = (0..KEY_COUNT)
+                .find(|raw| base_action(*raw) == Action::Key(usage))
+                .unwrap();
+            assert_eq!(layer2_action(raw), expected);
+        }
+    }
+
     #[cfg(feature = "layout-ansi")]
     #[test]
     fn ansi_constants_and_known_raw_positions_are_unchanged() {
@@ -277,10 +349,9 @@ mod tests {
         assert_eq!((LEFT_KEY_COUNT, RIGHT_KEY_COUNT, KEY_COUNT), (37, 48, 85));
         assert_eq!(RIGHT_ROW_COUNTS, [8, 8, 8, 8, 8, 8]);
         for usage in [0x87, 0x89, 0x8a] {
-            assert!(
-                (0..KEY_COUNT).any(|raw| base_action(raw) == Action::Key(usage)),
-                "JIS usage {usage:#04x} must be present"
-            );
+            let raw = (0..KEY_COUNT).find(|raw| base_action(*raw) == Action::Key(usage));
+            assert!(raw.is_some(), "JIS usage {usage:#04x} must be present");
+            assert_eq!(layer2_action(raw.unwrap()), Action::Transparent);
         }
     }
 

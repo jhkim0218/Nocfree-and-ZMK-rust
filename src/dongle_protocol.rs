@@ -38,6 +38,7 @@ impl DongleReport {
                         .try_into()
                         .unwrap(),
                 ),
+                pointer: Default::default(),
             },
         }
     }
@@ -104,6 +105,7 @@ mod tests {
                 keys,
             },
             consumer,
+            pointer: Default::default(),
         }
     }
 

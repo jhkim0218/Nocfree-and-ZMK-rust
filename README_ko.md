@@ -176,10 +176,10 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 Link의 Function에서 지정한 Bluetooth 1/2/3은 기본 `Fn+1/2/3`과 같은 동작입니다.
 짧게 누르면 해당 슬롯을 선택하고, 1초 누르면 그 슬롯의 bond를 지운 뒤 새 페어링을
 시작합니다. 표준 Function 백라이트, Media/WWW/System 키, Windows/macOS 선택,
-왼쪽 DFU와 Link의 Dongle DFU 라벨(기존 오른쪽-half DFU 복구 경로), 레이어·hotkey도 GET 응답과 같은 계약으로 처리합니다. Fn의 특수 기능 없는 키와 Layer 2~7은 기본 Layer 1과 같은 바인딩으로 표시·실행됩니다. Link의
+왼쪽 DFU와 Link의 Dongle DFU 라벨(기존 오른쪽-half DFU 복구 경로), 레이어·hotkey도 GET 응답과 같은 계약으로 처리합니다. Fn의 특수 기능 없는 키와 Layer 3~7은 기본 Layer 1과 같은 바인딩으로 표시·실행됩니다. Layer 2는 Caps Lock 홀드 탐색·포인터 레이어입니다. Link의
 밝기 설정 0/1/2/3은 실제 백라이트 끄기/33/66/100%로 적용됩니다.
 
-Mouse, Quick Text, LT/MT, 2.4G 전환, 동글 DFU, Link 절전 설정처럼 실행 경로가 없는
+Link Mouse의 위/아래/왼쪽/오른쪽, 버튼 1~3, Wheel Up/Down은 USB/Bluetooth HID 포인터로 실행합니다. Quick Text, LT/MT, 2.4G 전환, 동글 DFU, Link 절전 설정처럼 실행 경로가 없는
 메뉴는 `BAD_ARG`로 거부합니다. 기존 키맵을 다른 기능으로 바꾸거나 성공한 것처럼
 표시하지 않으며, 저장된 알 수 없는 바인딩도 그대로 보존합니다. Link의 배포 웹 소스는
 이 저장소에 없으므로 Rust 전용의 남은 `0x...` 라벨을 사람 이름으로 바꾸는 UI 작업은

@@ -8,7 +8,7 @@ use embassy_sync::channel::{Channel, TrySendError};
 pub use crate::output_policy::OutputMode;
 use crate::output_policy::{releases, routes};
 pub use crate::report::ReportFrame;
-use crate::report::{KEY_BITMAP_BYTES, KeyboardReport};
+use crate::report::{KEY_BITMAP_BYTES, KeyboardReport, PointerReport};
 
 pub struct OutputRouter {
     latest: Mutex<CriticalSectionRawMutex, Cell<ReportFrame>>,
@@ -38,6 +38,12 @@ impl OutputRouter {
                     keys: [0; KEY_BITMAP_BYTES],
                 },
                 consumer: 0,
+                pointer: PointerReport {
+                    buttons: 0,
+                    x: 0,
+                    y: 0,
+                    wheel: 0,
+                },
             })),
             usb_queue: Channel::new(),
             ble_queue: Channel::new(),
