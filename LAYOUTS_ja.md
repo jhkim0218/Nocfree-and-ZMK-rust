@@ -10,10 +10,11 @@
 | ANSI | `src/keymap/ansi.rs` | 37 | 47 | 元の community ZMK とローカル実機 | 安定候補・実機履歴あり |
 | ISO | `src/keymap/iso.rs` | 38 | 47 | 公式 updater ISO image | Experimental・実機未検証 |
 | JIS | `src/keymap/jis.rs` | 37 | 48 | `electricdoc187` の `jis-custom` scan map | Experimental・Rust 実機未検証 |
-| KR | `src/keymap/kr.rs` | 39 | 50 | 公式 updater/product と `0x21/P0` | Experimental・実機未検証 |
+| KR | `src/keymap/kr.rs` | 39 | 50 | hyun 協力の対応実機検証と `0x21/P0` | 実機検証済み |
 
 全配列はサポートされる共通 Rust 2.4G Dongle UF2 を使います。ANSI は2.4Gの実機
-検証に合格しましたが、ISO/JIS/KR は必ず対応する実機 keyboard で試験してください。
+検証に合格しましたが、ISO/JIS は必ず対応する実機 keyboard で試験してください。KR の
+mapping は対応実機一組で確認済みです。
 
 共通動作は `src/keymap.rs` にあり、物理キー数、座標変換、HID usage、Fn 位置、
 PCA9555 address だけを各配列 module が所有します。保存される NocFree Link
@@ -34,12 +35,13 @@ python3 -B tools/build_release.py --layout KR
 
 環境によって `python3` を `python` に置き換えてください。Windows の
 `tools/build-release.ps1 -Layout ANSI` は同じ Python builder を呼ぶ wrapper です。
-ANSI は `firmware`、他は `firmware/experimental` に出力されます。同じ配列、
+ANSI と実機検証済み KR は `firmware`、ISO/JIS は `firmware/experimental` に出力されます。同じ配列、
 同じ build の Left/Right だけを一組としてフラッシュしてください。
 
 ## 制限
 
-- ISO/JIS/KR は compile、synthetic input、artifact test が通っても実機検証ではありません。
+- ISO/JIS は compile、synthetic input、artifact test が通っても実機検証ではありません。
+- KR mapping は対応実機一組で確認済みですが、他 revision と transport 回帰は未検証です。
 - JIS の usage 0x87/0x89/0x8a と右48番目のキーに合わせ、HID report と
   debouncer 容量を拡張済みですが、Rust 実機試験は未実施です。
 - 参考 ZMK の左 Eisu は tap Muhenkan / hold Fn です。初期 Rust JIS は tester が
@@ -52,7 +54,7 @@ ANSI は `firmware`、他は `firmware/experimental` に出力されます。同
 まず ANSI の matching pair を右、左の順で更新し、84キー、両 Fn、Wired USB、
 Windows 11 BLE reconnect、backlight 同期と新しい明るさ曲線、`Fn+5`/`Fn+0`
 復旧、NocFree Link の変更と再起動後保存を確認します。その回帰が完了してから、
-各実機を所有する協力者が ISO、JIS、KR を試します。この3配列はまず Left だけを
+各実機を所有する協力者が ISO と JIS を試します。この2配列はまず Left だけを
 flash して Wired input を確認し、その後に共通 dongle を pairing してください。
 
 参照: <https://github.com/NocFreeKB/NocFree-and-zmk>、

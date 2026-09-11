@@ -34,7 +34,7 @@ hotkey는 구현·실기 검증됐습니다.
 `PROGRESS.md`를 따릅니다.
 
 2026-08-25에는 키맵 구조를 `src/keymap/ansi.rs`, `iso.rs`, `jis.rs`, `kr.rs`로
-분리했습니다. ANSI만 기존 실기 검증 상태이고 ISO/JIS/KR은 자동 검사와 양쪽 ARM
+분리했습니다. ANSI와 KR 매핑은 실기 검증 상태이고 ISO/JIS는 자동 검사와 양쪽 ARM
 빌드만 통과한 Experimental입니다. JIS 전기 순서는 실제 JIS 기기에서 입력을
 검증한 `electricdoc187/NocFree-and-zmk`의 `jis-custom` 브랜치를 근거로 했습니다.
 상세 빌드·제한 사항은 `LAYOUTS.md`를 따르며, 오늘은 키보드가 없어 어떤 새
@@ -99,7 +99,7 @@ hotkey는 구현·실기 검증됐습니다.
 
 - 왼쪽 P0.15/P0.17은 pull-up active-low 모드 감지 입력
 - 위 2.4G: 지원되는 공용 Rust 동글 출력. ANSI는 페어링·입력·idle 뒤 재연결·복구를
-  실기 검증했고 ISO/JIS/KR은 대응 실물 테스트가 필수
+  실기 검증했고 ISO/JIS는 대응 실물 테스트가 필수. KR 매핑은 한 세트에서 검증됨
 - 가운데 Wired: USB HID 출력
 - 아래 Bluetooth: BLE HID 출력
 - 두 핀이 동시에 low인 전환 순간에는 이전 모드를 유지하고, 20 ms 안정 위치만 적용

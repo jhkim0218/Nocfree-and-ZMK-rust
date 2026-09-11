@@ -9,7 +9,7 @@ NocFree & KR 실물에서 확인한 키 입력 문제의 원인과 PCA9555 전�
 - 범위: 키 스캔 입력과 물리 키 순서
 - 제외: bootloader, SoftDevice, 보호 flash, UICR, 동글
 
-KR은 아직 Experimental 배열이므로 다른 생산 시기나 PCB revision에서도 동일한지 추가 확인이 필요하다.
+KR 매핑은 검증된 배포 경로로 승격됐지만, 다른 생산 시기나 PCB revision에서도 동일한지 추가 확인이 필요하다.
 
 ## 관측된 문제
 

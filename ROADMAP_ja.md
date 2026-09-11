@@ -16,8 +16,8 @@ GPIO、実機で観測した動作だけを根拠にします。工場 UF2 か�
 | P2 | Battery | 工場版の換算と filter、満充電100%を確認 | 放電曲線、実測電圧、左右消費電流で補正 |
 | P3 | Split reconnect | ATT MTU 23、段階 advertising、+8 dBm、暗号化 | 距離/RSSI/時間/電流を統制して安定確認 |
 | P4 | 左右入力順序 | timestamp、sequence、clock sync、5 ms queue | 長時間 loss/duplicate/reorder/stuck=0 |
-| P5 | Layout | ANSI stable、ISO/JIS/KR Experimental | 各 matching hardware で全キーと復旧を確認 |
-| サポート済み | Rust USB dongle / 2.4G | 暗号化 BLE、専用 bond、固定最大サイズ report、切断 release、USB HID は software 検査合格。共通 image は ANSI 実機と idle 後再接続を確認済み。純正 ESB/nRF24/numpad は対象外 | ISO/JIS/KR の対応 keyboard pair で pairing・再接続・順序・latency・復旧・共存を確認する |
+| P5 | Layout | ANSI stable、KR mapping 検証済み、ISO/JIS Experimental | ISO/JIS は各 matching hardware で全キーと復旧を確認。KR は他 revision と full transport を確認 |
+| サポート済み | Rust USB dongle / 2.4G | 暗号化 BLE、専用 bond、固定最大サイズ report、切断 release、USB HID は software 検査合格。共通 image は ANSI 実機と idle 後再接続を確認済み。純正 ESB/nRF24/numpad は対象外 | ISO/JIS の対応 keyboard pair で pairing・再接続・順序・latency・復旧・共存を確認する。KR mapping は一組で確認済み |
 
 ## Battery
 
@@ -77,5 +77,5 @@ deep sleep/wake は split reconnect と wake source の制約があり、電流�
 6. `Fn+5`/`Fn+0` が短押しでは発動せず3秒で正しい側だけ DFU になることを確認。
 7. 長期 battery と消費電流 log を開始。
 
-ISO/JIS/KR は ANSI 回帰後、該当実機の tester だけが試します。Quick Text、追加の
+ISO/JIS は ANSI 回帰後、該当実機の tester だけが試します。Quick Text、追加の
 lighting effect、firmware updater、ZMK Studio は現在の必須範囲ではありません。

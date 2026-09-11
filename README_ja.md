@@ -4,7 +4,7 @@
 
 > [!CAUTION]
 > 共通 dongle image による Rust 2.4G をサポートします。ANSI 一式は実機検証済みで、
-> ISO/JIS/KR は必ず対応する実機 keyboard で試験してください。
+> ISO/JIS は必ず対応する実機 keyboard で試験してください。KR mapping は対応実機一組で確認済みです。
 
 nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 ファームウェアです。原典
@@ -21,14 +21,14 @@ nRF52833 ベースの NocFree & キーボード向け独立 `no_std` Rust
 >   復元手順を確認してください。
 > - サポートされる Rust ドングル/2.4 GHz モードは純正 ESB、純正 updater、外部 nRF24L01 経路、
 >   numpad と互換性がありません。ANSI 一式は pairing・入力・再接続・モード切替・
->   復旧の実機検証に合格しました。ISO/JIS/KR はソフトウェア検査のみなので対応実機試験が必須です。
+>   復旧の実機検証に合格しました。ISO/JIS はソフトウェア検査のみなので対応実機試験が必須です。
 
 | 配列 | 現在の状態 | 実機検証 |
 |---|---|---|
 | ANSI | 既定のサポート build、共通 Rust ドングル UF2 あり | 共通 image で pairing・左右入力・高速入力・再接続・モード切替・復旧を実機確認済み |
 | ISO | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
 | JIS | サポート firmware、共通 Rust ドングル UF2 あり | 対応実機試験が必須 |
-| KR | サポート firmware、共通 Rust ドングル UF2 あり | hyun 協力で hardware mapping を実機確認; Rust firmware 全体の実機検証は引き続き必要 |
+| KR | 検証済み配布 firmware、共通 Rust ドングル UF2 あり | hyun 協力で対応実機 mapping を確認; 他 revision と transport 全体の実機検証は継続 |
 
 ## 最初に確認すること
 
@@ -95,7 +95,7 @@ python3 -B tools/build_release.py --all-layouts --dongle
 ```
 
 共通 dongle UF2 は `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2` です。全配列
-packetを受信し、ANSI 実機検証に合格しています。ISO/JIS/KR は対応実機検証が必要です。
+packetを受信し、ANSI 実機検証に合格しています。ISO/JIS は対応実機検証が必要です。
 
 Windows PowerShell ラッパーも利用できます。
 
@@ -104,7 +104,7 @@ Windows PowerShell ラッパーも利用できます。
 ```
 
 ビルダーは整形、host/ARM 検査、左右ビルド、BIN/UF2/serial-DFU 生成、アドレスと
-内容の検証を行います。ANSI は `firmware`、Experimental 配列は
+内容の検証を行います。ANSI と検証済み KR は `firmware`、Experimental ISO/JIS 配列は
 `firmware/experimental` に出力されます。
 
 リポジトリ収録の ANSI キーボードと [共通 dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2):
@@ -136,11 +136,11 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | 分野 | 残作業 |
 |---|---|
 | 現在の ANSI 回帰 | USB/BLE、switch、sleep/wake、再接続、復旧の全回帰が必要。有線入力、1 kHz の両曲線、dongle 経路は確認済み |
-| ISO/JIS/KR | ソフトウェアビルドは合格。各配列の実機確認が必要 |
+| ISO/JIS/KR transport | ISO/JIS は software build のみで対応実機確認が必要。KR mapping は一組で確認済みだが、pairing、再接続、sleep/wake、復旧と他 hardware revision の確認は残る |
 | Split 信頼性 | 長時間 clock drift、再接続直後の入力、実 BLE jitter、机上距離の復帰、+8 dBm の距離・電流比較 |
 | バッテリー | 完全放電、DMM 比較、動作/idle/System OFF 電流、実使用時間の測定 |
 | 状態 LED | 放電機で赤い低電圧表示を確認し、純正相当の充電/満充電表示を実装 |
-| 共通 Rust ドングル | 最大サイズ HID image 一つが全配列を受信し ANSI 実機検証に合格。ISO/JIS/KR 対応実機検証が必要 |
+| 共通 Rust ドングル | 最大サイズ HID image 一つが全配列を受信し ANSI 実機検証に合格。ISO/JIS 対応実機検証が必要 |
 | 純正 2.4 GHz 互換 | 純正 ESB、外部 nRF24L01、updater、別 numpad 通信は未実装 |
 | NocFree Link 追加機能 | バッテリー表示は unavailable。Quick Text の保存・削除・実行は未実装 |
 | その他のツール | 純正 updater と ZMK Studio は未対応で、現在の必須範囲外 |

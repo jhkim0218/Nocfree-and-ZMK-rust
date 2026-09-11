@@ -72,7 +72,7 @@ class ExperimentalArtifactTests(unittest.TestCase):
         directory = ROOT / "firmware" / "experimental"
         paths = sorted(directory.glob("*.uf2"))
         self.assertEqual(len(paths), 8)
-        for layout in ("ISO", "JIS", "KR"):
+        for layout in ("ISO", "JIS"):
             for half in ("Left", "Right"):
                 expected = (
                     directory
@@ -85,6 +85,14 @@ class ExperimentalArtifactTests(unittest.TestCase):
                 / f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}.uf2",
                 paths,
             )
+            self.assertIn(
+                directory
+                / f"NocFree_And_Rust_ZMK_Based_KR_Linear_Backlight_Experimental_{half}.uf2",
+                paths,
+            )
+        for half in ("Left", "Right"):
+            verified = ROOT / "firmware" / f"NocFree_And_Rust_ZMK_Based_KR_{half}.uf2"
+            self.assertTrue(verified.is_file())
         for path in paths:
             with self.subTest(path=path.name):
                 image = UF2Image.load(path)

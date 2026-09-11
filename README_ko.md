@@ -4,7 +4,7 @@
 
 > [!CAUTION]
 > 공용 동글 이미지 기반 Rust 2.4G를 지원합니다. ANSI 세트는 실기 검증됐고,
-> ISO/JIS/KR은 반드시 대응 실물 키보드에서 테스트해야 합니다.
+> ISO/JIS는 반드시 대응 실물 키보드에서 테스트해야 합니다. KR은 대응 실물 한 세트에서 매핑을 검증했습니다.
 
 nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입니다. 원본
 [`NocFreeKB/NocFree-and-zmk`](https://github.com/NocFreeKB/NocFree-and-zmk)의
@@ -19,14 +19,14 @@ nRF52833 기반 NocFree & 키보드를 위한 독립 `no_std` Rust 펌웨어입�
 >   읽고 양쪽 DFU 및 순정 V2.3.0 복구 방법을 확인하십시오.
 > - 지원되는 Rust 동글/2.4 GHz 모드는 순정 ESB, 순정 updater, 외부 nRF24L01 경로,
 >   numpad와 호환되지 않습니다. ANSI 세트는 페어링·입력·재연결·모드 전환·복구
->   실기를 통과했습니다. ISO/JIS/KR은 소프트웨어 검사만 통과했으므로 대응 실물 테스트가 필수입니다.
+>   실기를 통과했습니다. ISO/JIS는 소프트웨어 검사만 통과했으므로 대응 실물 테스트가 필수입니다.
 
 | 배열 | 현재 상태 | 실물 검증 |
 |---|---|---|
 | ANSI | 기본 지원 빌드, 공용 Rust 동글 UF2 제공 | 공용 이미지로 페어링·양쪽 입력·빠른 입력·재연결·모드 전환·복구 실기 통과 |
 | ISO | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | 대응 실물 테스트 필수 |
 | JIS | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | 대응 실물 테스트 필수 |
-| KR | 지원 펌웨어, 공용 Rust 동글 UF2 제공 | hyun님의 실기 하드웨어 매핑 검증 협력; Rust 펌웨어 전체 실물 검증은 계속 필요 |
+| KR | 검증된 배포 펌웨어, 공용 Rust 동글 UF2 제공 | hyun님의 대응 실물 하드웨어 매핑 검증; 다른 revision과 전체 transport 실물 검증은 계속 필요 |
 
 ## 먼저 확인할 내용
 
@@ -93,7 +93,7 @@ python3 -B tools/build_release.py --all-layouts --dongle
 ```
 
 공용 동글 파일은 `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`입니다. 모든 배열
-packet을 받고 ANSI 실기 검증을 통과했으며, ISO/JIS/KR은 대응 키보드 검증이 필요합니다.
+packet을 받고 ANSI 실기 검증을 통과했으며, ISO/JIS는 대응 키보드 검증이 필요합니다.
 
 Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 
@@ -102,7 +102,7 @@ Windows PowerShell 래퍼도 계속 사용할 수 있습니다.
 ```
 
 빌더는 형식 검사, host/ARM 검사, 좌우 빌드, BIN/UF2/serial-DFU 생성과 주소·내용
-검증을 수행합니다. ANSI 산출물은 `firmware`, Experimental 배열은
+검증을 수행합니다. ANSI와 검증된 KR 산출물은 `firmware`, Experimental ISO/JIS 배열은
 `firmware/experimental`에 저장됩니다.
 
 저장소에 포함된 ANSI 키보드와 [공용 동글 UF2](firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2):
@@ -134,11 +134,11 @@ python3 -B tools/build_release.py --layout ANSI --backlight-curve linear
 | 영역 | 남은 작업 |
 |---|---|
 | 현재 ANSI 회귀 | USB/BLE, 스위치, sleep/wake, 재연결, 복구 전체 회귀를 반복해야 함. 유선 입력, 1 kHz 백라이트 두 곡선, 동글 경로는 확인함 |
-| ISO/JIS/KR | 소프트웨어 빌드는 통과하지만 각 배열의 실물 키보드 검증이 필요함 |
+| ISO/JIS/KR transport | ISO/JIS는 소프트웨어 빌드만 통과해 대응 실물 검증이 필요하고, KR은 매핑 한 세트를 검증했지만 pairing, 재연결, sleep/wake, 복구와 다른 hardware revision 검증은 남아 있음 |
 | Split 신뢰성 | 장시간 시계 drift, 재연결 직후 입력, 실제 BLE jitter, 책상 거리 복구, +8 dBm 거리·전류 비교 |
 | 배터리 | 완전 방전 주기, DMM 비교, 동작/idle/System OFF 전류와 실제 사용 시간 측정 |
 | 상태 LED | 방전된 장치에서 빨간 저전압 표시 확인, 순정과 같은 충전/완충 표시 구현 |
-| 공용 Rust 동글 | 최대 크기 HID 이미지 하나가 모든 배열을 받고 ANSI 실기 검증을 통과. ISO/JIS/KR 대응 실물 검증 필요 |
+| 공용 Rust 동글 | 최대 크기 HID 이미지 하나가 모든 배열을 받고 ANSI 실기 검증을 통과. ISO/JIS 대응 실물 검증 필요 |
 | 순정 2.4 GHz 호환 | 순정 ESB, 외부 nRF24L01, updater 호환과 별도 numpad 통신은 미구현 |
 | NocFree Link 부가 기능 | 배터리 표시는 unavailable이며 Quick Text 저장·삭제·실행 미구현 |
 | 기타 도구 | 공장 updater와 ZMK Studio 호환은 미구현이며 현재 프로젝트 필수 범위가 아님 |

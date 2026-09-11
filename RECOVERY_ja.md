@@ -44,8 +44,8 @@ Windows の COM 番号は固定ではありません。parent instance ID の
 左は `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Left.uf2`、右は
 `firmware/NocFree_And_Rust_ZMK_Based_ANSI_Right.uf2` のみをコピーします。
 共通 dongle は `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2` を使います。
-サポートされる共通 Rust 2.4G dongle の bootloader と app 復旧は ANSI 実機確認済みです。ISO/JIS/KR は対応
-キーボードで検証してください。
+サポートされる共通 Rust 2.4G dongle の bootloader と app 復旧は ANSI 実機確認済みです。ISO/JIS は対応
+キーボードで検証してください。KR mapping は対応実機一組で確認済みです。
 
 serial DFU は確認済み `PID_002A` port だけで実行します。`adafruit-nrfutil` は
 過去に `No data received on serial port` と表示しながら exit 0 を返したため、

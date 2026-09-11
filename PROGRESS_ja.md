@@ -10,7 +10,7 @@
 
 - repository: `https://github.com/jhkim0218/Nocfree-and-ZMK-rust.git`
 - original: `https://github.com/NocFreeKB/NocFree-and-zmk`
-- default は ANSI 37+47。全配列で共通 Rust 2.4G dongle をサポートするが、ISO/JIS/KR は実機未検証
+- default は ANSI 37+47。全配列で共通 Rust 2.4G dongle をサポートし、KR mapping は対応実機一組で確認済み。ISO/JIS は実機未検証
 - 左だけが USB/BLE host HID、右は encrypted split input
 - app `0x27000..0x64fff`、左右独立1200-baud recovery と factory round trip を維持
 - BLE host 実機範囲は Windows 11 と Android のみ
@@ -42,7 +42,7 @@ identity と interface が戻りました。この D0 手順は official package
 
 ANSI の左右と dongle は custom BLE link で接続し、keyboard/consumer HID report を
 送信します。dongle 再接続、高速な左右入力と modifier、BLE→2.4G 復帰、各 device の
-1200-baud recovery round trip を確認しました。ISO/JIS/KR dongle image は build 済み
+1200-baud recovery round trip を確認しました。ISO/JIS dongle image は build 済み
 ですが、対応 layout の実機検証は未完了です。ANSI は2.4Gで6分以上 idle 後も dongle の
 再接続なしで reconnect することを確認しました。
 

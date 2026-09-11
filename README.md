@@ -4,7 +4,7 @@
 
 > [!CAUTION]
 > Rust 2.4G is supported through the universal dongle image. The ANSI trio is
-> hardware-verified; ISO, JIS, and KR require matching-keyboard tests.
+> hardware-verified; ISO and JIS require matching-keyboard tests. KR mapping was validated on one matching hardware set.
 
 An independent `no_std` Rust firmware for the nRF52833-based NocFree & keyboard.
 It ports behavior from the original
@@ -19,7 +19,7 @@ project; it is not an official NocFree firmware release.
 > - NocFree & has no external reset button. Read [RECOVERY.md](RECOVERY.md)
 >   before flashing so both halves can always return to DFU or stock V2.3.0.
 > - The supported Rust dongle/2.4 GHz mode is not compatible with the factory ESB
->   protocol, factory updater, external nRF24L01 path, or numpad. ISO, JIS, and KR
+>   protocol, factory updater, external nRF24L01 path, or numpad. ISO and JIS
 >   have passed software checks but still require matching-keyboard tests. The ANSI trio has passed the
 >   physical pairing, input, reconnect, mode-switch, and recovery checks.
 
@@ -28,7 +28,7 @@ project; it is not an official NocFree firmware release.
 | ANSI | Default supported build; universal Rust dongle UF2 available | Universal image passed physical pairing, both-half input, rapid input, reconnect, mode-switch, and recovery checks |
 | ISO | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
 | JIS | Supported firmware; universal Rust dongle UF2 available | Matching-keyboard test required |
-| KR | Supported firmware; universal Rust dongle UF2 available | Hardware mapping tested with hyun's help; full Rust firmware validation still requires matching hardware |
+| KR | Verified release firmware; universal Rust dongle UF2 available | Hardware mapping tested with hyun's help; other revisions and full transport validation remain |
 
 ## Start here
 
@@ -94,7 +94,7 @@ Build all layout-matched keyboard sets and the one universal dongle with:
 python3 -B tools/build_release.py --all-layouts --dongle
 ```
 
-The universal Dongle UF2 is `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`. Its packet format accepts every layout and passed ANSI hardware validation; ISO/JIS/KR still require matching-keyboard verification.
+The universal Dongle UF2 is `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`. Its packet format accepts every layout and passed ANSI hardware validation; ISO/JIS still require matching-keyboard verification.
 
 The Windows PowerShell wrapper remains available:
 
@@ -104,8 +104,8 @@ The Windows PowerShell wrapper remains available:
 
 The builder formats the source, runs host and ARM checks, builds both halves,
 creates BIN/UF2/serial-DFU artifacts, and verifies their address and contents.
-ANSI output is stored under `firmware`; experimental layouts are stored under
-`firmware/experimental`.
+ANSI and hardware-validated KR output are stored under `firmware`; experimental ISO/JIS
+layouts are stored under `firmware/experimental`.
 
 Committed ANSI keyboard and [universal dongle UF2](firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2):
 
@@ -136,11 +136,11 @@ on the build computer and are not installed on the keyboard.
 | Area | Remaining work |
 |---|---|
 | Current ANSI regression | Repeat the complete USB/BLE, switch, sleep/wake, reconnect, and recovery matrix; wired input, both 1 kHz backlight curves, and the dongle path have been checked |
-| ISO/JIS/KR | Software builds pass, but every layout still needs a matching physical keyboard test |
+| ISO/JIS/KR transport | ISO/JIS software builds still need matching physical keyboards; KR mapping was validated on one set, while pairing, reconnect, sleep/wake, recovery, and other revisions remain to be tested |
 | Split reliability | Measure long-run drift, reconnect-edge input, real BLE jitter, desk-distance recovery, and controlled +8 dBm range/current tradeoffs |
 | Battery | Complete a full discharge cycle, compare against a DMM, and measure active/idle/System OFF current and real battery life |
 | Status LEDs | Verify red low-battery behavior on a discharged unit and implement factory-equivalent charging/full indications |
-| Universal Rust dongle | One maximum-size HID image accepts all layouts and passed ANSI hardware validation. ISO/JIS/KR need matching-hardware tests |
+| Universal Rust dongle | One maximum-size HID image accepts all layouts and passed ANSI hardware validation. ISO/JIS need matching-hardware tests |
 | Factory 2.4 GHz compatibility | Factory ESB, external nRF24L01, updater compatibility, and separate numpad communication remain unimplemented |
 | NocFree Link extras | Battery display returns unavailable; Quick Text storage/deletion/execution is not implemented |
 | Other tools | Factory updater and ZMK Studio compatibility are not implemented and are not current project requirements |

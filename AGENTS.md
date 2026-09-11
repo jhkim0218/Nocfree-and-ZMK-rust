@@ -14,7 +14,7 @@
 12. Do not start full dongle implementation until split reconnect, backlight convergence, and input ordering pass.
 13. Prove dongle recovery before flashing feature firmware to it.
 14. ANSI is the only locally hardware-verified layout.
-15. ISO, JIS/JP, and KR variants remain Experimental until tested on matching hardware.
+15. ISO and JIS/JP variants remain Experimental until tested on matching hardware. KR mapping was tested on one matching hardware set; keep its remaining transport and revision limits documented.
 16. Never guess an electrical scan mapping.
 17. Persisted layout data must include record version, layout identity, key count, and CRC.
 18. Firmware filenames must identify the hardware role and layout.

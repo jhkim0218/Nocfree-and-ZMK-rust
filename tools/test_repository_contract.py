@@ -115,6 +115,7 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn(f'mod {layout};', selector)
         self.assertIn('default = ["layout-ansi", "backlight-perceptual"]', cargo)
         self.assertIn('(\"ANSI\", \"ISO\", \"JIS\", \"KR\")', build)
+        self.assertIn('layout in (\"ANSI\", \"KR\")', build)
         self.assertIn('directory /= "experimental"', build)
         self.assertIn("LAYOUT_ID", read("src/link_keymap.rs"))
         self.assertIn("KEY_COUNT as u8", read("src/link_keymap.rs"))

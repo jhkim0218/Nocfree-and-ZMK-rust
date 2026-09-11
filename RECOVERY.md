@@ -82,7 +82,8 @@ file:
 - `firmware/NocFree_And_Rust_ZMK_Based_Dongle.uf2`
 
 The supported universal Rust 2.4G dongle bootloader and application recovery path
-passed ANSI physical verification. ISO, JIS, and KR require matching-keyboard verification. Never copy
+passed ANSI physical verification. ISO and JIS require matching-keyboard verification. KR mapping was
+validated on one matching hardware set. Never copy
 a mismatched keyboard layout or role. A current serial DFU package can be sent
 only to a verified `PID_002A` bootloader port:
 

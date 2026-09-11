@@ -48,15 +48,18 @@ def artifact_paths(
     layout: str, half: str, backlight_curve: str = "perceptual"
 ) -> tuple[Path, Path, Path]:
     directory = ROOT / "firmware"
-    if layout == "ANSI" and backlight_curve == "perceptual":
+    if layout in ("ANSI", "KR") and backlight_curve == "perceptual":
+        layout_prefix = "" if layout == "ANSI" else "KR_"
         return (
-            directory / f"NocFree_Rust_{half}.bin",
-            directory / f"NocFree_And_Rust_ZMK_Based_ANSI_{half}.uf2",
-            directory / f"NocFree_Rust_{half}_DFU.zip",
+            directory / f"NocFree_Rust_{layout_prefix}{half}.bin",
+            directory / f"NocFree_And_Rust_ZMK_Based_{layout}_{half}.uf2",
+            directory / f"NocFree_Rust_{layout_prefix}{half}_DFU.zip",
         )
     directory /= "experimental"
     if layout == "ANSI":
         stem = f"NocFree_And_Rust_ZMK_Based_ANSI_Linear_Backlight_Experimental_{half}"
+    elif layout == "KR":
+        stem = f"NocFree_And_Rust_ZMK_Based_KR_Linear_Backlight_Experimental_{half}"
     else:
         stem = f"NocFree_And_Rust_ZMK_Based_{layout}_Experimental_{half}"
     return (

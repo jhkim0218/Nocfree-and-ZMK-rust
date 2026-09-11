@@ -25,7 +25,7 @@ unknown pads. If physical DFU is required, notify the user once and wait.
 
 Both halves scan PCA9555 expanders through shared `hardware_scanner.rs`. The
 selected layout supplies physical counts and transforms. ANSI is the default
-and only hardware-verified layout; ISO, JIS, and KR are Experimental. The right
+and only fully hardware-verified layout; ISO and JIS are Experimental, while KR mapping was validated on one matching set. The right
 connects to the left through encrypted BLE split. The left provides USB HID,
 BLE HID with three persistent host bonds, NocFree Link, battery text output,
 switch routing, and role-specific DFU commands.
@@ -54,7 +54,7 @@ split is working. `Fn+Esc` restarts left and is not DFU.
 
 The left physical switch selects Wired, supported Rust 2.4G dongle output, or
 BLE. ANSI passed physical pairing, input, reconnect-after-idle, and recovery;
-ISO/JIS/KR require matching-keyboard tests.
+ISO/JIS require matching-keyboard tests; KR full transport validation remains open.
 The right switch is physical power. BLE host hardware testing was performed
 only on Windows 11 and Android. It is multi-pairing, not simultaneous output.
 
@@ -85,10 +85,10 @@ Use `python` in place of `python3` if appropriate.
 4. Log a full battery discharge with measured voltage and current before
    changing thresholds or claiming power optimization.
 5. Complete charging/full and other factory LED states only from evidence.
-6. Test ISO/JIS/KR only on matching physical keyboards. JIS extended usages
+6. Test ISO/JIS only on matching physical keyboards. JIS extended usages
    and larger right scan count are software-covered but not hardware-proven.
 7. Factory ESB/nRF24 2.4 GHz remains unsupported. Rust 2.4G uses the universal
-   dongle and is ANSI hardware-verified; ISO/JIS/KR hardware tests remain required.
+   dongle and is ANSI hardware-verified; ISO/JIS hardware tests remain required.
    Quick Text, extra lighting effects, updater compatibility, and ZMK Studio are
    not required scope.
 

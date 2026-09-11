@@ -60,7 +60,7 @@ Last updated: 2026-08-28 (Asia/Seoul)
 | D0 Dongle recovery | Complete | Official V2.3.1 application-only serial DFU restored the recorded product, VID/PID, serial, CDC, and HID interfaces |
 | Rust-native 2.4G dongle | ANSI hardware-verified | Unified `RIGHT -> LEFT -> dongle -> PC` link, HID input, reconnect, release, mode switching, and recovery pass on the ANSI set |
 | P7 Layout architecture | Software-complete | Shared behavior and separate ANSI/ISO/JIS/KR modules pass host and ARM checks |
-| P8 Layout variants | Supported builds; hardware pending | ISO/JIS/KR mappings come from verified sources but remain Rust hardware-unverified until matching devices are tested |
+| P8 Layout variants | ISO/JIS hardware pending; KR mapping validated | ISO/JIS mappings remain Rust hardware-unverified until matching devices are tested; KR mapping was tested on one matching hardware set |
 
 ## D0 dongle recovery — complete
 
@@ -86,7 +86,7 @@ Last updated: 2026-08-28 (Asia/Seoul)
   application.
 - The ANSI pair also reconnected after more than six minutes idle in 2.4G mode
   without replugging the dongle.
-- ISO, JIS, and KR dongle images build successfully but require matching-layout
+- ISO and JIS dongle images build successfully but require matching-layout
   hardware testing.
 
 ## P7/P8 layout variants — software-complete, hardware pending
@@ -286,7 +286,7 @@ snapshot ordering failure; do not add that complexity speculatively.
 - Current split uses BLE 1M PHY. The supported universal Rust dongle provides
   2.4G output; factory ESB output is not implemented.
 - The 2.4G physical-switch position selects the Rust dongle output. ANSI passed
-  input, reconnect-after-idle, mode-switch, and recovery checks; ISO/JIS/KR need
+  input, reconnect-after-idle, mode-switch, and recovery checks; ISO/JIS need
   matching-keyboard tests.
 - Both halves have independent 1200-baud CDC recovery; left `Fn+5` and right `Fn+0` require a three-second hold.
 - Current application artifacts preserve the SoftDevice, Rust storage, factory filesystem, and bootloader regions.
