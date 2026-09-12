@@ -80,6 +80,9 @@ async fn run_usb_reports<'d, D: UsbDriver<'d>>(
 
 async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool {
     for _ in 0..250 {
+        if connection.handle().is_none() {
+            return false;
+        }
         if matches!(
             connection.security_mode(),
             SecurityMode::JustWorks
@@ -118,7 +121,9 @@ async fn disconnect(connection: &nrf_softdevice::ble::Connection) {
 async fn run_receiver(softdevice: &Softdevice) -> ! {
     BONDS.wait_ready().await;
     loop {
-        let address = match central::scan(softdevice, &central::ScanConfig::default(), |report| {
+        let mut scan_config = central::ScanConfig::default();
+        scan_config.window = scan_config.interval;
+        let address = match central::scan(softdevice, &scan_config, |report| {
             if report.type_.connectable() == 0 || report.data.len == 0 {
                 return None;
             }

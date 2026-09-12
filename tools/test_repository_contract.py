@@ -46,11 +46,13 @@ class RepositoryContractTests(unittest.TestCase):
 
     def test_ble_reconnect_waits_for_disconnect_and_reports_keyboard_appearance(self) -> None:
         central = read("src/bin/central.rs")
-        self.assertIn("BleControl::OutputChanged", central)
+        self.assertIn("static BLE_OUTPUT_CHANGED: Signal", central)
+        self.assertIn("async fn wait_ble_event() -> BleEvent", central)
+        self.assertIn("async fn wait_for_host_security", central)
         self.assertIn("if !OUTPUT.should_send_ble()", central)
         self.assertIn("disconnect_ble(&connection).await", central)
         self.assertIn("while connection.handle().is_some()", central)
-        self.assertIn("interval: 160, // 100 ms", central)
+        self.assertIn("interval: 32, // 20 ms while waiting for the selected host", central)
         self.assertIn("raw::BLE_APPEARANCE_HID_KEYBOARD", central)
         self.assertIn("raw::sd_ble_gap_appearance_set(KEYBOARD_APPEARANCE)", central)
         self.assertIn("connection.request_security()", central)
@@ -78,6 +80,9 @@ class RepositoryContractTests(unittest.TestCase):
 
         hid = read("src/ble_hid.rs")
         self.assertIn("BleHidServerEvent::DongleSubscribed", hid)
+
+        dongle = read("src/bin/dongle.rs")
+        self.assertIn("scan_config.window = scan_config.interval", dongle)
 
     def test_only_left_and_dongle_expose_host_hid(self) -> None:
         central = read("src/bin/central.rs")

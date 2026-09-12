@@ -79,6 +79,8 @@ use static_cell::StaticCell;
 const KEYBOARD_APPEARANCE: u16 = raw::BLE_APPEARANCE_HID_KEYBOARD as u16;
 const KEYBOARD_APPEARANCE_BYTES: [u8; 2] = KEYBOARD_APPEARANCE.to_le_bytes();
 const PROFILE_NAMES: [&[u8]; 3] = [b"NocFree 1", b"NocFree 2", b"NocFree 3"];
+const MODE_SWITCH_DEBOUNCE_MS: u64 = 50;
+const BLE_NOTIFICATION_RETRIES: u8 = 40;
 
 bind_interrupts!(struct Irqs {
     USBD => usb::InterruptHandler<USBD>;
@@ -92,6 +94,11 @@ enum BleControl {
     Pair(u8),
     Clear,
     ClearDongle,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BleEvent {
+    Control(BleControl),
     OutputChanged,
 }
 
@@ -99,6 +106,7 @@ static INPUT_STATE: KeyState<32> = KeyState::new();
 static OUTPUT: OutputRouter = OutputRouter::new();
 static SPLIT_COMMAND: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BLE_CONTROL: Signal<CriticalSectionRawMutex, BleControl> = Signal::new();
+static BLE_OUTPUT_CHANGED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static BACKLIGHT_STATE: Mutex<CriticalSectionRawMutex, RefCell<BacklightSnapshot>> =
     Mutex::new(RefCell::new(BacklightSnapshot::new()));
 static BACKLIGHT_CONTROL: Signal<CriticalSectionRawMutex, BacklightSnapshot> = Signal::new();
@@ -164,7 +172,7 @@ fn set_usb_connected(connected: bool) {
     let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_usb_connected(connected);
     if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
-        BLE_CONTROL.signal(BleControl::OutputChanged);
+        BLE_OUTPUT_CHANGED.signal(());
     }
 }
 
@@ -172,7 +180,7 @@ fn set_output_mode(mode: OutputMode) {
     let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_mode(mode);
     if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
-        BLE_CONTROL.signal(BleControl::OutputChanged);
+        BLE_OUTPUT_CHANGED.signal(());
     }
 }
 
@@ -180,7 +188,7 @@ async fn run_mode_switch(ble_detect: Input<'_>, receiver_detect: Input<'_>) -> !
     let mut applied = None;
     loop {
         let observed = physical_switch_mode(ble_detect.is_low(), receiver_detect.is_low());
-        Timer::after(Duration::from_millis(20)).await;
+        Timer::after(Duration::from_millis(MODE_SWITCH_DEBOUNCE_MS)).await;
         let confirmed = physical_switch_mode(ble_detect.is_low(), receiver_detect.is_low());
         if observed == confirmed && confirmed != applied {
             if let Some(mode) = confirmed {
@@ -592,10 +600,19 @@ async fn notify_dongle_reports(
     let mut sequence = 0_u16;
     OUTPUT.synchronize_dongle();
     loop {
-        let mut frame = OUTPUT.wait_dongle().await;
+        let frame = OUTPUT.wait_dongle().await;
         if OUTPUT.take_dongle_release() {
-            frame = ReportFrame::default();
-        } else if !OUTPUT.should_send_dongle() {
+            let report = DongleReport {
+                sequence,
+                frame: ReportFrame::default(),
+            }
+            .encode();
+            sequence = sequence.wrapping_add(1);
+            if !send_ble_notification(|| server.dongle.notify_report(connection, &report)).await {
+                return;
+            }
+        }
+        if !OUTPUT.should_send_dongle() {
             continue;
         }
         let report = DongleReport { sequence, frame }.encode();
@@ -607,16 +624,17 @@ async fn notify_dongle_reports(
 }
 
 async fn send_ble_notification(mut send: impl FnMut() -> Result<(), NotifyValueError>) -> bool {
-    loop {
+    for _ in 0..BLE_NOTIFICATION_RETRIES {
         match send() {
             Ok(()) => return true,
             Err(NotifyValueError::Disconnected) => return false,
             Err(NotifyValueError::Raw(RawError::Resources | RawError::Busy)) => {
                 Timer::after(Duration::from_millis(5)).await;
             }
-            Err(NotifyValueError::Raw(_)) => return true,
+            Err(NotifyValueError::Raw(_)) => return false,
         }
     }
+    false
 }
 
 fn apply_ble_control(control: BleControl) {
@@ -625,7 +643,29 @@ fn apply_ble_control(control: BleControl) {
         BleControl::Pair(profile) => BONDS.pair(profile),
         BleControl::Clear => BONDS.clear_selected(),
         BleControl::ClearDongle => BONDS.clear_dongle_peer(),
-        BleControl::OutputChanged => {}
+    }
+}
+
+fn apply_ble_event(event: BleEvent) {
+    if let BleEvent::Control(control) = event {
+        apply_ble_control(control);
+    }
+}
+
+async fn wait_ble_event() -> BleEvent {
+    match select(BLE_CONTROL.wait(), BLE_OUTPUT_CHANGED.wait()).await {
+        Either::First(control) => BleEvent::Control(control),
+        Either::Second(()) => BleEvent::OutputChanged,
+    }
+}
+
+async fn wait_for_connection_event(profile: u8) -> BleEvent {
+    loop {
+        let event = wait_ble_event().await;
+        if !matches!(event, BleEvent::Control(BleControl::Select(selected)) if selected == profile)
+        {
+            return event;
+        }
     }
 }
 
@@ -649,6 +689,9 @@ async fn disconnect_ble(connection: &nrf_softdevice::ble::Connection) {
 
 async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool {
     for _ in 0..250 {
+        if connection.handle().is_none() {
+            return false;
+        }
         if matches!(
             connection.security_mode(),
             SecurityMode::JustWorks
@@ -662,6 +705,32 @@ async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool
         Timer::after(Duration::from_millis(20)).await;
     }
     false
+}
+
+async fn wait_for_host_security(
+    connection: &nrf_softdevice::ble::Connection,
+) -> Result<bool, BleEvent> {
+    for _ in 0..250 {
+        if connection.handle().is_none() {
+            return Ok(false);
+        }
+        if matches!(
+            connection.security_mode(),
+            SecurityMode::JustWorks
+                | SecurityMode::Mitm
+                | SecurityMode::LescMitm
+                | SecurityMode::Signed
+                | SecurityMode::SignedMitm
+        ) {
+            return Ok(true);
+        }
+        if let Either::Second(event) =
+            select(Timer::after(Duration::from_millis(20)), wait_ble_event()).await
+        {
+            return Err(event);
+        }
+    }
+    Ok(false)
 }
 
 async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
@@ -725,44 +794,56 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
                 &advertising_config,
                 &DONGLE_SECURITY,
             );
-            let connection = match select(advertising, BLE_CONTROL.wait()).await {
+            let connection = match select(advertising, wait_ble_event()).await {
                 Either::First(Ok(connection)) => connection,
                 Either::First(Err(_)) => continue,
-                Either::Second(control) => {
-                    apply_ble_control(control);
+                Either::Second(event) => {
+                    apply_ble_event(event);
                     continue;
                 }
             };
-            if !BONDS.accepts_dongle_connection(&connection)
-                || connection.request_security().is_err()
-                || !wait_for_security(&connection).await
+            let security = if BONDS.accepts_dongle_connection(&connection)
+                && connection.request_security().is_ok()
             {
+                wait_for_host_security(&connection).await
+            } else {
+                Ok(false)
+            };
+            let secured = match security {
+                Ok(secured) => secured,
+                Err(event) => {
+                    disconnect_ble(&connection).await;
+                    apply_ble_event(event);
+                    continue;
+                }
+            };
+            if !secured {
                 disconnect_ble(&connection).await;
                 continue;
             }
-            let control = match select3(
+            let event = match select3(
                 gatt_server::run(&connection, server, |event| {
                     if event == BleHidServerEvent::DongleSubscribed {
                         OUTPUT.synchronize_dongle();
                     }
                 }),
                 notify_dongle_reports(&connection, server),
-                BLE_CONTROL.wait(),
+                wait_for_connection_event(BONDS.selected()),
             )
             .await
             {
                 Either3::First(_) | Either3::Second(()) => None,
-                Either3::Third(control) => Some(control),
+                Either3::Third(event) => Some(event),
             };
-            if let Some(control) = control {
+            if let Some(event) = event {
                 disconnect_ble(&connection).await;
-                apply_ble_control(control);
+                apply_ble_event(event);
             }
             drop(connection);
             continue;
         }
         if !OUTPUT.should_send_ble() || !BONDS.selected_connectable() {
-            apply_ble_control(BLE_CONTROL.wait().await);
+            apply_ble_event(wait_ble_event().await);
             continue;
         }
         let profile = BONDS.selected();
@@ -773,7 +854,7 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             _ => &ADVERTISEMENT_3,
         };
         let advertising_config = peripheral::Config {
-            interval: 160, // 100 ms
+            interval: 32, // 20 ms while waiting for the selected host
             ..Default::default()
         };
         let advertising = peripheral::advertise_pairable(
@@ -785,39 +866,49 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             &advertising_config,
             &BONDS,
         );
-        let connection = match select(advertising, BLE_CONTROL.wait()).await {
+        let connection = match select(advertising, wait_ble_event()).await {
             Either::First(Ok(connection)) => connection,
             Either::First(Err(_)) => continue,
-            Either::Second(control) => {
-                apply_ble_control(control);
+            Either::Second(event) => {
+                apply_ble_event(event);
                 continue;
             }
         };
-        if !BONDS.accepts_connection(&connection)
-            || connection.request_security().is_err()
-            || !wait_for_security(&connection).await
-            || !BONDS.restore_sys_attrs(&connection)
-        {
+        let security =
+            if BONDS.accepts_connection(&connection) && connection.request_security().is_ok() {
+                wait_for_host_security(&connection).await
+            } else {
+                Ok(false)
+            };
+        let secured = match security {
+            Ok(secured) => secured,
+            Err(event) => {
+                disconnect_ble(&connection).await;
+                apply_ble_event(event);
+                continue;
+            }
+        };
+        if !secured || !BONDS.restore_sys_attrs(&connection) {
             disconnect_ble(&connection).await;
             continue;
         }
 
-        let control = match select3(
+        let event = match select3(
             gatt_server::run(&connection, server, |_| {
                 BONDS.capture_sys_attrs(&connection);
                 OUTPUT.synchronize_ble();
             }),
             notify_ble_reports(&connection, server),
-            BLE_CONTROL.wait(),
+            wait_for_connection_event(profile),
         )
         .await
         {
             Either3::First(_) | Either3::Second(()) => None,
-            Either3::Third(control) => Some(control),
+            Either3::Third(event) => Some(event),
         };
-        if let Some(control) = control {
+        if let Some(event) = event {
             disconnect_ble(&connection).await;
-            apply_ble_control(control);
+            apply_ble_event(event);
         }
         drop(connection);
     }

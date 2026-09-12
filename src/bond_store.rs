@@ -87,8 +87,9 @@ impl BondStore {
     pub fn select(&self, profile: u8) {
         let profile = profile.min(PROFILE_COUNT as u8 - 1);
         self.pairing.store(false, Ordering::Release);
-        self.selected.store(profile, Ordering::Release);
-        self.request_save(SETTINGS_PAGE);
+        if self.selected.swap(profile, Ordering::AcqRel) != profile {
+            self.request_save(SETTINGS_PAGE);
+        }
     }
 
     pub fn pair(&self, profile: u8) {
