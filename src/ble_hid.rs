@@ -4,6 +4,8 @@ use nrf_softdevice::ble::gatt_server::characteristic::{Attribute, Metadata, Prop
 use nrf_softdevice::ble::gatt_server::{self, RegisterError, WriteOp};
 use nrf_softdevice::ble::{Connection, SecurityMode, Uuid};
 
+use crate::battery_ble::BatteryService;
+use crate::battery_telemetry::BatterySnapshot;
 use crate::dongle_ble::DongleService;
 use crate::report::{KeyboardReport, PointerReport};
 use crate::usb_descriptor::{
@@ -141,19 +143,26 @@ impl HidService {
 pub struct BleHidServer {
     pub hid: HidService,
     pub dongle: DongleService,
+    pub battery: BatteryService,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BleHidServerEvent {
     DongleSubscribed,
+    BatterySubscribed,
     Other,
 }
 
 impl BleHidServer {
-    pub fn new(softdevice: &mut Softdevice) -> Result<Self, RegisterError> {
+    pub fn new(
+        softdevice: &mut Softdevice,
+        snapshot: fn() -> BatterySnapshot,
+        level: fn() -> u8,
+    ) -> Result<Self, RegisterError> {
         Ok(Self {
             hid: HidService::new(softdevice)?,
             dongle: DongleService::new(softdevice)?,
+            battery: BatteryService::new(softdevice, snapshot, level)?,
         })
     }
 }
@@ -171,8 +180,20 @@ impl gatt_server::Server for BleHidServer {
     ) -> Option<Self::Event> {
         Some(if self.dongle.notifications_enabled(handle, data) {
             BleHidServerEvent::DongleSubscribed
+        } else if self.battery.subscription_changed(handle, data) {
+            BleHidServerEvent::BatterySubscribed
         } else {
             BleHidServerEvent::Other
         })
+    }
+
+    fn on_deferred_read(
+        &self,
+        handle: u16,
+        offset: usize,
+        reply: nrf_softdevice::ble::DeferredReadReply,
+    ) -> Option<Self::Event> {
+        self.battery.on_deferred_read(handle, offset, reply);
+        None
     }
 }

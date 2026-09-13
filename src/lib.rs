@@ -2,12 +2,20 @@
 
 pub mod backlight;
 pub mod battery;
+#[cfg(target_arch = "arm")]
+pub mod battery_ble;
 pub mod battery_status;
+pub mod battery_telemetry;
+pub mod battery_tracking;
+#[cfg(target_arch = "arm")]
+pub mod battery_usb;
 #[cfg(target_arch = "arm")]
 pub mod ble_hid;
 pub mod bond_record;
 #[cfg(target_arch = "arm")]
 pub mod bond_store;
+#[cfg(target_arch = "arm")]
+pub mod dongle_battery;
 #[cfg(target_arch = "arm")]
 pub mod dongle_ble;
 pub mod dongle_protocol;

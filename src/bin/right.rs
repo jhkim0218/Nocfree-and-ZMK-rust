@@ -21,6 +21,7 @@ use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::{Builder, Config};
 use nocfree_and_rust::backlight::{BACKLIGHT_PWM_HZ, BacklightSnapshot};
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
+use nocfree_and_rust::battery_tracking::SampleDeadline;
 use nocfree_and_rust::bond_store::{BondStore, SplitSecurity, run_storage};
 use nocfree_and_rust::hardware_scanner::{self, KeyState};
 use nocfree_and_rust::pca9555::Pca9555Bus;
@@ -189,11 +190,20 @@ async fn run_hardware(
     BATTERY_LEVEL.store(initial, Ordering::Release);
     BATTERY_UPDATE.signal(initial);
     pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
+    let mut measurement = SampleDeadline::new(Instant::now().as_secs());
     loop {
+        if measurement.due(Instant::now().as_secs()) {
+            pwm.set_duty(0, pwm.max_duty());
+            let level = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
+            BATTERY_LEVEL.store(level, Ordering::Release);
+            BATTERY_UPDATE.signal(level);
+            pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
+            measurement.completed(Instant::now().as_secs());
+        }
         match select3(
             BACKLIGHT_CONTROL.wait(),
             BATTERY_REQUEST.wait(),
-            Timer::after(Duration::from_secs(60)),
+            Timer::at(Instant::from_secs(measurement.next())),
         )
         .await
         {
@@ -201,13 +211,14 @@ async fn run_hardware(
                 backlight = snapshot;
                 pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
-            Either3::Second(()) | Either3::Third(()) => {
+            Either3::Second(()) => {
                 pwm.set_duty(0, pwm.max_duty());
                 let level = sample_battery(&mut saadc, &mut battery_enable, &mut filter).await;
                 BATTERY_LEVEL.store(level, Ordering::Release);
                 BATTERY_UPDATE.signal(level);
                 pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
             }
+            Either3::Third(()) => {}
         }
     }
 }
@@ -251,8 +262,10 @@ async fn notify_split_state(
                 }
             }
             Either::Second(level) => {
-                while server.split.battery_notify(connection, &level).is_err() {
-                    Timer::after(Duration::from_millis(20)).await;
+                if server.split.battery_notify(connection, &level).is_err() {
+                    // Battery traffic must not block key-state notifications while unsubscribed.
+                    // The central requests a new measurement once split reconciliation completes.
+                    Timer::after(Duration::from_millis(1)).await;
                 }
             }
         }

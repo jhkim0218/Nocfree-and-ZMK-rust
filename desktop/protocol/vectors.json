@@ -1,0 +1,102 @@
+[
+  {
+    "name": "healthy_little_endian",
+    "hex": "010f0102030405060708feff5041000000000000",
+    "valid": true
+  },
+  {
+    "name": "real_zero_at_freshness_boundary",
+    "hex": "010f0102030405060708feff0041b40000000000",
+    "valid": true
+  },
+  {
+    "name": "left_only",
+    "hex": "01050102030405060708feff50ff0000ffff0000",
+    "valid": true
+  },
+  {
+    "name": "connected_waiting_measurement",
+    "hex": "01030102030405060708feffffffffffffff0000",
+    "valid": true
+  },
+  {
+    "name": "stale_samples",
+    "hex": "01030102030405060708feffffffb500feff0000",
+    "valid": true
+  },
+  {
+    "name": "empty_receiver",
+    "hex": "010000000000000000000000ffffffffffffff00",
+    "valid": true
+  },
+  {
+    "name": "short",
+    "hex": "010f0102030405060708feff50410000000000",
+    "valid": false
+  },
+  {
+    "name": "long",
+    "hex": "010f0102030405060708feff504100000000000000",
+    "valid": false
+  },
+  {
+    "name": "version",
+    "hex": "020f0102030405060708feff5041000000000000",
+    "valid": false
+  },
+  {
+    "name": "reserved_flags",
+    "hex": "01800102030405060708feff5041000000000000",
+    "valid": false
+  },
+  {
+    "name": "bad_left",
+    "hex": "010f0102030405060708feff6541000000000000",
+    "valid": false
+  },
+  {
+    "name": "bad_right",
+    "hex": "010f0102030405060708feff50fe000000000000",
+    "valid": false
+  },
+  {
+    "name": "bad_output",
+    "hex": "010f0102030405060708feff5041000000000300",
+    "valid": false
+  },
+  {
+    "name": "reserved_byte",
+    "hex": "010f0102030405060708feff5041000000000001",
+    "valid": false
+  },
+  {
+    "name": "valid_without_connection",
+    "hex": "010e0102030405060708feff5041000000000000",
+    "valid": false
+  },
+  {
+    "name": "percent_without_valid",
+    "hex": "010b0102030405060708feff5041000000000000",
+    "valid": false
+  },
+  {
+    "name": "valid_unknown_percent",
+    "hex": "010f0102030405060708feffff41000000000000",
+    "valid": false
+  },
+  {
+    "name": "valid_stale_age",
+    "hex": "010f0102030405060708feff5041b50000000000",
+    "valid": false
+  },
+  {
+    "name": "valid_unknown_age",
+    "hex": "010f0102030405060708feff50410000ffff0000",
+    "valid": false
+  },
+  {
+    "name": "zero_identity_cannot_be_keyboard",
+    "hex": "010f0000000000000000feff5041000000000000",
+    "valid": false
+  }
+]

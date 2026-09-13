@@ -29,6 +29,9 @@ use nocfree_and_rust::backlight::{
 };
 use nocfree_and_rust::battery::{VoltageFilter, millivolts_from_sample, percent_from_millivolts};
 use nocfree_and_rust::battery_status::{BatteryLevels, StatusText, key_report, usage_report};
+use nocfree_and_rust::battery_telemetry::{BatterySnapshot, USB_REPORT_BYTES};
+use nocfree_and_rust::battery_tracking::{BatteryTracker, SampleDeadline};
+use nocfree_and_rust::battery_usb::{BatteryUsbHandler, REPORT_DESCRIPTOR as BATTERY_DESCRIPTOR};
 use nocfree_and_rust::ble_hid::{BleHidServer, BleHidServerEvent};
 use nocfree_and_rust::bond_store::{BondStore, DongleSecurity, SplitSecurity, run_storage};
 use nocfree_and_rust::dongle_protocol::{DongleReport, SERVICE_UUID_LE as DONGLE_UUID_LE};
@@ -118,6 +121,9 @@ static BATTERY_STATUS: Signal<CriticalSectionRawMutex, BatteryLevels> = Signal::
 static RIGHT_BATTERY_UPDATE: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static LEFT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
 static RIGHT_BATTERY: AtomicU8 = AtomicU8::new(UNKNOWN_BATTERY_PERCENT);
+static BATTERY_TRACKER: Mutex<CriticalSectionRawMutex, RefCell<BatteryTracker>> =
+    Mutex::new(RefCell::new(BatteryTracker::new(0)));
+static BATTERY_CHANGED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 static KEY_TAP: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 static BONDS: BondStore = BondStore::new();
 static SPLIT_SECURITY: SplitSecurity = SplitSecurity::new(&BONDS);
@@ -171,6 +177,7 @@ impl Handler for UsbStatus {
 fn set_usb_connected(connected: bool) {
     let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_usb_connected(connected);
+    BATTERY_CHANGED.signal(());
     if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
         BLE_OUTPUT_CHANGED.signal(());
     }
@@ -179,6 +186,7 @@ fn set_usb_connected(connected: bool) {
 fn set_output_mode(mode: OutputMode) {
     let was_enabled = (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle());
     OUTPUT.set_mode(mode);
+    BATTERY_CHANGED.signal(());
     if was_enabled != (OUTPUT.should_send_ble(), OUTPUT.should_send_dongle()) {
         BLE_OUTPUT_CHANGED.signal(());
     }
@@ -402,6 +410,48 @@ async fn sample_battery(
     percent_from_millivolts(filter.update(millivolts))
 }
 
+fn battery_output() -> u8 {
+    if OUTPUT.should_send_usb() {
+        0
+    } else if OUTPUT.should_send_dongle() {
+        2
+    } else {
+        1
+    }
+}
+
+fn battery_snapshot() -> BatterySnapshot {
+    BATTERY_TRACKER.lock(|state| {
+        state
+            .borrow_mut()
+            .snapshot(Instant::now().as_secs(), battery_output())
+    })
+}
+
+fn battery_level() -> u8 {
+    BATTERY_TRACKER.lock(|state| {
+        state
+            .borrow_mut()
+            .bas_level(Instant::now().as_secs(), battery_output())
+    })
+}
+
+fn record_left_battery(percent: u8) {
+    LEFT_BATTERY.store(percent, Ordering::Release);
+    BATTERY_TRACKER.lock(|state| {
+        state
+            .borrow_mut()
+            .update_left(percent, Instant::now().as_secs(), usb_power_detected())
+    });
+    BATTERY_CHANGED.signal(());
+}
+
+fn set_right_battery_connected(connected: bool) {
+    RIGHT_BATTERY.store(UNKNOWN_BATTERY_PERCENT, Ordering::Release);
+    BATTERY_TRACKER.lock(|state| state.borrow_mut().set_right_connected(connected));
+    BATTERY_CHANGED.signal(());
+}
+
 async fn run_hardware(
     mut pwm: SimplePwm<'_>,
     mut enable: Output<'_>,
@@ -421,13 +471,21 @@ async fn run_hardware(
     let mut filter = VoltageFilter::new();
     pwm.set_duty(0, pwm.max_duty());
     let initial = sample_battery(&mut saadc, &mut enable, &mut filter).await;
-    LEFT_BATTERY.store(initial, Ordering::Release);
+    record_left_battery(initial);
     pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
+    let mut measurement = SampleDeadline::new(Instant::now().as_secs());
     loop {
+        if measurement.due(Instant::now().as_secs()) {
+            pwm.set_duty(0, pwm.max_duty());
+            let level = sample_battery(&mut saadc, &mut enable, &mut filter).await;
+            record_left_battery(level);
+            pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
+            measurement.completed(Instant::now().as_secs());
+        }
         match select3(
             BACKLIGHT_CONTROL.wait(),
             BATTERY_REQUEST.wait(),
-            Timer::after(Duration::from_secs(60)),
+            Timer::at(Instant::from_secs(measurement.next())),
         )
         .await
         {
@@ -440,19 +498,14 @@ async fn run_hardware(
                 SPLIT_COMMAND.signal(COMMAND_BATTERY_REQUEST);
                 pwm.set_duty(0, pwm.max_duty());
                 let left = sample_battery(&mut saadc, &mut enable, &mut filter).await;
-                LEFT_BATTERY.store(left, Ordering::Release);
+                record_left_battery(left);
                 pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
                 let right = with_timeout(Duration::from_millis(500), RIGHT_BATTERY_UPDATE.wait())
                     .await
                     .unwrap_or_else(|_| RIGHT_BATTERY.load(Ordering::Acquire));
                 BATTERY_STATUS.signal(BatteryLevels { left, right });
             }
-            Either3::Third(()) => {
-                pwm.set_duty(0, pwm.max_duty());
-                let level = sample_battery(&mut saadc, &mut enable, &mut filter).await;
-                LEFT_BATTERY.store(level, Ordering::Release);
-                pwm.set_duty(0, backlight.state.duty(pwm.max_duty()));
-            }
+            Either3::Third(()) => {}
         }
     }
 }
@@ -637,6 +690,35 @@ async fn send_ble_notification(mut send: impl FnMut() -> Result<(), NotifyValueE
     false
 }
 
+async fn notify_battery(connection: &nrf_softdevice::ble::Connection, server: &BleHidServer) {
+    let mut sent_snapshot = None;
+    let mut sent_level = None;
+    loop {
+        let snapshot = battery_snapshot();
+        let identity = (snapshot.sequence, snapshot.flags);
+        if sent_snapshot != Some(identity)
+            && server
+                .battery
+                .notify_snapshot(connection, &snapshot)
+                .is_ok()
+        {
+            sent_snapshot = Some(identity);
+        }
+        let level = battery_level();
+        if sent_level != Some(level) && server.battery.notify_level(connection, level).is_ok() {
+            sent_level = Some(level);
+        }
+        // A non-subscriber or a full TX queue is retried independently of the key queue.
+        match select(BATTERY_CHANGED.wait(), Timer::after(Duration::from_secs(1))).await {
+            Either::First(()) => {
+                sent_snapshot = None;
+                sent_level = None;
+            }
+            Either::Second(()) => {}
+        }
+    }
+}
+
 fn apply_ble_control(control: BleControl) {
     match control {
         BleControl::Select(profile) => BONDS.select(profile),
@@ -735,6 +817,9 @@ async fn wait_for_host_security(
 
 async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
     BONDS.wait_ready().await;
+    while LEFT_BATTERY.load(Ordering::Acquire) == UNKNOWN_BATTERY_PERCENT {
+        Timer::after(Duration::from_millis(20)).await;
+    }
     static ADVERTISEMENT_1: LegacyAdvertisementPayload = LegacyAdvertisementBuilder::new()
         .flags(&[Flag::GeneralDiscovery, Flag::LE_Only])
         .services_16(
@@ -823,11 +908,20 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             }
             let event = match select3(
                 gatt_server::run(&connection, server, |event| {
+                    if event == BleHidServerEvent::BatterySubscribed {
+                        BATTERY_CHANGED.signal(());
+                    }
                     if event == BleHidServerEvent::DongleSubscribed {
                         OUTPUT.synchronize_dongle();
                     }
                 }),
-                notify_dongle_reports(&connection, server),
+                async {
+                    select(
+                        notify_dongle_reports(&connection, server),
+                        notify_battery(&connection, server),
+                    )
+                    .await;
+                },
                 wait_for_connection_event(BONDS.selected()),
             )
             .await
@@ -897,8 +991,15 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             gatt_server::run(&connection, server, |_| {
                 BONDS.capture_sys_attrs(&connection);
                 OUTPUT.synchronize_ble();
+                BATTERY_CHANGED.signal(());
             }),
-            notify_ble_reports(&connection, server),
+            async {
+                select(
+                    notify_ble_reports(&connection, server),
+                    notify_battery(&connection, server),
+                )
+                .await;
+            },
             wait_for_connection_event(profile),
         )
         .await
@@ -950,6 +1051,9 @@ async fn synchronize_split_clock(client: &SplitClient) -> Result<ClockSample, ()
 
 async fn send_split_commands(client: &SplitClient) -> ! {
     let _ = client.backlight_write(&current_backlight().encode()).await;
+    let _ = client
+        .command_write_without_response(&COMMAND_BATTERY_REQUEST)
+        .await;
     loop {
         match select3(
             SPLIT_COMMAND.wait(),
@@ -977,6 +1081,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
     BONDS.wait_ready().await;
     let mut attempt = 0_u16;
     loop {
+        set_right_battery_connected(false);
         attempt = attempt.wrapping_add(1).max(1);
         let attempt_started = Instant::now();
         SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::ScanStart, 0, attempt, 0);
@@ -1155,6 +1260,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             }
         };
         set_right_clock(clock);
+        set_right_battery_connected(true);
         SPLIT_DIAGNOSTICS.record(
             SplitDiagnosticEvent::SplitReady,
             0,
@@ -1177,6 +1283,12 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             }
             SplitClientEvent::BatteryNotification(level) => {
                 RIGHT_BATTERY.store(level, Ordering::Release);
+                BATTERY_TRACKER.lock(|state| {
+                    state
+                        .borrow_mut()
+                        .update_right(level, Instant::now().as_secs())
+                });
+                BATTERY_CHANGED.signal(());
                 RIGHT_BATTERY_UPDATE.signal(level);
             }
         });
@@ -1185,6 +1297,7 @@ async fn run_split_central(softdevice: &Softdevice) -> ! {
             Either::Second(never) => match never {},
         }
         record_disconnect(&connection);
+        set_right_battery_connected(false);
         INPUT_STATE.publish_reconcile(encode_half_state(Half::Right, 0));
     }
 }
@@ -1216,7 +1329,10 @@ async fn main(_spawner: embassy_executor::Spawner) {
         unsafe { raw::sd_ble_gap_appearance_set(KEYBOARD_APPEARANCE) },
         raw::NRF_SUCCESS
     );
-    let ble_hid_server = BleHidServer::new(softdevice).unwrap();
+    let keyboard_id = u64::from(embassy_nrf::pac::FICR.deviceid(0).read())
+        | (u64::from(embassy_nrf::pac::FICR.deviceid(1).read()) << 32);
+    BATTERY_TRACKER.lock(|state| *state.borrow_mut() = BatteryTracker::new(keyboard_id));
+    let ble_hid_server = BleHidServer::new(softdevice, battery_snapshot, battery_level).unwrap();
     let flash = nrf_softdevice::Flash::take(softdevice);
     let (usb_detected, power_ready) = enable_usb_power_events();
     static VBUS: StaticCell<SoftwareVbusDetect> = StaticCell::new();
@@ -1254,7 +1370,8 @@ async fn main(_spawner: embassy_executor::Spawner) {
     usb_config.manufacturer = Some("NocFree");
     usb_config.product = Some(PRODUCT_NAME);
     usb_config.serial_number = Some("RUST-LEFT");
-    let mut config_descriptor = [0; 256];
+    usb_config.device_release = 0x0101;
+    let mut config_descriptor = [0; 320];
     let mut bos_descriptor = [0; 64];
     let mut msos_descriptor = [0; 256];
     let mut control_buf = [0; 128];
@@ -1262,6 +1379,10 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let mut consumer_state = HidState::new();
     let mut cdc_state = CdcState::new();
     let mut link_state = LinkUsbState::new();
+    let mut battery_state = HidState::new();
+    let mut battery_handler = BatteryUsbHandler {
+        snapshot: battery_snapshot,
+    };
     let mut usb_status = UsbStatus;
     let mut usb_builder = Builder::new(
         usb_driver,
@@ -1294,6 +1415,16 @@ async fn main(_spawner: embassy_executor::Spawner) {
     );
     let cdc = CdcAcmClass::new(&mut usb_builder, &mut cdc_state, 64);
     let link = LinkUsbClass::new(&mut usb_builder, &mut link_state);
+    let _battery = HidWriter::<_, USB_REPORT_BYTES>::new(
+        &mut usb_builder,
+        &mut battery_state,
+        HidConfig {
+            report_descriptor: BATTERY_DESCRIPTOR,
+            request_handler: Some(&mut battery_handler),
+            poll_ms: 255,
+            max_packet_size: USB_REPORT_BYTES as u16,
+        },
+    );
     let mut usb_device = usb_builder.build();
 
     join(

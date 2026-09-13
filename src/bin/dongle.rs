@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use core::cell::RefCell;
 use core::slice;
 
 use embassy_futures::join::{join, join4};
@@ -10,16 +11,22 @@ use embassy_nrf::interrupt::{self, InterruptExt, Priority};
 use embassy_nrf::peripherals::USBD;
 use embassy_nrf::usb::vbus_detect::SoftwareVbusDetect;
 use embassy_nrf::usb::{self, Driver};
+use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Channel, TrySendError};
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
 use embassy_usb::class::hid::{Config as HidConfig, HidWriter, State as HidState};
 use embassy_usb::driver::Driver as UsbDriver;
 use embassy_usb::{Builder, Config};
+use nocfree_and_rust::battery_ble::BatteryClientEvent;
+use nocfree_and_rust::battery_telemetry::{BatterySnapshot, USB_REPORT_BYTES};
+use nocfree_and_rust::battery_tracking::BatteryCache;
+use nocfree_and_rust::battery_usb::{BatteryUsbHandler, REPORT_DESCRIPTOR as BATTERY_DESCRIPTOR};
 use nocfree_and_rust::bond_store::{BondStore, DongleSecurity, run_storage};
-use nocfree_and_rust::dongle_ble::{DongleClient, DongleClientEvent};
+use nocfree_and_rust::dongle_battery::{DongleClients, DongleEvent};
+use nocfree_and_rust::dongle_ble::DongleClientEvent;
 use nocfree_and_rust::dongle_protocol::{
     ATT_MTU, CONNECTION_INTERVAL_UNITS, CONNECTION_LATENCY, CONNECTION_TIMEOUT_UNITS,
     DongleReportReceiver, advertisement_has_dongle_service,
@@ -45,6 +52,38 @@ static BONDS: BondStore = BondStore::new();
 static DONGLE_SECURITY: DongleSecurity = DongleSecurity::new(&BONDS);
 static REPORTS: Channel<CriticalSectionRawMutex, ReportFrame, 16> = Channel::new();
 static CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+static BATTERY: Mutex<CriticalSectionRawMutex, RefCell<BatteryCache>> =
+    Mutex::new(RefCell::new(BatteryCache::new()));
+
+fn battery_snapshot() -> BatterySnapshot {
+    BATTERY.lock(|cache| cache.borrow().snapshot(Instant::now().as_secs()))
+}
+
+fn accept_battery(bytes: &[u8]) {
+    BATTERY.lock(|cache| cache.borrow_mut().accept(bytes, Instant::now().as_secs()));
+}
+
+async fn receive_battery(connection: &nrf_softdevice::ble::Connection, clients: &DongleClients) {
+    if clients.discover_battery(connection).await.is_err() {
+        // An old keyboard without this service still has a working input connection.
+        core::future::pending::<()>().await;
+        return;
+    }
+    let Some(client) = clients.battery.get() else {
+        return;
+    };
+    let mut subscribed = false;
+    loop {
+        // Retry subscription failures without disconnecting the input client.
+        if !subscribed {
+            subscribed = client.status_cccd_write(true).await.is_ok();
+        }
+        if let Ok(bytes) = client.status_read().await {
+            accept_battery(&bytes);
+        }
+        Timer::after(Duration::from_secs(30)).await;
+    }
+}
 
 fn enqueue_report(frame: ReportFrame) {
     let mut pending = frame;
@@ -121,6 +160,7 @@ async fn disconnect(connection: &nrf_softdevice::ble::Connection) {
 async fn run_receiver(softdevice: &Softdevice) -> ! {
     BONDS.wait_ready().await;
     loop {
+        BATTERY.lock(|cache| cache.borrow_mut().clear());
         let mut scan_config = central::ScanConfig::default();
         scan_config.window = scan_config.interval;
         let address = match central::scan(softdevice, &scan_config, |report| {
@@ -159,29 +199,39 @@ async fn run_receiver(softdevice: &Softdevice) -> ! {
             disconnect(&connection).await;
             continue;
         }
-        let client: DongleClient = match gatt_client::discover(&connection).await {
+        let client: DongleClients = match gatt_client::discover(&connection).await {
             Ok(client) => client,
             Err(_) => {
                 disconnect(&connection).await;
                 continue;
             }
         };
-        if client.report_cccd_write(true).await.is_err() {
+        if client.input.report_cccd_write(true).await.is_err() {
             disconnect(&connection).await;
             continue;
         }
 
         enqueue_report(ReportFrame::default());
         let mut receiver = DongleReportReceiver::new();
-        let notifications = gatt_client::run(&connection, &client, |event| {
-            let DongleClientEvent::ReportNotification(bytes) = event;
-            if let Some(frame) = receiver.accept(bytes) {
-                enqueue_report(frame);
+        let notifications = gatt_client::run(&connection, &client, |event| match event {
+            DongleEvent::Input(DongleClientEvent::ReportNotification(bytes)) => {
+                if let Some(frame) = receiver.accept(bytes) {
+                    enqueue_report(frame);
+                }
+            }
+            DongleEvent::Battery(BatteryClientEvent::StatusNotification(bytes)) => {
+                accept_battery(&bytes)
             }
         });
-        if let Either::Second(()) = select(notifications, CONTROL.wait()).await {
+        if let Either::Second(()) = select(
+            select(notifications, receive_battery(&connection, &client)),
+            CONTROL.wait(),
+        )
+        .await
+        {
             disconnect(&connection).await;
         }
+        BATTERY.lock(|cache| cache.borrow_mut().clear());
         enqueue_report(ReportFrame::default());
         drop(connection);
     }
@@ -228,13 +278,18 @@ async fn main(_spawner: embassy_executor::Spawner) {
     usb_config.manufacturer = Some("NocFree");
     usb_config.product = Some("NocFree Rust Dongle");
     usb_config.serial_number = Some("RUST-DONGLE");
-    let mut config_descriptor = [0; 256];
+    usb_config.device_release = 0x0101;
+    let mut config_descriptor = [0; 320];
     let mut bos_descriptor = [0; 64];
     let mut msos_descriptor = [0; 0];
     let mut control_buf = [0; 128];
     let mut keyboard_state = HidState::new();
     let mut consumer_state = HidState::new();
     let mut cdc_state = CdcState::new();
+    let mut battery_state = HidState::new();
+    let mut battery_handler = BatteryUsbHandler {
+        snapshot: battery_snapshot,
+    };
     let mut usb_builder = Builder::new(
         usb_driver,
         usb_config,
@@ -264,6 +319,16 @@ async fn main(_spawner: embassy_executor::Spawner) {
         },
     );
     let cdc = CdcAcmClass::new(&mut usb_builder, &mut cdc_state, 64);
+    let _battery = HidWriter::<_, USB_REPORT_BYTES>::new(
+        &mut usb_builder,
+        &mut battery_state,
+        HidConfig {
+            report_descriptor: BATTERY_DESCRIPTOR,
+            request_handler: Some(&mut battery_handler),
+            poll_ms: 255,
+            max_packet_size: USB_REPORT_BYTES as u16,
+        },
+    );
     let mut usb_device = usb_builder.build();
 
     join(
