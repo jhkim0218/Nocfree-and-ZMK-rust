@@ -5,10 +5,10 @@
 ## 동작
 
 기본 Layer 1 또는 Fn 레이어에서 Caps Lock을 짧게 누르면 일반 Caps Lock HID 키를 한 번 보낸다.
-Caps Lock을 2초 미만에 떼면 Caps Lock을 한 번 전환한다. 2초 이상 계속 누를 때만 Layer 2를
+Caps Lock을 1초 미만에 떼면 Caps Lock을 한 번 전환한다. 1초 이상 계속 누를 때만 Layer 2를
 누르는 동안 활성화한다. 다른 키를 함께 눌러도 대기 시간을 줄이지 않는다.
 Caps Lock을 뗄 때 Layer 2가 해제되며, 홀드 후에는 Caps Lock 전환을 보내지 않는다.
-이미 누르고 있던 다른 키는 뗄 때까지 처음 지정된 동작을 유지하므로, 마우스 키는 2초 후에 누른다.
+이미 누르고 있던 다른 키는 뗄 때까지 처음 지정된 동작을 유지하므로, 마우스 키는 1초 후에 누른다.
 
 Layer 2의 지정되지 않은 키는 transparent다. 실행할 때에는 기본 키를 그대로 통과시키지만,
 NocFree Link 화면에는 `Trans`로 보인다. 따라서 JIS 고유 키를 포함한 기존 기본/Fn 키맵은
@@ -48,8 +48,8 @@ dongle protocol은 keyboard/consumer frame만 전송하므로 이 포인터 동�
 ## 확인 절차
 
 1. Wired 모드에서 Caps Lock 탭이 Caps Lock을 한 번 전환하는지 확인한다.
-2. Caps Lock을 2초 이상 누른 뒤 W/A/S/D, Q, Z/X, E/R을 눌러 탐색 키가 동작하는지 확인한다.
-3. Caps Lock을 2초 이상 누른 뒤 I/J/K/L, U/M, C/V/B를 눌러 포인터·휠·세 버튼을 확인한다.
+2. Caps Lock을 1초 이상 누른 뒤 W/A/S/D, Q, Z/X, E/R을 눌러 탐색 키가 동작하는지 확인한다.
+3. Caps Lock을 1초 이상 누른 뒤 I/J/K/L, U/M, C/V/B를 눌러 포인터·휠·세 버튼을 확인한다.
 4. Bluetooth 모드에서 1~3을 반복하고, Caps Lock release 뒤 일반 키가 남지 않는지 확인한다.
 5. Link에서 Layer 2와 Layer 3~7을 읽어 Layer 2의 지정 키와 나머지 레이어의 기본 바인딩을 확인한다.
 
@@ -87,3 +87,23 @@ Artifacts: `target/caps-hold-preview/`
 | `NocFree_Caps_2s_Battery_Experimental_ISO_Left.uf2` | `0d66534384f630bb58d5be25089c590bc3353bedaa470558f1873072a560e337` |
 | `NocFree_Caps_2s_Battery_Experimental_JIS_Left.uf2` | `023fd2f804e3c33721b4c1120bdd288c0e76b6cfbdfbd7753b710e109f54b05d` |
 | `NocFree_Caps_2s_Battery_Experimental_KR_Left.uf2` | `a1b83da92dccc0b5ecb16bc34788c778d621702267d8615819b8981b989aab16` |
+
+## 2026-09-20: 1초로 변경
+
+사용자 승인으로 연결된 ANSI Left에 아래 1초 UF2를 설치했다. 기존 CURRENT.UF2 백업과 설치 기록은
+`target/caps-hold-1s-preview/deployment-20260920/`에 있다. 재부팅 후 키보드·마우스·배터리 HID와 COM19 재인식을 확인했다.
+오른쪽과 동글은 변경하지 않았다. 설치 직전 USB 배터리 읽기는 왼쪽 100%, 오른쪽 unavailable이었다.
+
+사용자 요청으로 홀드 기준을 1,000 ms로 줄였다. 999 ms 탭, 1,000 ms 홀드, 반복·동시 입력 테스트를 갱신했다.
+ANSI/ISO/JIS 각 114개, KR 121개 테스트와 네 레이아웃 Left ARM 빌드·Clippy 통과.
+파일 위치: `target/caps-hold-1s-preview/`. 기존 2초 파일은 과거 이력이다.
+
+실물 확인: 짧은 Caps Lock은 대소문자 전환, 1초 이상 누른 뒤 I/J/K/L은 마우스 이동, 모든 키를 떼면 이동 중지.
+1초 전에 다른 키를 함께 눌러도 조기 전환하지 않아야 한다. 실제 손으로 누르는 검증은 사용자 확인 대기.
+
+| 파일 | SHA-256 |
+|---|---|
+| `NocFree_Caps_1s_Battery_Experimental_ANSI_Left.uf2` | `6ddb1651f22f7254320b9298e296dad0a89d8b4c04e52e0112966c3c02522683` |
+| `NocFree_Caps_1s_Battery_Experimental_ISO_Left.uf2` | `dbd0e4bb90f90a27e005fa80c8fe197335c19c1ab1e0655bcc76269ca9b58519` |
+| `NocFree_Caps_1s_Battery_Experimental_JIS_Left.uf2` | `affb960d9063b212d13de0b3a5ee521e1d50190f6a1b4ea0c4eb9e6413acbc27` |
+| `NocFree_Caps_1s_Battery_Experimental_KR_Left.uf2` | `6eda3248bce4d8078872d7faf61936fe52f69bf1c72daf2b4269e92ed7850099` |

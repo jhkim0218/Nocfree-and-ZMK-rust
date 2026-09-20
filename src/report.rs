@@ -11,7 +11,7 @@ pub const KEYBOARD_REPORT_BYTES: usize = 2 + KEY_BITMAP_BYTES;
 pub const HOLD_MS: u64 = 1_000;
 pub const BATTERY_HOLD_MS: u64 = 3_000;
 pub const DFU_HOLD_MS: u64 = 3_000;
-pub const CAPS_TAPPING_TERM_MS: u64 = 2_000;
+pub const CAPS_TAPPING_TERM_MS: u64 = 1_000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[repr(C)]
@@ -536,7 +536,7 @@ mod tests {
     }
 
     #[test]
-    fn caps_hold_layer2_requires_two_seconds_on_every_press() {
+    fn caps_hold_layer2_requires_one_second_on_every_press() {
         let caps_lock = raw_with_base(Action::Key(0x39));
         let i = raw_with_base(Action::Key(0x0c));
         let caps = 1_u128 << caps_lock;
@@ -550,36 +550,36 @@ mod tests {
             assert!(key_is_set(&effects.keyboard, 0x0c));
             assert_eq!(effects.pointer, PointerReport::default());
             engine.apply_snapshot_with_at(caps, start + 1, resolve);
-            let effects = engine.apply_snapshot_with_at(keys, start + 1_999, resolve);
+            let effects = engine.apply_snapshot_with_at(keys, start + 999, resolve);
             assert!(key_is_set(&effects.keyboard, 0x0c));
             assert_eq!(effects.pointer, PointerReport::default());
             assert_eq!(
                 engine
-                    .apply_snapshot_with_at(0, start + 1_999, resolve)
+                    .apply_snapshot_with_at(0, start + 999, resolve)
                     .commands(),
                 &[Command::KeyTap(0x39)]
             );
         }
 
         engine.apply_snapshot_with_at(caps, 30_000, resolve);
-        let effects = engine.apply_snapshot_with_at(keys, 32_000, resolve);
+        let effects = engine.apply_snapshot_with_at(keys, 31_000, resolve);
         assert_eq!(effects.pointer.y, -8);
         assert!(!key_is_set(&effects.keyboard, 0x0c));
         assert!(
             engine
-                .apply_snapshot_with_at(0, 32_001, resolve)
+                .apply_snapshot_with_at(0, 31_001, resolve)
                 .commands()
                 .is_empty()
         );
-        let effects = engine.apply_snapshot_with_at(1_u128 << i, 32_002, resolve);
+        let effects = engine.apply_snapshot_with_at(1_u128 << i, 31_002, resolve);
         assert!(key_is_set(&effects.keyboard, 0x0c));
         assert_eq!(effects.pointer, PointerReport::default());
     }
 
     #[test]
-    fn caps_hold_layer2_release_after_two_seconds_does_not_tap_without_a_tick() {
+    fn caps_hold_layer2_release_after_one_second_does_not_tap_without_a_tick() {
         let caps_lock = raw_with_base(Action::Key(0x39));
-        for elapsed in [2_000, 2_500] {
+        for elapsed in [1_000, 1_500] {
             let mut engine = ReportEngine::default();
             let resolve = |layer, raw| caps_layer_action(layer, raw, caps_lock);
             engine.apply_snapshot_with_at(1_u128 << caps_lock, 10_000, resolve);
