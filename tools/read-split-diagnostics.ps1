@@ -124,7 +124,13 @@ function Format-DiagnosticRecord {
             $mode = switch ($arg) { 0 { 'fast' } 1 { 'medium' } 2 { 'idle' } default { 'unknown' } }
             'attempt={0}, mode={1}, interval={2} units ({3:N0} ms)' -f $data, $mode, $value, ($value * 0.625)
         }
-        17 { '{0}, elapsed={1} ms' -f $advertisingErrors[$arg], $value }
+        17 {
+            if ($arg -eq -1) {
+                'host advertising failure, code=0x{0:X}' -f $data
+            } else {
+                '{0}, elapsed={1} ms' -f $advertisingErrors[$arg], $value
+            }
+        }
         18 { 'pressed={0}, state=0x{1:X16}' -f $value, $data }
         default { 'arg={0}, value={1}, data=0x{2:X16}' -f $arg, $value, $data }
     }

@@ -10,6 +10,24 @@ def read(relative: str) -> str:
 
 
 class RepositoryContractTests(unittest.TestCase):
+    def test_host_advertising_failures_leave_keys_usb_and_mode_changes_runnable(self) -> None:
+        central = read("src/bin/central.rs")
+        host = central.split("async fn run_ble_host(", 1)[1].split("fn set_right_clock", 1)[0]
+        self.assertEqual(host.count("retry_ble_advertising(error).await;"), 2)
+        self.assertNotIn("Either::First(Err(_)) => continue", host)
+        retry = central.split("async fn retry_ble_advertising(", 1)[1].split("async fn wait_for_security", 1)[0]
+        self.assertIn("Timer::after(Duration::from_millis(100)), wait_ble_event()", retry)
+        self.assertIn("apply_ble_event(event)", retry)
+        self.assertIn("SplitDiagnosticEvent::AdvertisingError", retry)
+        self.assertEqual(
+            host.count("disconnect_ble(&connection).await;\n" + "            if let Some(event) = event"),
+            1,
+        )
+        self.assertEqual(
+            host.count("disconnect_ble(&connection).await;\n" + "        if let Some(event) = event"),
+            1,
+        )
+
     def test_linker_and_storage_boundaries_preserve_factory_regions(self) -> None:
         memory = read("memory.x")
         records = read("src/bond_record.rs")

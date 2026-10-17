@@ -769,6 +769,21 @@ async fn disconnect_ble(connection: &nrf_softdevice::ble::Connection) {
     }
 }
 
+async fn retry_ble_advertising(error: peripheral::AdvertiseError) {
+    let code = match error {
+        peripheral::AdvertiseError::Timeout => 1,
+        peripheral::AdvertiseError::NoFreeConn => 2,
+        peripheral::AdvertiseError::Raw(error) => 0x1_0000 | u64::from(error as u32),
+    };
+    SPLIT_DIAGNOSTICS.record(SplitDiagnosticEvent::AdvertisingError, -1, 0, code);
+    // An immediate SoftDevice error must yield so USB, keys and mode changes still run.
+    if let Either::Second(event) =
+        select(Timer::after(Duration::from_millis(100)), wait_ble_event()).await
+    {
+        apply_ble_event(event);
+    }
+}
+
 async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool {
     for _ in 0..250 {
         if connection.handle().is_none() {
@@ -881,7 +896,10 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             );
             let connection = match select(advertising, wait_ble_event()).await {
                 Either::First(Ok(connection)) => connection,
-                Either::First(Err(_)) => continue,
+                Either::First(Err(error)) => {
+                    retry_ble_advertising(error).await;
+                    continue;
+                }
                 Either::Second(event) => {
                     apply_ble_event(event);
                     continue;
@@ -929,8 +947,8 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
                 Either3::First(_) | Either3::Second(()) => None,
                 Either3::Third(event) => Some(event),
             };
+            disconnect_ble(&connection).await;
             if let Some(event) = event {
-                disconnect_ble(&connection).await;
                 apply_ble_event(event);
             }
             drop(connection);
@@ -962,7 +980,10 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
         );
         let connection = match select(advertising, wait_ble_event()).await {
             Either::First(Ok(connection)) => connection,
-            Either::First(Err(_)) => continue,
+            Either::First(Err(error)) => {
+                retry_ble_advertising(error).await;
+                continue;
+            }
             Either::Second(event) => {
                 apply_ble_event(event);
                 continue;
@@ -1007,8 +1028,8 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             Either3::First(_) | Either3::Second(()) => None,
             Either3::Third(event) => Some(event),
         };
+        disconnect_ble(&connection).await;
         if let Some(event) = event {
-            disconnect_ble(&connection).await;
             apply_ble_event(event);
         }
         drop(connection);
