@@ -42,6 +42,11 @@ $eventNames = @{
     16 = 'advertising'
     17 = 'advertising-error'
     18 = 'key-while-disconnected'
+    22 = 'host-advertising'
+    23 = 'host-connected'
+    24 = 'host-security'
+    25 = 'host-disconnected'
+    26 = 'hid-notification-error'
 }
 
 function Convert-Address {
@@ -132,6 +137,11 @@ function Format-DiagnosticRecord {
             }
         }
         18 { 'pressed={0}, state=0x{1:X16}' -f $value, $data }
+        22 { 'slot={0}, pairing={1}' -f ($arg + 1), $data }
+        23 { 'slot={0}, accepted={1}, {2}' -f ($arg + 1), $value, (Convert-Address $data) }
+        24 { 'slot={0}, secured={1}, attrs-restored={2}, HCI-reason=0x{3:X2}' -f ($arg + 1), ($value -band 1), (($value -shr 1) -band 1), $data }
+        25 { 'slot={0}, HCI-reason=0x{1:X2}' -f ($arg + 1), $data }
+        26 { 'SoftDevice error=0x{0:X}' -f $data }
         default { 'arg={0}, value={1}, data=0x{2:X16}' -f $arg, $value, $data }
     }
     return ('[{0,10} ms] {1}: {2}' -f $timestamp, $name, $detail)

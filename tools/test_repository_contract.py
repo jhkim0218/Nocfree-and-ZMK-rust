@@ -10,6 +10,30 @@ def read(relative: str) -> str:
 
 
 class RepositoryContractTests(unittest.TestCase):
+    def test_host_input_waits_for_each_subscription_without_tearing_down_pairing(self) -> None:
+        hid = read("src/ble_hid.rs")
+        self.assertIn("raw::sd_ble_gatts_value_get(connection_handle, *handle", hid)
+        self.assertIn("keyboard_input.cccd_handle", hid)
+        self.assertIn("consumer_input.cccd_handle", hid)
+        self.assertIn("pointer_input.cccd_handle", hid)
+        central = read("src/bin/central.rs")
+        notify = central.split("async fn notify_ble_reports(", 1)[1].split("async fn notify_dongle_reports", 1)[0]
+        self.assertIn("server.hid.notification_mask(connection)", notify)
+        for bit in (1, 2, 4):
+            self.assertEqual(notify.count(f"subscriptions & {bit} != 0"), 2)
+
+    def test_host_pairing_services_gatt_before_encryption_is_ready(self) -> None:
+        central = read("src/bin/central.rs")
+        security = central.split("async fn wait_for_host_security(", 1)[1].split("async fn run_ble_host", 1)[0]
+        # SYS_ATTR_MISSING and deferred reads cannot wait for the security they help establish.
+        self.assertIn("gatt_server::run(connection, server,", security)
+        self.assertIn("select(", security)
+        self.assertIn("connection.security_mode()", security)
+        self.assertIn("OUTPUT.should_send_ble() && BONDS.is_pairing()", security)
+        self.assertIn("1_500", security)
+        self.assertIn("250", security)
+        self.assertEqual(central.count("wait_for_host_security(&connection, server).await"), 2)
+
     def test_host_advertising_failures_leave_keys_usb_and_mode_changes_runnable(self) -> None:
         central = read("src/bin/central.rs")
         host = central.split("async fn run_ble_host(", 1)[1].split("fn set_right_clock", 1)[0]
@@ -19,14 +43,13 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("Timer::after(Duration::from_millis(100)), wait_ble_event()", retry)
         self.assertIn("apply_ble_event(event)", retry)
         self.assertIn("SplitDiagnosticEvent::AdvertisingError", retry)
-        self.assertEqual(
-            host.count("disconnect_ble(&connection).await;\n" + "            if let Some(event) = event"),
-            1,
-        )
-        self.assertEqual(
-            host.count("disconnect_ble(&connection).await;\n" + "        if let Some(event) = event"),
-            1,
-        )
+        cleanup_paths = host.split("let event = match select3(")[1:]
+        self.assertEqual(len(cleanup_paths), 2)
+        for cleanup in cleanup_paths:
+            self.assertLess(
+                cleanup.index("disconnect_ble(&connection).await;"),
+                cleanup.index("if let Some(event) = event"),
+            )
 
     def test_linker_and_storage_boundaries_preserve_factory_regions(self) -> None:
         memory = read("memory.x")

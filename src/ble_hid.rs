@@ -3,6 +3,7 @@ use nrf_softdevice::ble::gatt_server::builder::ServiceBuilder;
 use nrf_softdevice::ble::gatt_server::characteristic::{Attribute, Metadata, Properties};
 use nrf_softdevice::ble::gatt_server::{self, RegisterError, WriteOp};
 use nrf_softdevice::ble::{Connection, SecurityMode, Uuid};
+use nrf_softdevice::raw;
 
 use crate::battery_ble::BatteryService;
 use crate::battery_telemetry::BatterySnapshot;
@@ -27,6 +28,7 @@ pub struct HidService {
     keyboard_input: u16,
     consumer_input: u16,
     pointer_input: u16,
+    input_cccds: [u16; 3],
 }
 
 impl HidService {
@@ -71,7 +73,7 @@ impl HidService {
             REPORT_REFERENCE,
             Attribute::new([KEYBOARD_REPORT_ID, 1_u8]).security(SecurityMode::JustWorks),
         )?;
-        let keyboard_input = keyboard_input.build().value_handle;
+        let keyboard_input = keyboard_input.build();
 
         let mut keyboard_output = service.add_characteristic(
             HID_REPORT,
@@ -94,7 +96,7 @@ impl HidService {
             REPORT_REFERENCE,
             Attribute::new([CONSUMER_REPORT_ID, 1_u8]).security(SecurityMode::JustWorks),
         )?;
-        let consumer_input = consumer_input.build().value_handle;
+        let consumer_input = consumer_input.build();
 
         let mut pointer_input = service.add_characteristic(
             HID_REPORT,
@@ -105,14 +107,41 @@ impl HidService {
             REPORT_REFERENCE,
             Attribute::new([POINTER_REPORT_ID, 1_u8]).security(SecurityMode::JustWorks),
         )?;
-        let pointer_input = pointer_input.build().value_handle;
+        let pointer_input = pointer_input.build();
 
         service.build();
         Ok(Self {
-            keyboard_input,
-            consumer_input,
-            pointer_input,
+            keyboard_input: keyboard_input.value_handle,
+            consumer_input: consumer_input.value_handle,
+            pointer_input: pointer_input.value_handle,
+            input_cccds: [
+                keyboard_input.cccd_handle,
+                consumer_input.cccd_handle,
+                pointer_input.cccd_handle,
+            ],
         })
+    }
+
+    pub fn notification_mask(&self, connection: &Connection) -> u8 {
+        let Some(connection_handle) = connection.handle() else {
+            return 0;
+        };
+        let mut mask = 0;
+        for (index, handle) in self.input_cccds.iter().enumerate() {
+            let mut bytes = [0; 2];
+            let mut value = raw::ble_gatts_value_t {
+                p_value: bytes.as_mut_ptr(),
+                len: 2,
+                offset: 0,
+            };
+            // CCCDs belong to the connection, including subscriptions restored from a bond.
+            let result =
+                unsafe { raw::sd_ble_gatts_value_get(connection_handle, *handle, &mut value) };
+            if result == raw::NRF_SUCCESS && value.len == 2 && bytes == [1, 0] {
+                mask |= 1 << index;
+            }
+        }
+        mask
     }
 
     pub fn notify_keyboard(

@@ -620,14 +620,24 @@ async fn notify_ble_reports(connection: &nrf_softdevice::ble::Connection, server
     OUTPUT.synchronize_ble();
     loop {
         let frame = OUTPUT.wait_ble().await;
+        let subscriptions = server.hid.notification_mask(connection);
         if OUTPUT.take_ble_release() {
             let empty = ReportFrame::default();
-            if !send_ble_notification(|| server.hid.notify_keyboard(connection, &empty.keyboard))
-                .await
-                || !send_ble_notification(|| server.hid.notify_consumer(connection, empty.consumer))
-                    .await
-                || !send_ble_notification(|| server.hid.notify_pointer(connection, &empty.pointer))
-                    .await
+            if (subscriptions & 1 != 0
+                && !send_ble_notification(|| {
+                    server.hid.notify_keyboard(connection, &empty.keyboard)
+                })
+                .await)
+                || (subscriptions & 2 != 0
+                    && !send_ble_notification(|| {
+                        server.hid.notify_consumer(connection, empty.consumer)
+                    })
+                    .await)
+                || (subscriptions & 4 != 0
+                    && !send_ble_notification(|| {
+                        server.hid.notify_pointer(connection, &empty.pointer)
+                    })
+                    .await)
             {
                 return;
             }
@@ -635,11 +645,17 @@ async fn notify_ble_reports(connection: &nrf_softdevice::ble::Connection, server
         if !OUTPUT.should_send_ble() {
             continue;
         }
-        if !send_ble_notification(|| server.hid.notify_keyboard(connection, &frame.keyboard)).await
-            || !send_ble_notification(|| server.hid.notify_consumer(connection, frame.consumer))
-                .await
-            || !send_ble_notification(|| server.hid.notify_pointer(connection, &frame.pointer))
-                .await
+        if (subscriptions & 1 != 0
+            && !send_ble_notification(|| server.hid.notify_keyboard(connection, &frame.keyboard))
+                .await)
+            || (subscriptions & 2 != 0
+                && !send_ble_notification(|| {
+                    server.hid.notify_consumer(connection, frame.consumer)
+                })
+                .await)
+            || (subscriptions & 4 != 0
+                && !send_ble_notification(|| server.hid.notify_pointer(connection, &frame.pointer))
+                    .await)
         {
             return;
         }
@@ -684,7 +700,15 @@ async fn send_ble_notification(mut send: impl FnMut() -> Result<(), NotifyValueE
             Err(NotifyValueError::Raw(RawError::Resources | RawError::Busy)) => {
                 Timer::after(Duration::from_millis(5)).await;
             }
-            Err(NotifyValueError::Raw(_)) => return false,
+            Err(NotifyValueError::Raw(error)) => {
+                SPLIT_DIAGNOSTICS.record(
+                    SplitDiagnosticEvent::HidNotificationError,
+                    0,
+                    0,
+                    u64::from(error as u32),
+                );
+                return false;
+            }
         }
     }
     false
@@ -806,28 +830,42 @@ async fn wait_for_security(connection: &nrf_softdevice::ble::Connection) -> bool
 
 async fn wait_for_host_security(
     connection: &nrf_softdevice::ble::Connection,
+    server: &BleHidServer,
 ) -> Result<bool, BleEvent> {
-    for _ in 0..250 {
-        if connection.handle().is_none() {
-            return Ok(false);
+    // Windows may still be discovering a new device before it starts bonding.
+    let attempts = if OUTPUT.should_send_ble() && BONDS.is_pairing() {
+        1_500
+    } else {
+        250
+    };
+    let security = async {
+        for _ in 0..attempts {
+            if connection.handle().is_none() {
+                return Ok(false);
+            }
+            if matches!(
+                connection.security_mode(),
+                SecurityMode::JustWorks
+                    | SecurityMode::Mitm
+                    | SecurityMode::LescMitm
+                    | SecurityMode::Signed
+                    | SecurityMode::SignedMitm
+            ) {
+                return Ok(true);
+            }
+            if let Either::Second(event) =
+                select(Timer::after(Duration::from_millis(20)), wait_ble_event()).await
+            {
+                return Err(event);
+            }
         }
-        if matches!(
-            connection.security_mode(),
-            SecurityMode::JustWorks
-                | SecurityMode::Mitm
-                | SecurityMode::LescMitm
-                | SecurityMode::Signed
-                | SecurityMode::SignedMitm
-        ) {
-            return Ok(true);
-        }
-        if let Either::Second(event) =
-            select(Timer::after(Duration::from_millis(20)), wait_ble_event()).await
-        {
-            return Err(event);
-        }
+        Ok(false)
+    };
+    // Discovery can request system attributes or deferred reads before pairing completes.
+    match select(gatt_server::run(connection, server, |_| {}), security).await {
+        Either::First(_) => Ok(false),
+        Either::Second(result) => result,
     }
-    Ok(false)
 }
 
 async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
@@ -908,7 +946,7 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             let security = if BONDS.accepts_dongle_connection(&connection)
                 && connection.request_security().is_ok()
             {
-                wait_for_host_security(&connection).await
+                wait_for_host_security(&connection, server).await
             } else {
                 Ok(false)
             };
@@ -969,6 +1007,12 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             interval: 32, // 20 ms while waiting for the selected host
             ..Default::default()
         };
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::HostAdvertising,
+            profile as i8,
+            0,
+            u64::from(BONDS.is_pairing()),
+        );
         let advertising = peripheral::advertise_pairable(
             softdevice,
             peripheral::ConnectableAdvertisement::ScannableUndirected {
@@ -989,9 +1033,15 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
                 continue;
             }
         };
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::HostConnected,
+            profile as i8,
+            u16::from(BONDS.accepts_connection(&connection)),
+            address_data(connection.peer_address()),
+        );
         let security =
             if BONDS.accepts_connection(&connection) && connection.request_security().is_ok() {
-                wait_for_host_security(&connection).await
+                wait_for_host_security(&connection, server).await
             } else {
                 Ok(false)
             };
@@ -1003,7 +1053,14 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
                 continue;
             }
         };
-        if !secured || !BONDS.restore_sys_attrs(&connection) {
+        let restored = secured && BONDS.restore_sys_attrs(&connection);
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::HostSecurity,
+            profile as i8,
+            u16::from(secured) | (u16::from(restored) << 1),
+            u64::from(connection.disconnect_reason().map(u8::from).unwrap_or(0)),
+        );
+        if !restored {
             disconnect_ble(&connection).await;
             continue;
         }
@@ -1029,6 +1086,12 @@ async fn run_ble_host(softdevice: &Softdevice, server: &BleHidServer) -> ! {
             Either3::Third(event) => Some(event),
         };
         disconnect_ble(&connection).await;
+        SPLIT_DIAGNOSTICS.record(
+            SplitDiagnosticEvent::HostDisconnected,
+            profile as i8,
+            0,
+            u64::from(connection.disconnect_reason().map(u8::from).unwrap_or(0)),
+        );
         if let Some(event) = event {
             apply_ble_event(event);
         }

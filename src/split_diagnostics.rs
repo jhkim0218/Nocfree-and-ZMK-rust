@@ -41,6 +41,11 @@ pub enum SplitDiagnosticEvent {
     KeyScanConfigured = 19,
     KeyScanInputs = 20,
     BacklightPwm = 21,
+    HostAdvertising = 22,
+    HostConnected = 23,
+    HostSecurity = 24,
+    HostDisconnected = 25,
+    HidNotificationError = 26,
 }
 
 pub fn pack_address(flags: u8, bytes: [u8; 6]) -> u64 {
